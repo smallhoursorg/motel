@@ -75,7 +75,7 @@ as root and the data world-readable: measured in the e2e box (systemd
 whose reboot at about 17:53 UTC brought both proxies up as no root.
 The namespace unit's test for a leftover before its delete (#430,
 2026-11-12) has met a leftover in the e2e box alone: a cold boot has an
-empty `/run`, so hotserve-1's took the nothing-to-delete branch. A fourth cold boot, on
+empty `/run`, so hotserve-1's cold boot took the nothing-to-delete branch.
 2026-11-11 at 15:04 UTC with motel (9228935) rendering `rules.yml` and
 pushing, brought every
 unit up within a second of the namespace (the am proxy's service at its
