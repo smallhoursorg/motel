@@ -90,6 +90,9 @@ func TestMain(m *testing.M) {
 func motelBinary(t *testing.T) string {
 	t.Helper()
 	buildOnce.Do(func() {
+		if buildErr = statMotelSources(); buildErr != nil {
+			return
+		}
 		dir, err := os.MkdirTemp("", "motel-bin")
 		if err != nil {
 			buildErr = err
@@ -105,6 +108,52 @@ func motelBinary(t *testing.T) string {
 		t.Fatal(buildErr)
 	}
 	return builtBin
+}
+
+// statMotelSources stats every file of this workspace the motel binary
+// is built from, with go.work and each module's go.mod and go.sum. Go's
+// test cache keys a package's results on its imports and on the files
+// its tests open or stat; motelBinary builds the binary in a
+// subprocess, which the cache cannot see, so a change to cmd/motel, or
+// to a package of another module that only it imports, left this
+// package's results "(cached)" [measured: a line added to
+// cmd/motel/main.go, and a test that runs the binary answered
+// (cached)]. A module-cache package is fixed by its version, which
+// go.sum holds.
+func statMotelSources() error {
+	const files = `{{if and .Module .Module.Main}}{{$d := .Dir}}` +
+		`{{range .GoFiles}}{{$d}}/{{.}}{{"\n"}}{{end}}{{range .CgoFiles}}{{$d}}/{{.}}{{"\n"}}{{end}}` +
+		`{{range .SFiles}}{{$d}}/{{.}}{{"\n"}}{{end}}{{range .EmbedFiles}}{{$d}}/{{.}}{{"\n"}}{{end}}` +
+		`{{.Module.GoMod}}{{"\n"}}{{end}}`
+	out, err := exec.Command("go", "list", "-deps", "-f", files, "github.com/smallhoursorg/motel/cmd/motel").Output()
+	if err != nil {
+		return fmt.Errorf("go list motel's sources: %w", err)
+	}
+	work, err := exec.Command("go", "env", "GOWORK").Output()
+	if err != nil {
+		return fmt.Errorf("go env GOWORK: %w", err)
+	}
+	paths := strings.Fields(string(out))
+	if w := strings.TrimSpace(string(work)); w != "" && w != "off" {
+		paths = append(paths, w, w+".sum")
+	}
+	seen := map[string]bool{}
+	for _, p := range paths {
+		if strings.HasSuffix(p, "/go.mod") {
+			paths = append(paths, strings.TrimSuffix(p, "mod")+"sum")
+		}
+		if seen[p] {
+			continue
+		}
+		seen[p] = true
+		// The stat is what the cache records; a go.sum or go.work.sum
+		// that is not there is recorded as absent, which is as much.
+		_, _ = os.Stat(p)
+	}
+	if len(seen) < 10 {
+		return fmt.Errorf("go list named %d of motel's files, too few to be all of them: %q", len(seen), paths)
+	}
+	return nil
 }
 
 // boxRepo is a clone of a repository made from the template: its first
