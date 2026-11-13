@@ -99,10 +99,20 @@ func metricsSetup(sys system, root string, out io.Writer) (err error) {
 	if err != nil {
 		return fmt.Errorf("the motel user: %w (is motel installed?)", err)
 	}
+	// Which packages are there, asked before the mask, so that the mask's
+	// line names its reason: an install, or on a re-run none.
+	var pkgs, have []string
+	for _, p := range []string{vmPackage, ipPackage} {
+		if sys.installed(p) {
+			have = append(have, p)
+		} else {
+			pkgs = append(pkgs, p)
+		}
+	}
 	if err := sys.run("systemctl", "mask", vmService); err != nil {
 		return err
 	}
-	say("masked %s, so the install starts nothing", vmService)
+	say("%s", maskSaid(vmService, len(pkgs) > 0))
 	// Set when the proxy shape's port is free (every unit is written by
 	// then): from there on a failure may leave vmalert no outlet unless
 	// Alertmanager takes up its socket in the namespace.
@@ -119,13 +129,8 @@ func metricsSetup(sys system, root string, out io.Writer) (err error) {
 	if err := sys.run("systemctl", "stop", vmService); err != nil {
 		return err
 	}
-	var pkgs []string
-	for _, p := range []string{vmPackage, ipPackage} {
-		if sys.installed(p) {
-			say("%s is installed", p)
-		} else {
-			pkgs = append(pkgs, p)
-		}
+	for _, p := range have {
+		say("%s is installed", p)
 	}
 	if len(pkgs) > 0 {
 		if err := sys.run("apt-get", append([]string{"install", "-y", "--no-install-recommends"}, pkgs...)...); err != nil {

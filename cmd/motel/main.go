@@ -12,6 +12,7 @@ package main
 import (
 	"os"
 
+	"github.com/caddyserver/caddy/v2"
 	caddycmd "github.com/caddyserver/caddy/v2/cmd"
 
 	// Standard Caddy modules — this is what makes the binary equivalent
@@ -46,5 +47,9 @@ func main() {
 	if len(os.Args) > 1 {
 		notify.SetCommand(os.Args[1])
 	}
+	// The binary's name in every usage line and help text Caddy's CLI
+	// prints (`motel monitor setup [--metrics]`, not `caddy monitor …`).
+	// The root's long description and examples stay Caddy's own text.
+	caddy.CustomBinaryName = "motel"
 	caddycmd.Main()
 }

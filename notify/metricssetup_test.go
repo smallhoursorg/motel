@@ -80,6 +80,9 @@ func TestMetricsSetupOrderAndFiles(t *testing.T) {
 	if !strings.Contains(out.String(), "installed victoria-metrics iproute2\n") {
 		t.Errorf("setup said:\n%s", out.String())
 	}
+	if !strings.HasPrefix(out.String(), "masked victoria-metrics.service, so the install starts nothing\n") {
+		t.Errorf("a first run's mask: setup said\n%s", out.String())
+	}
 	for _, u := range metricsUnits() {
 		b, err := os.ReadFile(filepath.Join(root, u.path))
 		if err != nil {
@@ -127,6 +130,12 @@ func TestMetricsSetupOrderAndFiles(t *testing.T) {
 	}
 	if f1.cmds[0] != "systemctl mask victoria-metrics.service" || slices.ContainsFunc(f1.cmds, func(c string) bool { return strings.HasPrefix(c, "apt-get") }) {
 		t.Fatalf("re-run: %v", f1.cmds)
+	}
+	// It installs nothing, so its mask is not said to be for an install
+	// (the deploy of a8038b4 to hotserve-1).
+	if !strings.HasPrefix(out.String(), "masked victoria-metrics.service, so nothing starts it while its units are written\nvictoria-metrics is installed\niproute2 is installed\n") ||
+		strings.Contains(out.String(), "install starts nothing") {
+		t.Errorf("a re-run's mask: setup said\n%s", out.String())
 	}
 	if slices.ContainsFunc(f1.cmds, func(c string) bool { return strings.Contains(c, amService) }) ||
 		!strings.Contains(out.String(), "Alertmanager listens in the namespace already (motel-am-metrics.socket): left as it runs") {
@@ -312,7 +321,9 @@ func TestMetricsSetupRetiresTheProxyShape(t *testing.T) {
 // caps; the store's proxy's user, the drop-in's chmod, the namespace
 // unit's test for a leftover, its start's limit and its restart of a
 // deaf Alertmanager, and Alertmanager's own socket in the namespace were
-// measured in the e2e box only (notify/DESIGN-metrics.md, "The shape").
+// measured in the e2e box first, then ran on hotserve-1 through a deploy
+// and a cold boot; the delete of a leftover namespace in the e2e box alone
+// (notify/DESIGN-metrics.md, "The shape").
 func TestMetricsUnitsAreTheMeasuredOnes(t *testing.T) {
 	has := func(name string, unit []byte, wants ...string) {
 		t.Helper()
