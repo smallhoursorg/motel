@@ -217,7 +217,10 @@ fi
 
 echo "=== metrics 3: GET /<app> ==="
 m=""
-end=$(( $(date +%s) + 90 ))
+# 150 s, not 90: a rate needs two pushes 30 s apart, the store aligns
+# the range's end down to the 60 s step, and the view caches for 30 s,
+# so cpu_cores can first show about 123 s after the first push.
+end=$(( $(date +%s) + 150 ))
 while [ "$(date +%s)" -lt "$end" ]; do
 	m=$(status)
 	if [ "$MEMORY" = 1 ]; then
