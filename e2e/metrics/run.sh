@@ -74,24 +74,24 @@ RELOAD_WAIT=15
 # so a part that moves the store, Alertmanager or the Caddyfile moves
 # them for its own split alone. The shared sink is read by 10 alone, for
 # lines only the rules split's deploy can make.
-all="vm 3 3a 4 4a 4b 4c 4d 5 6 7 8 9 10 11"
-view="vm 3 3a" vmalert="4 4a" store="4b 4c 4d 5 6" rules="5 7 8 9 10 11"
+split_all="vm 3 3a 4 4a 4b 4c 4d 5 6 7 8 9 10 11"
+split_view="vm 3 3a" split_vmalert="4 4a" split_store="4b 4c 4d 5 6" split_rules="5 7 8 9 10 11"
 case "${SPLIT:=all}" in
-all) parts=$all ;;
-view) parts=$view ;;
-vmalert) parts=$vmalert ;;
-store) parts=$store ;;
-rules) parts=$rules ;;
+all) parts=$split_all ;;
+view) parts=$split_view ;;
+vmalert) parts=$split_vmalert ;;
+store) parts=$split_store ;;
+rules) parts=$split_rules ;;
 *) echo "FATAL: SPLIT=$SPLIT: all, view, vmalert, store or rules"; exit 1 ;;
 esac
 # Every part is in all and in some split, and every name in them is a
 # part: `make e2e-metrics` runs the splits, so a part in all alone would
 # never run there. Refused here, by name, on every box.
 for d in $(sed -n 's/^m\([0-9a-z]*\)() {$/\1/p' "$0"); do
-	case " $all " in *" $d "*) ;; *) echo "FATAL: part $d is not in all"; exit 1 ;; esac
-	case " $view $vmalert $store $rules " in *" $d "*) ;; *) echo "FATAL: part $d is in no split"; exit 1 ;; esac
+	case " $split_all " in *" $d "*) ;; *) echo "FATAL: part $d is not in all"; exit 1 ;; esac
+	case " $split_view $split_vmalert $split_store $split_rules " in *" $d "*) ;; *) echo "FATAL: part $d is in no split"; exit 1 ;; esac
 done
-for d in $all $view $vmalert $store $rules; do
+for d in $split_all $split_view $split_vmalert $split_store $split_rules; do
 	grep -q "^m$d() {$" "$0" || { echo "FATAL: $d names no part (no function m$d)"; exit 1; }
 done
 
@@ -490,6 +490,11 @@ echo "=== metrics 4b: a read-only store is told by motel, as itself ==="
 # The store's free-space floor set above any disk: it is read-only from
 # its start, refuses motel's imports and its own scrapes, and no rule
 # can see the flag. motel reads it from the store's /metrics.
+# The check below reads a sample of the store's free space from before
+# the floor: the store split comes here straight from the prelude, which
+# may end before the store's first self-scrape.
+a=$(wait_result free-space 'vm_free_disk_space_bytes{job="victoria-metrics"}' 60) \
+	|| fail "no sample of the store's free space in 60 s, before its read-only start"
 dropin=/etc/systemd/system/victoria-metrics.service.d
 {
 	echo '[Service]'
