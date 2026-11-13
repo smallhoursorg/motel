@@ -56,6 +56,14 @@ func validate(t *testing.T, src string) error {
 	return caddy.Validate(&cfg)
 }
 
+// useStateDir stands dir in for the state directory for one test.
+func useStateDir(t *testing.T, dir string) {
+	t.Helper()
+	was := theStateDir
+	theStateDir = dir
+	t.Cleanup(func() { theStateDir = was })
+}
+
 // TestValidateThroughCaddy holds Provision to its promise: the
 // refusals reach `motel validate`, read the apps as liveswap built
 // them, and touch nothing on disk.
@@ -70,6 +78,7 @@ func TestValidateThroughCaddy(t *testing.T) {
 		t.Fatal(err)
 	}
 	state := filepath.Join(dir, "state")
+	useStateDir(t, state)
 	file := func(binding string) string {
 		return `{
 	admin off
@@ -90,7 +99,6 @@ func TestValidateThroughCaddy(t *testing.T) {
 		operator ops
 		` + binding + `
 		secrets_file ` + secrets + `
-		state_dir ` + state + `
 	}
 }
 :8080 {
@@ -231,7 +239,7 @@ func TestValidateTakesAPushsSecretsAsHeld(t *testing.T) {
 			line = "\t\tsecrets_file " + secretsFile + "\n"
 		}
 		return "{\n\tadmin off\n\tmonitor {\n\t\tchannel ops ntfy {secret.NOTIFY_OPS_URL}\n\t\toperator ops\n" + line +
-			"\t\tstate_dir " + t.TempDir() + "\n\t}\n}\n:8080 {\n\trespond ok\n}\n"
+			"\t}\n}\n:8080 {\n\trespond ok\n}\n"
 	}
 	t.Setenv(PushedSecretsEnv, "NOTIFY_OTHER_URL,NOTIFY_OPS_URL")
 	SetCommand("validate")
@@ -278,7 +286,7 @@ func TestBootDropsAMissingSecret(t *testing.T) {
 		t.Fatal(err)
 	}
 	src := "{\n\tadmin off\n\tmonitor {\n\t\tchannel ops ntfy {secret.NOTIFY_OPS_URL}\n\t\tchannel spare json {secret.NOTIFY_SPARE_URL}\n\t\toperator ops spare\n\t\tsecrets_file " + secrets +
-		"\n\t\tstate_dir " + filepath.Join(dir, "state") + "\n\t}\n}\n:8080 {\n\trespond ok\n}\n"
+		"\n\t}\n}\n:8080 {\n\trespond ok\n}\n"
 	for _, c := range []struct {
 		cmd     string
 		running bool
@@ -314,7 +322,7 @@ func TestBootDropsTheChannelsOfAnUnusableSecretsFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	src := "{\n\tadmin off\n\tmonitor {\n\t\tchannel ops ntfy {secret.NOTIFY_OPS_URL}\n\t\toperator ops\n\t\tsecrets_file " + secrets +
-		"\n\t\tstate_dir " + filepath.Join(dir, "state") + "\n\t}\n}\n:8080 {\n\trespond ok\n}\n"
+		"\n\t}\n}\n:8080 {\n\trespond ok\n}\n"
 	for _, c := range []struct {
 		cmd     string
 		running bool
@@ -433,9 +441,9 @@ func TestAMetricsLineAloneIsTheStoreWithoutNotify(t *testing.T) {
 	}{
 		{"an empty block", []string{""}, "no operator line"},
 		{"an option alone", []string{"deploy_succeeded on"}, "no operator line"},
-		{"metrics and an option", []string{"metrics", "state_dir /tmp/x"}, "no operator line"},
+		{"metrics and an option", []string{"metrics", "secrets_file /tmp/x"}, "no operator line"},
 		{"metrics and an option at its default", []string{"metrics", "deploy_succeeded off"}, "no operator line"},
-		{"metrics and an empty path", []string{"metrics", `state_dir ""`}, "state_dir takes a path, not an empty string"},
+		{"metrics and an empty path", []string{"metrics", `secrets_file ""`}, "secrets_file takes a path, not an empty string"},
 		{"metrics and an operator line", []string{"metrics", "operator ops"}, "operator names ops, which no channel line defines"},
 		{"metrics and a channel", []string{"metrics", "channel ops ntfy {secret.NOTIFY_OPS_URL}"}, "no operator line"},
 		{"a relative socket in the JSON", nil, "is not an absolute path"},
@@ -487,8 +495,9 @@ func TestStartAndStopBothParts(t *testing.T) {
 		t.Fatal(err)
 	}
 	both := "{\n\tadmin off\n\tmonitor {\n\t\tchannel ops ntfy {secret.NOTIFY_OPS_URL}\n\t\toperator ops\n\t\tsecrets_file " + secrets +
-		"\n\t\tstate_dir " + filepath.Join(dir, "state") + "\n\t\talertmanager " + filepath.Join(dir, "am.sock") +
+		"\n\t\talertmanager " + filepath.Join(dir, "am.sock") +
 		"\n\t\tbackup_record off\n\t\tmetrics " + filepath.Join(dir, "vm.sock") + "\n\t}\n}\n:8080 {\n\trespond ok\n}\n"
+	useStateDir(t, filepath.Join(dir, "state")) // not made: Start finds no Alertmanager set up
 	alone := "{\n\tadmin off\n\tmonitor {\n\t\tmetrics " + filepath.Join(dir, "vm.sock") + "\n\t}\n}\n:8080 {\n\trespond ok\n}\n"
 	for _, c := range []struct {
 		name, src string
