@@ -69,7 +69,15 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		panic(err)
 	}
-	script := "#!/bin/sh\ncase $1 in *[!0-9.]*|'') exec " + real + " \"$@\" ;; esac\nexec " + real + " $(awk -v s=\"$1\" 'BEGIN{printf \"%.3f\", s/20}')\n"
+	// Whole seconds alone are scaled, in the shell's integer arithmetic
+	// (no awk, whose decimal point is the locale's); anything else goes
+	// to the real sleep as asked.
+	q := "'" + strings.ReplaceAll(real, "'", `'\''`) + "'"
+	script := "#!/bin/sh\n" +
+		"[ $# -eq 1 ] || exec " + q + " \"$@\"\n" +
+		"case $1 in ''|*[!0-9]*) exec " + q + " \"$@\" ;; esac\n" +
+		"ms=$(($1 * 50))\n" +
+		"exec " + q + " \"$((ms / 1000)).$(printf %03d $((ms % 1000)))\"\n"
 	if err := os.WriteFile(filepath.Join(shim, "sleep"), []byte(script), 0o755); err != nil {
 		panic(err)
 	}
@@ -118,10 +126,11 @@ func motelBinary(t *testing.T) string {
 // to a package of another module that only it imports, left this
 // package's results "(cached)" [measured: a line added to
 // cmd/motel/main.go, and a test that runs the binary answered
-// (cached)]. A module-cache package is fixed by its version, which
-// go.sum holds.
+// (cached)]. Each package's directory is stated too, whose time moves
+// when a file is added to it or taken out. A module-cache package is
+// fixed by its version, which go.sum holds.
 func statMotelSources() error {
-	const files = `{{if and .Module .Module.Main}}{{$d := .Dir}}` +
+	const files = `{{if and .Module .Module.Main}}{{$d := .Dir}}{{$d}}{{"\n"}}` +
 		`{{range .GoFiles}}{{$d}}/{{.}}{{"\n"}}{{end}}{{range .CgoFiles}}{{$d}}/{{.}}{{"\n"}}{{end}}` +
 		`{{range .SFiles}}{{$d}}/{{.}}{{"\n"}}{{end}}{{range .EmbedFiles}}{{$d}}/{{.}}{{"\n"}}{{end}}` +
 		`{{.Module.GoMod}}{{"\n"}}{{end}}`
@@ -129,19 +138,19 @@ func statMotelSources() error {
 	if err != nil {
 		return fmt.Errorf("go list motel's sources: %w", err)
 	}
-	work, err := exec.Command("go", "env", "GOWORK").Output()
-	if err != nil {
-		return fmt.Errorf("go env GOWORK: %w", err)
-	}
-	paths := strings.Fields(string(out))
-	if w := strings.TrimSpace(string(work)); w != "" && w != "off" {
-		paths = append(paths, w, w+".sum")
-	}
-	seen := map[string]bool{}
-	for _, p := range paths {
+	// The workspace's files are at the root, the parent of this package's.
+	paths := []string{filepath.Join("..", "go.work"), filepath.Join("..", "go.work.sum")}
+	for _, p := range strings.Split(string(out), "\n") {
+		if p == "" {
+			continue
+		}
+		paths = append(paths, p)
 		if strings.HasSuffix(p, "/go.mod") {
 			paths = append(paths, strings.TrimSuffix(p, "mod")+"sum")
 		}
+	}
+	seen := map[string]bool{}
+	for _, p := range paths {
 		if seen[p] {
 			continue
 		}

@@ -210,8 +210,10 @@ func (r *boxRepo) pasteAtPrompt(t *testing.T, set func(*syscall.Termios), gap ti
 	return shown.String(), code, string(left[:n])
 }
 
+// Not parallel: its pty checks are timed (keys 50 ms apart, a write's
+// echo looked for 100 ms on), and twenty-eight tests forking beside it
+// would make those times the machine's load.
 func TestBoxSecretPrompt(t *testing.T) {
-	t.Parallel()
 	r := secretsRepo(t)
 	r.key("id_ed25519")
 	if out, code := r.run("signer"); code != 0 {
