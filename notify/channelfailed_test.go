@@ -332,29 +332,6 @@ func TestHeartbeatNotHeldWhenTheChannelDeliversAgain(t *testing.T) {
 		t.Fatalf("the heartbeat's own failure holds it: %+v", te.untold)
 	}
 
-	// A counter with no receiver_name (a drop-in without the feature):
-	// the suspects are a guess, and no delivery could end a hold.
-	*body = counters(1, 5, 1, 0) + amLines("heartbeat", 3, 12, 3) + failedLine("webhook", "", "other", 0)
-	te.scrapeFailed(context.Background(), read)
-	*body = counters(1, 5, 1, 0) + amLines("heartbeat", 3, 12, 3) + failedLine("webhook", "", "other", 2)
-	te.scrapeFailed(context.Background(), read)
-	if len(te.untold) != 0 {
-		t.Fatalf("a failure named by no receiver holds the heartbeat: %+v", te.untold)
-	}
-
-	// No heartbeat line: no check off the box to hear a hold.
-	te3, _, body3, read3 := holdEngine(t, `monitor {
-	channel ops ntfy {secret.NOTIFY_OPS_URL}
-	operator ops
-}`)
-	*body3 = counters(0, 3, 0, 0)
-	te3.scrapeFailed(context.Background(), read3)
-	*body3 = counters(1, 4, 1, 0)
-	te3.scrapeFailed(context.Background(), read3)
-	if len(te3.untold) != 0 {
-		t.Fatalf("a block with no heartbeat line records a hold: %+v", te3.untold)
-	}
-
 	// A second operator channel at warning hears ops' failure: no hold.
 	te2, _, body2, read2 := holdEngine(t, `monitor {
 	channel ops ntfy {secret.NOTIFY_OPS_URL}
@@ -417,4 +394,74 @@ func mustResolve(t *testing.T, a *App) *resolved {
 		t.Fatal(err)
 	}
 	return r
+}
+
+// TestHeartbeatNotHeldOnAGuess: a failure whose receiver is not this
+// config's (the counter names none: a drop-in without the feature; or
+// a name from before a reload) has suspects that are a guess and no
+// delivery count by channel to end a hold by: nothing is recorded.
+func TestHeartbeatNotHeldOnAGuess(t *testing.T) {
+	for name, receiver := range map[string]string{"no receiver_name": "", "a receiver from before a reload": "event-box-warning"} {
+		te, _, body, read := holdEngine(t, oneChannelBlock)
+		*body = counters(0, 3, 0, 0) + failedLine("webhook", receiver, "other", 0)
+		te.scrapeFailed(context.Background(), read)
+		*body = counters(0, 3, 0, 0) + failedLine("webhook", receiver, "other", 2)
+		te.scrapeFailed(context.Background(), read)
+		if l := te.lines("monitor: channel failed"); len(l) != 1 {
+			t.Fatalf("%s: the rise was not read: %+v", name, l)
+		}
+		if len(te.untold) != 0 {
+			t.Errorf("%s: recorded %+v", name, te.untold)
+		}
+	}
+}
+
+// TestHeartbeatHoldNeedsAHeartbeatLine: with no heartbeat line there is
+// no check off the box to hear a hold. The failure is recorded but
+// nothing is held and no held line is written; a load that adds the
+// line holds it at the next read, and one that takes the line away
+// ends the hold.
+func TestHeartbeatHoldNeedsAHeartbeatLine(t *testing.T) {
+	const noHeartbeat = `monitor {
+	channel ops ntfy {secret.NOTIFY_OPS_URL}
+	operator ops
+}`
+	te, _, body, read := holdEngine(t, noHeartbeat)
+	*body = counters(0, 3, 0, 0)
+	te.scrapeFailed(context.Background(), read)
+	*body = counters(1, 4, 1, 0)
+	te.scrapeFailed(context.Background(), read)
+	for range 7 {
+		te.advance(time.Minute)
+		te.scrapeFailed(context.Background(), read)
+	}
+	if len(te.untold) != 1 || te.heartbeatHeld() || len(te.lines("monitor: heartbeat held: a failed delivery no channel was told of; the heartbeat's check off the box will report this box down")) != 0 {
+		t.Fatalf("no heartbeat line: untold %+v, held %v", te.untold, te.heartbeatHeld())
+	}
+
+	with := mustParse(t, oneChannelBlock)
+	with.cfg = mustResolve(t, with)
+	_, _, with.receivers = render(with.cfg, testStateDir)
+	te.setConfig(with, te.p, te.known, te.logger)
+	te.advance(time.Minute)
+	te.scrapeFailed(context.Background(), read)
+	if !te.heartbeatHeld() || heartbeats(te) != 0 {
+		t.Fatal("a load that adds the heartbeat line does not hold what stands")
+	}
+
+	without := mustParse(t, noHeartbeat)
+	without.cfg = mustResolve(t, without)
+	_, _, without.receivers = render(without.cfg, testStateDir)
+	te.setConfig(without, te.p, te.known, te.logger)
+	if te.heartbeatHeld() {
+		t.Fatal("a load that takes the heartbeat line away keeps the hold")
+	}
+	if l := te.lines("monitor: heartbeat resumed"); len(l) != 1 || l[0].ContextMap()["why"] != "the config has no heartbeat line" {
+		t.Fatalf("resumed lines = %+v", l)
+	}
+	te.advance(time.Minute)
+	te.scrapeFailed(context.Background(), read)
+	if te.heartbeatHeld() {
+		t.Fatal("held again with no heartbeat line")
+	}
 }

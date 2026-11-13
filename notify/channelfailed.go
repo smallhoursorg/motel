@@ -138,13 +138,8 @@ func (e *engine) scrapeFailed(ctx context.Context, read func(context.Context) ([
 			}
 		}
 		// No channel to tell: the heartbeat is what can, by stopping.
-		// A failure with no suspect is the heartbeat's own, which its
-		// check off the box hears already. One the counter names no
-		// receiver for has suspects that are a guess, and no delivery
-		// count of their own to end a hold by; with no heartbeat line
-		// there is no check off the box to hear a hold.
-		if len(to) == 0 && len(sus) > 0 && s.receiver != "" && e.active.cfg != nil && e.active.cfg.heartbeat != "" {
-			e.untoldFor(key, sus, m, now)
+		if len(to) == 0 {
+			e.untoldFor(key, s.receiver, sus, m, now)
 		}
 		if !e.bucketFor(key).take(now) {
 			e.logger.Warn("monitor: channel failed", append(fields, zap.String("suppressed", "more than four an hour for this key"))...)
@@ -216,8 +211,18 @@ func deliveries(m amMetrics, receiver string) float64 {
 }
 
 // untoldFor records a failure told to no channel; one recorded already
-// for the same suspects keeps its start. With mu held.
-func (e *engine) untoldFor(key string, sus []string, m amMetrics, now time.Time) {
+// for the same suspects keeps its start. A failure with no suspect is
+// the heartbeat's own, which its check off the box hears already. One
+// whose receiver is not this config's (the counter names none, or a
+// name from before a reload) has suspects that are a guess, and no
+// delivery count by channel to end a hold by. With mu held.
+func (e *engine) untoldFor(key, receiver string, sus []string, m amMetrics, now time.Time) {
+	if len(sus) == 0 {
+		return
+	}
+	if _, known := e.fail.channels[receiver]; !known {
+		return
+	}
 	if _, ok := e.untold[key]; ok {
 		return
 	}
@@ -251,7 +256,9 @@ func (e *engine) watchUntold(m amMetrics, now time.Time) {
 			delete(e.untold, key)
 			continue
 		}
-		if !u.held && now.Sub(u.since) >= heartbeatHoldAfter {
+		// With no heartbeat line there is no check off the box to hear a
+		// hold: what stands is recorded, and held once a load adds one.
+		if !u.held && now.Sub(u.since) >= heartbeatHoldAfter && e.heartbeatSet() {
 			u.held = true
 			e.logger.Warn("monitor: heartbeat held: a failed delivery no channel was told of; the heartbeat's check off the box will report this box down",
 				zap.Strings("suspects", u.suspects), zap.Time("failed_at", u.since),
@@ -271,10 +278,24 @@ func (e *engine) heartbeatHeld() bool {
 	return false
 }
 
+// heartbeatSet reports whether the config the engine serves has a
+// heartbeat line. With mu held.
+func (e *engine) heartbeatSet() bool {
+	return e.active != nil && e.active.cfg != nil && e.active.cfg.heartbeat != ""
+}
+
 // keepUntold drops, at a config load, what records only channels the
 // new config no longer has: nothing can deliver through them, and the
-// hold would stand until a restart. With mu held.
+// hold would stand until a restart. A config with no heartbeat line
+// keeps what stands but holds nothing (watchUntold holds it again once
+// a load adds the line). With mu held.
 func (e *engine) keepUntold(channels map[string]Channel) {
+	for _, u := range e.untold {
+		if u.held && !e.heartbeatSet() {
+			u.held = false
+			e.logger.Info("monitor: heartbeat resumed", zap.Strings("suspects", u.suspects), zap.String("why", "the config has no heartbeat line"))
+		}
+	}
 	for key, u := range e.untold {
 		if slices.ContainsFunc(u.suspects, func(c string) bool { _, ok := channels[c]; return ok }) {
 			continue
