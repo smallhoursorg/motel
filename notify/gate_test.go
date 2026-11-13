@@ -100,7 +100,7 @@ func TestLoadWarningsSayStaleUnits(t *testing.T) {
 		t.Fatal(err)
 	}
 	if w := LoadWarnings("run", both); !slices.ContainsFunc(w, func(s string) bool {
-		return strings.Contains(s, scrape+" could not be read to compare it")
+		return strings.Contains(s, scrape+" could not be compared with this motel's (is a directory)") && strings.Count(s, scrape) == 1
 	}) {
 		t.Fatalf("an unreadable scrape.yml: %v", w)
 	}

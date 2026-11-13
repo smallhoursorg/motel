@@ -349,7 +349,7 @@ which name the old commands (`systemctl status` shows
 again then renames them and sets the store's clocks. Either way, motel says when it is due:
 from this version, every load (`motel validate`, `motel reload`, and
 the restart onto the new binary, in the journal) warns `monitor: the
-units motel monitor setup wrote differ from this motel's (…)` for as
+units motel monitor setup wrote differ from this motel's (…)` (for the store's, `monitor: the files motel monitor setup --metrics wrote differ …`) for as
 long as a unit differs from the one this binary would write, comments
 aside, and names the setup to run.
 

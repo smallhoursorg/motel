@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -57,7 +58,12 @@ func LoadWarnings(cmd string, monitor []byte) []string {
 		switch same, err := sameYAML(filepath.Join(unitRoot, scrape), scrapeConfig); {
 		case errors.Is(err, fs.ErrNotExist):
 		case err != nil:
-			out = append(out, "monitor: "+scrape+" could not be read to compare it with this motel's ("+err.Error()+"): run this as root or as motel to check it")
+			// The reason alone: a read's error names the path again.
+			var pe *fs.PathError
+			if errors.As(err, &pe) {
+				err = pe.Err
+			}
+			out = append(out, "monitor: "+scrape+" could not be compared with this motel's ("+err.Error()+"): whether motel monitor setup --metrics is due is not known")
 		case !same:
 			stale = append(stale, scrape)
 		}
@@ -163,7 +169,8 @@ func sameYAML(path string, want []byte) (bool, error) {
 		return false, nil
 	}
 	if err := yaml.Unmarshal(want, &exp); err != nil {
-		panic("sameYAML: this binary's own file is not YAML: " + err.Error())
+		// Tests parse the embedded file; a load warns, never panics.
+		return false, fmt.Errorf("this motel's own copy is not YAML: %w", err)
 	}
 	return reflect.DeepEqual(got, exp), nil
 }

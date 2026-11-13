@@ -637,7 +637,7 @@ type storeRead struct{ name, job string }
 // labelLists take a parenthesised list of label names, not series.
 var labelLists = map[string]bool{"by": true, "without": true, "on": true, "ignoring": true, "group_left": true, "group_right": true}
 
-var promWords = map[string]bool{"and": true, "or": true, "unless": true, "atan2": true, "offset": true, "bool": true, "inf": true, "nan": true}
+var promWords = map[string]bool{"and": true, "or": true, "unless": true, "atan2": true, "default": true, "if": true, "ifnot": true, "offset": true, "bool": true, "keep_metric_names": true, "limit": true, "inf": true, "nan": true}
 
 var matcherRe = regexp.MustCompile(`^\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*(=~|!~|!=|=)\s*("(?:[^"\\]|\\.)*")\s*$`)
 
@@ -723,7 +723,12 @@ func storeReads(expr string) ([]storeRead, error) {
 					j++
 				}
 			}
+			if j >= len(expr) {
+				return nil, fmt.Errorf("%q: a string does not close", expr)
+			}
 			i = j + 1
+		case c == '#':
+			return nil, fmt.Errorf("%q: a comment, which the scan does not read", expr)
 		case c == '[':
 			j := strings.IndexByte(expr[i:], ']')
 			if j < 0 {
@@ -989,6 +994,7 @@ func TestStoreReads(t *testing.T) {
 			[]storeRead{{"a_total", ""}, {"b", ""}, {"c", ""}}},
 		{`{__name__=~"m1|m2",app="blog"}`, []storeRead{{"m1", ""}, {"m2", ""}}},
 		{"label_replace(x, 'dst', '$1', \"src\", `(.*)`) atan2 y", []storeRead{{"x", ""}, {"y", ""}}},
+		{"sum(x) keep_metric_names default 0 or y limit 5", []storeRead{{"x", ""}, {"y", ""}}},
 		{`sum(increase(alertmanager_notifications_failed_total{integration="discord",receiver_name=~"a\\.b|c"}[5m])) > 0`,
 			[]storeRead{{"alertmanager_notifications_failed_total", ""}}},
 		{`scalar(min(tfirst_over_time(process_start_time_seconds{job="motel"}[7m]))) + 15`,
@@ -999,7 +1005,7 @@ func TestStoreReads(t *testing.T) {
 			t.Errorf("storeReads(%s) = %v, %v; want %v", c.expr, got, err, c.want)
 		}
 	}
-	for _, expr := range []string{`up{job=~"a|b"}`, `{__name__=~"vm_.*"}`, `{app="x"}`, `x{y="z"`} {
+	for _, expr := range []string{`up{job=~"a|b"}`, `{__name__=~"vm_.*"}`, `{app="x"}`, `x{y="z"`, `x + 'open`, "x # a comment"} {
 		if got, err := storeReads(expr); err == nil {
 			t.Errorf("storeReads(%s) = %v; want an error", expr, got)
 		}
