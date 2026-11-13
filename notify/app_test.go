@@ -64,6 +64,14 @@ func useStateDir(t *testing.T, dir string) {
 	t.Cleanup(func() { theStateDir = was })
 }
 
+// useSocket stands sock in for Alertmanager's socket for one test.
+func useSocket(t *testing.T, sock string) {
+	t.Helper()
+	was := theSocket
+	theSocket = sock
+	t.Cleanup(func() { theSocket = was })
+}
+
 // TestValidateThroughCaddy holds Provision to its promise: the
 // refusals reach `motel validate`, read the apps as liveswap built
 // them, and touch nothing on disk.
@@ -495,9 +503,9 @@ func TestStartAndStopBothParts(t *testing.T) {
 		t.Fatal(err)
 	}
 	both := "{\n\tadmin off\n\tmonitor {\n\t\tchannel ops ntfy {secret.NOTIFY_OPS_URL}\n\t\toperator ops\n\t\tsecrets_file " + secrets +
-		"\n\t\talertmanager " + filepath.Join(dir, "am.sock") +
 		"\n\t\tbackup_record off\n\t\tmetrics " + filepath.Join(dir, "vm.sock") + "\n\t}\n}\n:8080 {\n\trespond ok\n}\n"
 	useStateDir(t, filepath.Join(dir, "state")) // not made: Start finds no Alertmanager set up
+	useSocket(t, filepath.Join(dir, "am.sock"))
 	alone := "{\n\tadmin off\n\tmonitor {\n\t\tmetrics " + filepath.Join(dir, "vm.sock") + "\n\t}\n}\n:8080 {\n\trespond ok\n}\n"
 	for _, c := range []struct {
 		name, src string

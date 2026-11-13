@@ -29,8 +29,9 @@ const appID = "monitor"
 
 // App is the `monitor` global option. Its notify lines are the
 // channels, who the operator is, which identity's channels an app's
-// events also reach, and where Alertmanager is (DESIGN-notify.md); its
-// metrics line is the store (DESIGN-metrics.md).
+// events also reach, and where the box's secrets and the backup record
+// are (DESIGN-notify.md); its metrics line is the store
+// (DESIGN-metrics.md).
 type App struct {
 	Channels        []Channel `json:"channels,omitempty"`
 	Operator        []string  `json:"operator,omitempty"`
@@ -45,7 +46,6 @@ type App struct {
 	// every load.
 	AllowInsecureChannels bool   `json:"allow_insecure_channels,omitempty"`
 	SecretsFile           string `json:"secrets_file,omitempty"`
-	Socket                string `json:"alertmanager,omitempty"`
 	// BackupRecord is the backup record's path; "off" reads none.
 	BackupRecord string `json:"backup_record,omitempty"`
 	// Metrics is the metrics line, nil for none (DESIGN-metrics.md,
@@ -307,7 +307,7 @@ func (a *App) Start() error {
 
 // startNotify is Start's notify part.
 func (a *App) startNotify() {
-	am := newAMClient(a.socket())
+	am := newAMClient(theSocket)
 	a.applyRender(am)
 	// Every value the box's secrets hold is a known value to the
 	// filter, whatever line names it.
@@ -349,7 +349,7 @@ func (a *App) applyRender(am *amClient) {
 func (a *App) applyNothing() {
 	ctx, cancel := context.WithTimeout(context.Background(), amRequestTimeout)
 	defer cancel()
-	reloaded, err := apply(ctx, theStateDir, defaultConfig, map[string]string{}, newAMClient(a.socket()))
+	reloaded, err := apply(ctx, theStateDir, defaultConfig, map[string]string{}, newAMClient(theSocket))
 	config := zap.String("config", filepath.Join(theStateDir, ConfigName))
 	switch {
 	case errors.Is(err, errNotSetUp):
@@ -386,13 +386,6 @@ var (
 	_ caddy.App         = (*App)(nil)
 	_ caddy.Provisioner = (*App)(nil)
 )
-
-func (a *App) socket() string {
-	if a.Socket == "" {
-		return DefaultSocket
-	}
-	return a.Socket
-}
 
 func (a *App) backupRecord() string {
 	switch a.BackupRecord {

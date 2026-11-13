@@ -497,8 +497,9 @@ func TestReleaseReappliesTheServingRender(t *testing.T) {
 	f, sock := startFakeAM(t)
 	dir := t.TempDir()
 	useStateDir(t, dir)
+	useSocket(t, sock)
 	mk := func(cfg string) *App {
-		return &App{Socket: sock, rendered: []byte(cfg), files: map[string]string{}, logger: zap.NewNop()}
+		return &App{rendered: []byte(cfg), files: map[string]string{}, logger: zap.NewNop()}
 	}
 	e := newEngine()
 	saved := theEngine
@@ -542,7 +543,8 @@ func TestReleaseAtAReloadSendsNothing(t *testing.T) {
 		f, sock := startFakeAM(t)
 		dir := t.TempDir()
 		useStateDir(t, dir)
-		a := &App{Socket: sock, rendered: []byte("rendered\n"),
+		useSocket(t, sock)
+		a := &App{rendered: []byte("rendered\n"),
 			files: map[string]string{urlFileName("NOTIFY_OPS_URL"): "https://ntfy.sh/ops"}, logger: zap.NewNop()}
 		am := newAMClient(sock)
 		a.applyRender(am)

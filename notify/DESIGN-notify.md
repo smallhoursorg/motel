@@ -89,7 +89,6 @@ monitor {
     deploy_succeeded on|off          # off by default (#418's table)
     allow_insecure_channels          # test rigs only; warned at every load
     secrets_file <path>              # default /etc/motel/secrets/_box.env
-    alertmanager <socket path>       # default /run/motel-notify/am.sock
     backup_record <path>|off         # default /var/lib/motel-backup/status.json
     metrics [<socket path>]          # the metrics store (DESIGN-metrics.md, "The metrics line")
     rule <name> <kind> …             # the operator's rules; needs metrics (DESIGN-metrics.md, "Operator rules")
@@ -113,11 +112,13 @@ adapted, naming the block and the line to write instead, and the
 upgrade order for a box that has them (docs/upgrading.md, "From the
 notify and metrics_store blocks").
 
-There is no `state_dir`: motel renders into `/var/lib/motel-notify`,
-the directory setup makes and the drop-in's `--config.file` names, so
-a directory of a line's own would be written and never read, while the
-load said it worked (the row in "History", 2026-11-13). A `state_dir`
-line is refused by name, at its line, saying where the directory is.
+There is no `state_dir` and no `alertmanager` line: motel renders into
+`/var/lib/motel-notify`, the directory setup makes and the drop-in's
+`--config.file` names, and posts to `/run/motel-notify/am.sock`, where
+setup's `motel-am.socket` listens. A directory of a line's own would
+be written and never read while the load said it worked, and a socket
+of its own would reach nothing ("History", 2026-11-13). Either line
+is refused by name, at its line, saying where the path is fixed.
 
 A URL is only ever `{secret.NOTIFY_<NAME>}`: a Slack or Discord hook is
 a credential by itself, and the Caddyfile is a commit anyone who reads
@@ -137,6 +138,7 @@ connects to nothing), each naming keys and channels, never a value:
 |---|---|
 | a `notify` global option (refused at the adapt, before Provision) | ``the notify block is now `monitor { … }`, with the same lines; to move a box onto it, docs/upgrading.md, "From the notify and metrics_store blocks"`` |
 | a `state_dir` line (at the adapt, naming its line) | `state_dir is not a monitor line: the state directory is fixed at /var/lib/motel-notify, the one motel monitor setup makes and Alertmanager reads; remove the line` |
+| an `alertmanager` line (at the adapt, naming its line) | `alertmanager is not a monitor line: Alertmanager's socket is fixed at /run/motel-notify/am.sock, the one motel monitor setup's motel-am.socket listens on; remove the line` |
 | a literal URL, or `{env.*}` | `a channel URL is written {secret.NOTIFY_<NAME>}, its value in the box's secrets, never in the Caddyfile` |
 | a secret not named `NOTIFY_…` | `the secret's name is NOTIFY_ followed by capitals, digits and underscores` |
 | no `operator` line | `no operator line: name the channels that receive every event with operator <channel>` |
@@ -807,3 +809,11 @@ Dated one-liners; the full text of each is in git.
   again (undoing aa097e8). Not taken: refusing only a path the drop-in
   does not name, and setup writing the path into the drop-in (the row's
   reasons, in git).
+- 2026-11-13 — The `alertmanager <socket path>` line, which the row
+  above left to the same PR to weigh, went with it: setup's
+  `motel-am.socket` fixes the socket at `/run/motel-notify/am.sock`, a
+  path with no listener reads as "Alertmanager loads the file when it
+  starts" (notify/state.go `apply`), and each post then fails in the
+  journal (4 5 3 = 60, size 1, risk 2). The line is refused the same
+  way, saying where the socket is fixed; tests stand a socket in
+  through a second unexported variable.

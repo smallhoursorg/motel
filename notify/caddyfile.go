@@ -50,7 +50,6 @@ func refusedOption(msg string) func(*caddyfile.Dispenser, any) (any, error) {
 //	    deploy_succeeded on|off
 //	    allow_insecure_channels
 //	    secrets_file <path>
-//	    alertmanager <unix socket path>
 //	    backup_record <path>|off
 //	    metrics [<socket path>]
 //	    rule <name> <kind> <parameters>...
@@ -144,7 +143,12 @@ func (a *App) UnmarshalCaddyfile(d *caddyfile.Dispenser) error {
 			// names, which setup makes, so a directory of the line's own
 			// would be written and never read.
 			return d.Errf("state_dir is not a monitor line: the state directory is fixed at %s, the one motel monitor setup makes and Alertmanager reads; remove the line", DefaultStateDir)
-		case "secrets_file", "alertmanager", "backup_record":
+		case "alertmanager":
+			// Not a line either: motel-am.socket, which setup writes,
+			// is where Alertmanager listens, so another path reaches
+			// nothing.
+			return d.Errf("alertmanager is not a monitor line: Alertmanager's socket is fixed at %s, the one motel monitor setup's motel-am.socket listens on; remove the line", DefaultSocket)
+		case "secrets_file", "backup_record":
 			name := d.Val()
 			if !d.NextArg() {
 				return d.ArgErr()
@@ -162,10 +166,8 @@ func (a *App) UnmarshalCaddyfile(d *caddyfile.Dispenser) error {
 			switch name {
 			case "secrets_file":
 				a.SecretsFile = v
-			case "backup_record":
-				a.BackupRecord = v
 			default:
-				a.Socket = v
+				a.BackupRecord = v
 			}
 		case "metrics":
 			if a.Metrics != nil {
