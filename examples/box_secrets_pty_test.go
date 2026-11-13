@@ -211,6 +211,7 @@ func (r *boxRepo) pasteAtPrompt(t *testing.T, set func(*syscall.Termios), gap ti
 }
 
 func TestBoxSecretPrompt(t *testing.T) {
+	t.Parallel()
 	r := secretsRepo(t)
 	r.key("id_ed25519")
 	if out, code := r.run("signer"); code != 0 {

@@ -52,8 +52,30 @@ var (
 	buildErr  error
 )
 
+// TestMain puts a `sleep` first on PATH that waits a twentieth of what
+// it is asked: the scripts under test (bin/apply's poll backoff and
+// resends, deploy.sh's resend) wait on the box's answers, which here
+// are a test server's, there at once. Their waits are counted by the
+// tests, never timed, so a twentieth of the time leaves every answer
+// the same [measured: TestBoxApply 74 s to 9.7 s, the package's results
+// unchanged]. A duration that is not a plain number goes to the real
+// sleep.
 func TestMain(m *testing.M) {
+	shim, err := os.MkdirTemp("", "sleep-shim")
+	if err != nil {
+		panic(err)
+	}
+	real, err := exec.LookPath("sleep")
+	if err != nil {
+		panic(err)
+	}
+	script := "#!/bin/sh\ncase $1 in *[!0-9.]*|'') exec " + real + " \"$@\" ;; esac\nexec " + real + " $(awk -v s=\"$1\" 'BEGIN{printf \"%.3f\", s/20}')\n"
+	if err := os.WriteFile(filepath.Join(shim, "sleep"), []byte(script), 0o755); err != nil {
+		panic(err)
+	}
+	os.Setenv("PATH", shim+string(os.PathListSeparator)+os.Getenv("PATH"))
 	code := m.Run()
+	_ = os.RemoveAll(shim)
 	if builtBin != "" {
 		_ = os.RemoveAll(filepath.Dir(builtBin))
 	}
@@ -241,6 +263,7 @@ func (r *boxRepo) commit(msg string, extra ...string) string {
 const boxFile = "deploy.example.com/Caddyfile"
 
 func TestBoxSigner(t *testing.T) {
+	t.Parallel()
 	r := newBoxRepo(t)
 	if out, code := r.run("signer"); code != 1 || !strings.Contains(out, "no key at "+filepath.Join(r.home, ".ssh", "id_ed25519.pub")) {
 		t.Fatalf("no key: exit %d\n%s", code, out)
@@ -344,6 +367,7 @@ func TestBoxSigner(t *testing.T) {
 }
 
 func TestBoxCheck(t *testing.T) {
+	t.Parallel()
 	bin := motelBinary(t)
 	r := newBoxRepo(t)
 	check := func() (string, int) { return r.run("check", "MOTEL="+bin) }
@@ -879,6 +903,7 @@ func (g *applyRig) change(msg string, extra ...string) string {
 }
 
 func TestBoxApply(t *testing.T) {
+	t.Parallel()
 	t.Run("the commit the box runs", func(t *testing.T) {
 		g := newApplyRig(t)
 		out, code := g.apply()
@@ -1369,6 +1394,7 @@ func recorder(t *testing.T, path, tag, bin string) {
 // with $MOTEL-<version>; one without, with $MOTEL; a file that
 // names no release is refused and named, never read as the latest.
 func TestBoxCheckVersionFile(t *testing.T) {
+	t.Parallel()
 	bin := motelBinary(t)
 	r := newBoxRepo(t)
 	r.key("id_ed25519")
@@ -1589,6 +1615,7 @@ func (g *releases) reset() {
 // once, verified, as motel-<version>; the default as motel too;
 // and bin/check then picks each box's.
 func TestBoxInstallMotel(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS != "linux" {
 		t.Skip("bin/install-motel installs Linux binaries, and refuses elsewhere")
 	}

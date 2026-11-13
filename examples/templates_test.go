@@ -16,6 +16,7 @@ import (
 // is never asked for a credential. Each release below is a commit and a
 // tag in a stand-in motel; the mirror is a bare repository.
 func TestPublishTemplate(t *testing.T) {
+	t.Parallel()
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Fatal("this test needs git on PATH")
 	}
@@ -167,6 +168,7 @@ var (
 // link in an example's docs is absolute, or stays inside the example
 // and names something that exists.
 func TestTemplateLinksStayInside(t *testing.T) {
+	t.Parallel()
 	for _, ex := range []string{"node", "deno", "box"} {
 		err := filepath.WalkDir(ex, func(path string, d fs.DirEntry, err error) error {
 			if err != nil || d.IsDir() || !strings.HasSuffix(path, ".md") {
