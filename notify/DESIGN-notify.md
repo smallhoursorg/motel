@@ -117,8 +117,11 @@ There is no `state_dir` and no `alertmanager` line: motel renders into
 `--config.file` names, and posts to `/run/motel-notify/am.sock`, where
 setup's `motel-am.socket` listens. A directory of a line's own would
 be written and never read while the load said it worked, and a socket
-of its own would reach nothing ("History", 2026-11-13). Either line
-is refused by name, at its line, saying where the path is fixed.
+of its own would reach nothing ("History", 2026-11-13). In a
+Caddyfile either line is refused by name, at its line, saying where
+the path is fixed; in a JSON config the field is Caddy's `unknown
+field`. A box that has either line takes it out before the install
+(docs/upgrading.md).
 
 A URL is only ever `{secret.NOTIFY_<NAME>}`: a Slack or Discord hook is
 a credential by itself, and the Caddyfile is a commit anyone who reads
@@ -660,6 +663,9 @@ on its general scales. notify's examples:
 | A failed write of `alerts.json` (EIO, a read-only remount) leaves the old file until the next change, and a restart before it reports what the file still says | liveswap/watchdog.go (`alertsChanged`) | 3 | 3 | 1 | 9; the warning at the failure names the file and the consequence; a retry needs a timer outside the transitions (size 2, risk 2). /code-review of the Owed rows |
 | An app that read a `NOTIFY_` variable from an env file in `/etc/motel/secrets/` — the box's `secrets/<app>/`, or an operator's own file kept in that directory — loses it from the app's environment at the next launch after the upgrade | liveswap/app.go (`notifyOwnedEnvKey`, `boxWritten`: a test of the directory) | 3 | 5 | 1 | 15; each launch names the withheld keys and the directory in the journal, and `make check` warns before a push; the prefix is what keeps a channel URL from an app. /code-review of the Owed rows, widened by /code-review xhigh on #424 |
 | Alertmanager refuses a reload: motel puts the previous config back, but the URL files are already the new ones (a changed value rewritten, a dropped channel's removed), so the old config in memory sends a changed channel to its new URL, and Alertmanager's next start fails on a removed file until motel's next load | notify/state.go (`apply`) | 4 | 2 | 1 | 8; two faults (a render Alertmanager refuses, which the amtool tests rule out for every shape, then a restart before the next load), and Alertmanager names the missing file; a new URL is the one the signer committed; keeping the old files until a reload succeeds adds state to the write (size 2, risk 2). /code-review of slice one, passes 1 and 2 |
+| A JSON config (or a `/load`) with `"state_dir"` or `"alertmanager"` is refused as Caddy's `json: unknown field "state_dir"`, not with the Caddyfile's sentence that names the fixed path | notify/app.go (no field; Caddy's `StrictUnmarshalJSON`) | 2 | 5 | 1 | 10; refused, naming the field, and the Caddyfile is what a box loads; the sentence in JSON needs a field kept only to refuse it, or an `UnmarshalJSON` (size 2, risk 2). /code-review of #438 |
+| `motel monitor setup` from a new binary while an old motel still serves a config with a `state_dir` line names `/var/lib/motel-notify/alertmanager.yml`, where that motel does not render | notify/setup.go (`loadedSays`) | 3 | 2 | 3 | 18; the install restarts motel onto the new binary, which refuses the line, so this needs setup run from an unpacked `.deb` before the install (docs/upgrading.md suggests only `validate` there) on a box that kept the line the upgrade note says to remove; saying so needs a branch on the raw JSON (size 2, risk 2). /code-review of #438 |
+| The journal lines of `applyRender` and `applyNothing` name the directory under the key `state_dir`, a line this version refuses: an operator who adds one to move it is refused at the next load | notify/app.go (`zap.String("state_dir", …)`) | 2 | 5 | 1 | 10; the refusal names the fixed path and says to remove the line; renaming the key changes what a journal search for it finds, and no test reads it (size 1, risk 2). /code-review of #438 |
 
 ### Owed
 

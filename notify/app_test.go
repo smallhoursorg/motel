@@ -476,6 +476,11 @@ func TestAMetricsLineAloneIsTheStoreWithoutNotify(t *testing.T) {
 // config, notify's first; Stop lets go of both. The store alone never
 // takes the engine.
 func TestStartAndStopBothParts(t *testing.T) {
+	// The paths first: the release below may render or reload, and must
+	// reach this test's, not a box's (cleanups run last first).
+	dir := t.TempDir()
+	useStateDir(t, filepath.Join(dir, "state")) // not made: Start finds no Alertmanager set up
+	useSocket(t, filepath.Join(dir, "am.sock"))
 	// Fresh ones, put back after: Provision and Start reach the
 	// globals, and no other test's state is this one's to read or leave.
 	savedEngine, savedPusher := theEngine, thePusher
@@ -497,15 +502,12 @@ func TestStartAndStopBothParts(t *testing.T) {
 		}
 		theEngine, thePusher = savedEngine, savedPusher
 	})
-	dir := t.TempDir()
 	secrets := filepath.Join(dir, "_box.env")
 	if err := os.WriteFile(secrets, []byte("NOTIFY_OPS_URL=https://ntfy.sh/ops\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	both := "{\n\tadmin off\n\tmonitor {\n\t\tchannel ops ntfy {secret.NOTIFY_OPS_URL}\n\t\toperator ops\n\t\tsecrets_file " + secrets +
 		"\n\t\tbackup_record off\n\t\tmetrics " + filepath.Join(dir, "vm.sock") + "\n\t}\n}\n:8080 {\n\trespond ok\n}\n"
-	useStateDir(t, filepath.Join(dir, "state")) // not made: Start finds no Alertmanager set up
-	useSocket(t, filepath.Join(dir, "am.sock"))
 	alone := "{\n\tadmin off\n\tmonitor {\n\t\tmetrics " + filepath.Join(dir, "vm.sock") + "\n\t}\n}\n:8080 {\n\trespond ok\n}\n"
 	for _, c := range []struct {
 		name, src string

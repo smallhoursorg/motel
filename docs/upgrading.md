@@ -363,6 +363,17 @@ either way: they ask the store for the 5 s themselves. The re-run
 rewrites the units and restarts the store and vmalert; a push or two
 fails meanwhile.
 
+**Take any `state_dir` or `alertmanager` line out of the monitor block
+before the install.** The new binary refuses both, naming the line and
+the path it fixes, so the install's restart onto a file that still has
+one stops every site. Setup only ever made `/var/lib/motel-notify` and
+`/run/motel-notify/am.sock`, so a line naming either changed nothing,
+and one naming another path never reached Alertmanager. Push the file
+without it, or on a box with no push channel edit it out and run
+`systemctl reload motel`; the old binary takes it. Then upgrade. The
+new binary's `motel validate`, from the `.deb` as above, names any
+line left.
+
 ## Patching the host
 
 Apps run on the box's own `/usr`, so `apt upgrade` reaches an app at
