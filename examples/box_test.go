@@ -83,7 +83,9 @@ func TestMain(m *testing.M) {
 	if err := os.WriteFile(filepath.Join(shim, "sleep"), []byte(script), 0o755); err != nil {
 		panic(err)
 	}
-	os.Setenv("PATH", shim+string(os.PathListSeparator)+os.Getenv("PATH"))
+	if err := os.Setenv("PATH", shim+string(os.PathListSeparator)+os.Getenv("PATH")); err != nil {
+		panic(err)
+	}
 	code := m.Run()
 	_ = os.RemoveAll(shim)
 	if builtBin != "" {
