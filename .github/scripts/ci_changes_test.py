@@ -17,12 +17,12 @@ spec.loader.exec_module(cc)
 
 def run(paths):
     out, err = io.StringIO(), io.StringIO()
-    sys.stdin = io.StringIO("".join(p + "\n" for p in paths))
+    old, sys.stdin = sys.stdin, io.StringIO("".join(p + "\n" for p in paths))
     try:
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
             cc.main()
     finally:
-        sys.stdin = sys.__stdin__
+        sys.stdin = old
     return out.getvalue()
 
 

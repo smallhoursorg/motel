@@ -40,8 +40,10 @@ jobs:
   # branch: the diff between them is the whole PR as it would merge, so
   # a docs commit pushed onto a code PR still runs everything. The rule
   # that judges is the base branch's copy, so a PR that edits it is
-  # judged by the rule before the edit. No merge commit to diff, or no
-  # rule on the base, is heavy too.
+  # judged by the rule before the edit (this step, like all of ci.yml,
+  # is the PR's own: ci-changes.py's residuals). No merge commit to
+  # diff, or no rule on the base, is heavy too. quotePath off: a
+  # non-ASCII name comes out as itself, not C-quoted.
   changes:
     runs-on: ubuntu-latest
     outputs:
@@ -76,7 +78,7 @@ jobs:
             echo heavy=true >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          git diff --name-only --no-renames HEAD^1 HEAD > "$RUNNER_TEMP/changed"
+          git -c core.quotePath=false diff --name-only --no-renames HEAD^1 HEAD > "$RUNNER_TEMP/changed"
           python3 -I -B "$rule" < "$RUNNER_TEMP/changed" >> "$GITHUB_OUTPUT"
 
   # One cell per module: the golangci runs share no state, so

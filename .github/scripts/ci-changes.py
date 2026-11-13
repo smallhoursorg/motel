@@ -15,7 +15,8 @@ stay covered. Anything else, or any doubt, is heavy=true: an empty
 list too, since a diff that went wrong reads as one. Pushes to main and
 the release's workflow_call run everything without asking. A PR is
 judged by the base branch's copy of this file, never its own, so an
-edit to the rule cannot skip the checks of the PR that makes it.
+edit to this rule cannot skip the checks of the PR that makes it; an
+edit to ci.yml can (see the residuals).
 
 No image build reads markdown (e2e/Dockerfile's `COPY . .` copies the
 nested files, .dockerignore's `*.md` matching the root's alone, and
@@ -25,7 +26,7 @@ it. A test or a lane that starts reading another markdown file adds it
 here, or a PR that changes only that file merges with what reads it
 unrun (the full run on main would catch it then, after the merge). The
 readers, found with:
-  git grep -nE '"[^" ]*\\.md"|\\.md:/|"\\.md"' -- '*.go' Makefile e2e packaging
+  git grep -nE '"[^" ]*\\.md"|\\.md:/|"\\.md"|go:embed.*\\.md' -- '*.go' Makefile e2e packaging
 
 Accepted residuals (scored by the triage skill: severity, occurrence,
 detection, their product; the fix's size and risk):
@@ -40,6 +41,16 @@ detection, their product; the fix's size and risk):
   first light PR, naming that job: 2/3/1 = 6, red and named, which the
   single-fault rule asks for. One list of the jobs that must always run
   instead would pass, as skipped, a job skipped for any other reason.
+- The gate's own code is the PR's. A pull request runs the ci.yml it
+  carries, so a slip in the classify step or in ci-ok's jq, made in the
+  PR that changes them, can pass that PR with its jobs skipped: 5/2/3
+  = 30 (two faults: the slip, and one that reads light; the run shows
+  the jobs skipped and ci-ok says why). The same was true of ci-ok
+  before the skip, and nothing inside a pull_request workflow can judge
+  the workflow itself; a check from pull_request_target, which runs the
+  base's workflows, could, at the cost of a workflow with the base's
+  token running beside every PR. The step and the jq were proved by
+  hand against made-up merge commits and needs when written.
 """
 import sys
 
