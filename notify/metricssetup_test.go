@@ -637,7 +637,7 @@ type storeRead struct{ name, job string }
 // labelLists take a parenthesised list of label names, not series.
 var labelLists = map[string]bool{"by": true, "without": true, "on": true, "ignoring": true, "group_left": true, "group_right": true}
 
-var promWords = map[string]bool{"and": true, "or": true, "unless": true, "offset": true, "bool": true, "inf": true, "nan": true}
+var promWords = map[string]bool{"and": true, "or": true, "unless": true, "atan2": true, "offset": true, "bool": true, "inf": true, "nan": true}
 
 var matcherRe = regexp.MustCompile(`^\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*(=~|!~|!=|=)\s*("(?:[^"\\]|\\.)*")\s*$`)
 
@@ -716,10 +716,10 @@ func storeReads(expr string) ([]storeRead, error) {
 	var out []storeRead
 	for i := 0; i < len(expr); {
 		switch c := expr[i]; {
-		case c == '"':
+		case c == '"' || c == '\'' || c == '`':
 			j := i + 1
-			for ; j < len(expr) && expr[j] != '"'; j++ {
-				if expr[j] == '\\' {
+			for ; j < len(expr) && expr[j] != c; j++ {
+				if expr[j] == '\\' && c != '`' {
 					j++
 				}
 			}
@@ -988,6 +988,7 @@ func TestStoreReads(t *testing.T) {
 		{`sum by (app, le) (increase(a_total{app="x",class=~"5xx|4xx"}[5m] offset 1d)) / b > bool 0.5 and on (app) group_left c`,
 			[]storeRead{{"a_total", ""}, {"b", ""}, {"c", ""}}},
 		{`{__name__=~"m1|m2",app="blog"}`, []storeRead{{"m1", ""}, {"m2", ""}}},
+		{"label_replace(x, 'dst', '$1', \"src\", `(.*)`) atan2 y", []storeRead{{"x", ""}, {"y", ""}}},
 		{`sum(increase(alertmanager_notifications_failed_total{integration="discord",receiver_name=~"a\\.b|c"}[5m])) > 0`,
 			[]storeRead{{"alertmanager_notifications_failed_total", ""}}},
 		{`scalar(min(tfirst_over_time(process_start_time_seconds{job="motel"}[7m]))) + 15`,

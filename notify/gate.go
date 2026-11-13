@@ -8,8 +8,11 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"syscall"
+
+	"go.yaml.in/yaml/v3"
 )
 
 // What cmd/motel's gate says of a config's monitor block before Caddy's
@@ -47,14 +50,19 @@ func LoadWarnings(cmd string, monitor []byte) []string {
 		}
 	}
 	if a.Metrics != nil {
+		stale := staleUnits(metricsUnits())
 		// With scrape.yml, which only setup writes: a box set up before
 		// it changed scrapes as it did until setup runs again.
-		files := append(metricsUnits(), struct {
-			path string
-			data []byte
-		}{filepath.Join(DefaultMetricsStateDir, scrapeName), scrapeConfig})
-		if stale := staleUnits(files); len(stale) > 0 {
-			out = append(out, "monitor: the units motel monitor setup --metrics wrote differ from this motel's ("+strings.Join(stale, ", ")+"): run motel monitor setup --metrics as root to put this version's in place")
+		scrape := filepath.Join(DefaultMetricsStateDir, scrapeName)
+		switch same, err := sameYAML(filepath.Join(unitRoot, scrape), scrapeConfig); {
+		case errors.Is(err, fs.ErrNotExist):
+		case err != nil:
+			out = append(out, "monitor: "+scrape+" could not be read to compare it with this motel's ("+err.Error()+"): run this as root or as motel to check it")
+		case !same:
+			stale = append(stale, scrape)
+		}
+		if len(stale) > 0 {
+			out = append(out, "monitor: the files motel monitor setup --metrics wrote differ from this motel's ("+strings.Join(stale, ", ")+"): run motel monitor setup --metrics as root to put this version's in place")
 		}
 	}
 	return out
@@ -139,6 +147,25 @@ func staleUnits(units []struct {
 		}
 	}
 	return out
+}
+
+// sameYAML reports whether the YAML file at path holds the same document
+// as want, comments and layout aside: indentation is structure in YAML,
+// so uncommented's trim would hide a change. A file that is not YAML is
+// not the same; a read error is returned.
+func sameYAML(path string, want []byte) (bool, error) {
+	b, err := os.ReadFile(path) //nolint:gosec // G304: setup's own path, under unitRoot
+	if err != nil {
+		return false, err
+	}
+	var got, exp any
+	if yaml.Unmarshal(b, &got) != nil {
+		return false, nil
+	}
+	if err := yaml.Unmarshal(want, &exp); err != nil {
+		panic("sameYAML: this binary's own file is not YAML: " + err.Error())
+	}
+	return reflect.DeepEqual(got, exp), nil
 }
 
 // uncommented is a unit file as systemd reads it: each line trimmed,
