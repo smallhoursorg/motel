@@ -234,24 +234,29 @@ while [ "$(date +%s)" -lt "$end" ]; do
 	has_result "$r" && break
 	sleep 2
 done
-has_result "$r" && pass "the store answers the view's range query with a point" \
-	|| fail "the store has no point for the view's range query after 180 s: $(printf '%s' "$r" | head -c 300)"
-m=""
-end=$(( $(date +%s) + 40 ))
-while [ "$(date +%s)" -lt "$end" ]; do
-	m=$(status)
-	if [ "$MEMORY" = 1 ]; then
-		printf '%s' "$m" | grep -q '"metrics":{[^}]*"memory_bytes":{"now":[1-9]' && break
-	else
-		printf '%s' "$m" | grep -q '"metrics":{[^}]*"cpu_cores":{"avg_5m":' && break
-	fi
-	sleep 3
-done
-want='"cpu_cores":{"avg_5m":'
-[ "$MEMORY" = 1 ] && want='"memory_bytes":{"now":[1-9]'
-printf '%s' "$m" | grep -q '"metrics":{"window":"1h","at":"' && printf '%s' "$m" | grep -q "$want" \
-	&& pass "GET /blog with the deploy token carries its metrics: $(printf '%s' "$m" | grep -o '"metrics":{.*' | cut -c1-200)" \
-	|| fail "GET /blog's metrics, 40 s after the store had the point: $(printf '%s' "$m" | grep -o '"metrics":.*' | cut -c1-300)"
+# The view is checked only once the store has the point: with none,
+# the store's failure is the one to read.
+if has_result "$r"; then
+	pass "the store answers the view's range query with a point"
+	m=""
+	end=$(( $(date +%s) + 40 ))
+	while [ "$(date +%s)" -lt "$end" ]; do
+		m=$(status)
+		if [ "$MEMORY" = 1 ]; then
+			printf '%s' "$m" | grep -q '"metrics":{[^}]*"memory_bytes":{"now":[1-9]' && break
+		else
+			printf '%s' "$m" | grep -q '"metrics":{[^}]*"cpu_cores":{"avg_5m":' && break
+		fi
+		sleep 3
+	done
+	want='"cpu_cores":{"avg_5m":'
+	[ "$MEMORY" = 1 ] && want='"memory_bytes":{"now":[1-9]'
+	printf '%s' "$m" | grep -q '"metrics":{"window":"1h","at":"' && printf '%s' "$m" | grep -q "$want" \
+		&& pass "GET /blog with the deploy token carries its metrics: $(printf '%s' "$m" | grep -o '"metrics":{.*' | cut -c1-200)" \
+		|| fail "GET /blog's metrics, 40 s after the store had the point: $(printf '%s' "$m" | grep -o '"metrics":.*' | cut -c1-300)"
+else
+	fail "the store has no point for the view's range query after 180 s (GET /blog's metrics not checked): $(printf '%s' "$r" | head -c 300)"
+fi
 code=$(curl -s -o /tmp/get-noauth -w '%{http_code}' --max-time 5 "$HOOK")
 [ "$code" = 401 ] && ! grep -q metrics /tmp/get-noauth && pass "GET /blog without a token: 401, no metrics" || fail "GET /blog without a token: $code"
 
