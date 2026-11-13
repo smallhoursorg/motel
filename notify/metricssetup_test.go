@@ -147,6 +147,17 @@ func TestMetricsSetupOrderAndFiles(t *testing.T) {
 	if b, _ := os.ReadFile(filepath.Join(dir, scrapeName)); !bytes.Equal(b, scrapeConfig) {
 		t.Fatalf("setup left an edited scrape.yml: %q", b)
 	}
+
+	// iproute2 alone to install: the mask is for the units, not for an
+	// install of the store.
+	fIP := &fakeSystem{missing: []string{ipPackage}}
+	out.Reset()
+	if err := metricsSetup(fIP, root, &out); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(out.String(), "masked victoria-metrics.service, so nothing starts it while its units are written\nvictoria-metrics is installed\ninstalled iproute2\n") {
+		t.Errorf("iproute2 alone missing: setup said\n%s", out.String())
+	}
 }
 
 // A re-run that fails after the mask (here the units' reload) must not

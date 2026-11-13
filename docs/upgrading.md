@@ -372,8 +372,9 @@ units motel monitor setup wrote differ from this motel's (…)` (for the store's
 long as a unit differs from the one this binary would write, comments
 aside, and names the setup to run. While the proxy's units are there,
 the store's warning also says `the proxy an older setup wrote for
-Alertmanager (…) is still in place`, and that setup retires it and
-restarts Alertmanager once.
+Alertmanager (…) is still in place`, and that setup retires it and,
+unless Alertmanager listens in the store's namespace already, restarts
+it once.
 
 **Run `motel monitor setup --metrics` again on a box whose store was set
 up before the 5 s clocks** (the warning above names `10-motel.conf` and

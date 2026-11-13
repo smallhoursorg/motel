@@ -349,6 +349,9 @@ func TestServeSendCarriesDetails(t *testing.T) {
 type fakeSystem struct {
 	cmds        []string
 	isInstalled bool
+	// missing, when set, are the packages not installed, every other
+	// one installed (isInstalled aside).
+	missing []string
 	// failOn fails every command that begins with one of its
 	// |-separated prefixes.
 	failOn string
@@ -366,7 +369,12 @@ func (f *fakeSystem) run(name string, args ...string) error {
 	}
 	return nil
 }
-func (f *fakeSystem) installed(string) bool { return f.isInstalled }
+func (f *fakeSystem) installed(p string) bool {
+	if f.missing != nil {
+		return !slices.Contains(f.missing, p)
+	}
+	return f.isInstalled
+}
 func (f *fakeSystem) chown(p string, uid, gid int) error {
 	if f.owners == nil {
 		f.owners = map[string][2]int{}

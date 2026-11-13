@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -52,6 +53,10 @@ const (
 	oldAMProxySocket  = "motel-am-proxy.socket"
 	oldAMProxyService = "motel-am-proxy.service"
 )
+
+// oldAMProxyUnits are both, in the order setup retires them; the load's
+// warning (LoadWarnings) names those still there from the same list.
+var oldAMProxyUnits = []string{oldAMProxySocket, oldAMProxyService}
 
 // metricsUnits are setup's unit files, each at its path under unitDir.
 func metricsUnits() []struct {
@@ -100,7 +105,8 @@ func metricsSetup(sys system, root string, out io.Writer) (err error) {
 		return fmt.Errorf("the motel user: %w (is motel installed?)", err)
 	}
 	// Which packages are there, asked before the mask, so that the mask's
-	// line names its reason: an install, or on a re-run none.
+	// line names its reason: the store's install, or none (a re-run, or
+	// iproute2 alone missing).
 	var pkgs, have []string
 	for _, p := range []string{vmPackage, ipPackage} {
 		if sys.installed(p) {
@@ -112,7 +118,7 @@ func metricsSetup(sys system, root string, out io.Writer) (err error) {
 	if err := sys.run("systemctl", "mask", vmService); err != nil {
 		return err
 	}
-	say("%s", maskSaid(vmService, len(pkgs) > 0))
+	say("%s", maskSaid(vmService, slices.Contains(pkgs, vmPackage)))
 	// Set when the proxy shape's port is free (every unit is written by
 	// then): from there on a failure may leave vmalert no outlet unless
 	// Alertmanager takes up its socket in the namespace.
@@ -197,7 +203,7 @@ func metricsSetup(sys system, root string, out io.Writer) (err error) {
 	// stopped, not while it still carries vmalert's posts.
 	retired = !isFile(at(filepath.Join(unitDir, oldAMProxySocket)))
 	var gone []string
-	for _, u := range []string{oldAMProxySocket, oldAMProxyService} {
+	for _, u := range oldAMProxyUnits {
 		if !isFile(at(filepath.Join(unitDir, u))) {
 			continue
 		}

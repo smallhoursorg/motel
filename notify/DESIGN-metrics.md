@@ -90,11 +90,12 @@ userspace, and every unit of the stack active within about a second of
 12.42, the namespace 12.64, Alertmanager's socket in it 12.67, the store
 12.72, vmalert 12.73, Alertmanager 13.30, the store's proxy 13.53, motel
 13.58). Nothing was started by hand, no unit restarted
-(`NRestarts=0`) and none failed. Alertmanager started once, by its
-sockets, at motel's first connection; the namespace's `try-restart` at
+(`NRestarts=0`) and none failed. Alertmanager started once, by socket
+activation (at 13.27, after motel began at 13.00; which socket's
+connection started it is not recorded); the namespace's `try-restart` at
 12.64 found it stopped and did nothing. The heartbeat pinged 6 min 50 s
-after its last ping before the reboot, inside the nine minutes
-docs/monitor.md gives as the most, and every 5 minutes after; the
+after its last ping before the reboot, the boot's downtime included,
+and every 5 minutes after; the
 response observer counted 10 requests after the boot as 10.
 
 **The store's proxy runs as no root.** It passes bytes it does not
@@ -999,8 +1000,9 @@ Alertmanager's. The store's:
    namespace, retires the proxy shape: `disable --now
    motel-am-proxy.socket motel-am-proxy.service` and removes both
    files, so that `127.0.0.1:9093` is free for Alertmanager's socket,
-   and says so. Until it runs, each load's warning names the proxy's two
-   files and says that setup retires them and restarts Alertmanager once;
+   and says so. Until it runs, each load's warning names the proxy's files
+   still there and says that setup retires them and restarts Alertmanager
+   once unless it listens in the namespace already;
 6. `daemon-reload`, `unmask`; then, unless `motel-am-metrics.socket` is
    active, one `systemctl restart prometheus-alertmanager.service` (a
    start, and said so, when it was not running)
