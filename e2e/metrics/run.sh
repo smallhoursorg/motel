@@ -16,6 +16,7 @@
 #   GET /<app> with the deploy token carries the app's metrics
 #   observe's counts in the store and in GET /<app>?range=
 #   vmalert's rules loaded; its ChannelFailed and motel's one alert
+#   the store keeping of each job only what motel reads
 #   the operator's rules: a threshold through vmalert, the post-deploy comparison
 #   nothing of the store in an app's sandbox view
 #   the store's socket gone: GET /<app> answers at once, with the error
@@ -156,14 +157,14 @@ grep -q 'notify_channel: ops' "$STATE/rules.yml" \
 	&& pass "motel rendered the rules, with ChannelFailed for the operator's channels" || fail "rules.yml: $(head -c 400 "$STATE/rules.yml")"
 vmalert -dryRun -rule="$STATE/rules.yml" >/tmp/dry.out 2>&1 \
 	&& pass "vmalert -dryRun passes the rendered rules" || fail "vmalert -dryRun: $(tail -3 /tmp/dry.out)"
-# notify's tests over vmalert and vmalert-tool, which `make test` skips
+# notify's tests over vmalert, vmalert-tool and the store's binary, which `make test` skips
 # for want of them: each must run here, none skip. The list is every
 # test that calls vmTool (TestE2EMetricsListsEveryVMAlertTest).
-vmtests='^(TestRenderedRulesPassVMAlertDryRun|TestRenderedRulesFireAsMotelsAlerts|TestOperatorRulesPassVMAlertDryRun|TestOperatorRulesFire|TestOperatorRulesCountAfterAGap|TestOperatorRulesHistogramIsReadWhole|TestDiskFillHistoryOverAGap|TestDiskFillStepIsNoTrend|TestOperatorRulesCountOnAFreshStore|TestMetricsViewCountsOverTheStore|TestPostDeployARelaunchReadsPastTheStoppedInstance)$'
+vmtests='^(TestRenderedRulesPassVMAlertDryRun|TestRenderedRulesFireAsMotelsAlerts|TestOperatorRulesPassVMAlertDryRun|TestOperatorRulesFire|TestOperatorRulesCountAfterAGap|TestOperatorRulesHistogramIsReadWhole|TestDiskFillHistoryOverAGap|TestDiskFillStepIsNoTrend|TestOperatorRulesCountOnAFreshStore|TestOperatorRulesReadThePushedApps|TestMetricsViewCountsOverTheStore|TestPostDeployARelaunchReadsPastTheStoppedInstance|TestScrapeConfigPassesTheStoresCheck)$'
 nvm=$(printf '%s\n' "$vmtests" | tr '|' '\n' | wc -l)
 (cd /tmp && notify.test -test.run "$vmtests" -test.v -test.count=1) >/tmp/vmtests.out 2>&1
 [ $? -eq 0 ] && [ "$(grep -c '^--- PASS' /tmp/vmtests.out)" = "$nvm" ] && ! grep -q -- '--- SKIP' /tmp/vmtests.out \
-	&& pass "notify's $nvm vmalert tests run and pass against the box's vmalert and vmalert-tool" \
+	&& pass "notify's $nvm vmalert tests run and pass against the box's vmalert, vmalert-tool and victoria-metrics" \
 	|| fail "notify's vmalert tests: $(grep -E -- '^(--- |FAIL|ok)|SKIP' /tmp/vmtests.out | head -10)"
 # The operator's group: the threshold and disk_fill lines, motel's own
 # expressions, each counter through the guard (increase_pure for a
@@ -177,6 +178,7 @@ printf '%s' "$op" | grep -q 'increase_pure(motel_app_requests_total' \
 	&& printf '%s' "$op" | grep -q 'unless (present_over_time(motel_app_requests_total' \
 	&& printf '%s' "$op" | grep -q 'and (tfirst_over_time(motel_app_requests_total' \
 	&& printf '%s' "$op" | grep -q 'or increase(motel_app_requests_total' \
+	&& printf '%s' "$op" | grep -qF 'and on (app) (max by (app) (tlast_over_time(motel_app_observed[75s])) > scalar(max(tlast_over_time(process_start_time_seconds{job="motel"}[75s]))) - 15)' \
 	&& ! grep -q 'blog_regressed' "$STATE/rules.yml" && printf '%s' "$op" | grep -q 'key: rules/app:blog/blog_slow' \
 	&& pass "the motel-operator group holds the threshold and disk_fill rules, through the counter guard, keyed rules/<subject>/<name>" \
 	|| fail "the motel-operator group: $(printf '%s' "$op" | head -c 600)"
@@ -216,22 +218,47 @@ else
 fi
 
 echo "=== metrics 3: GET /<app> ==="
-m=""
-end=$(( $(date +%s) + 90 ))
+# The view's field shows once the store answers the view's own range
+# query (notify/metricsview.go: start now-1h, end now, step 60 s), and
+# then once the view's 30 s cache of its last answer, empty or not, has
+# passed. The store aligns the range's end down to a whole minute, so a
+# rate's first point is the minute after the second push: up to 89 s
+# after the first push, measured on 1.112.0 (PR #445). The suite waits
+# for that point in the store (a cap, not a timing), then gives the view
+# its cache and a margin.
+rq='sum(rate(motel_app_cpu_seconds_total{app="blog"}[2m]))'
+[ "$MEMORY" = 1 ] && rq='{__name__=~"motel_app_memory_bytes|motel_app_memory_max_bytes",app="blog"}'
+end=$(( $(date +%s) + 180 ))
 while [ "$(date +%s)" -lt "$end" ]; do
-	m=$(status)
-	if [ "$MEMORY" = 1 ]; then
-		printf '%s' "$m" | grep -q '"metrics":{[^}]*"memory_bytes":{"now":[1-9]' && break
-	else
-		printf '%s' "$m" | grep -q '"metrics":{[^}]*"cpu_cores":{"avg_5m":' && break
-	fi
-	sleep 3
+	now=$(date +%s)
+	r=$(vm -G --data-urlencode "query=$rq" --data-urlencode "start=$((now - 3600))" --data-urlencode "end=$now" \
+		--data-urlencode step=60 http://vm/api/v1/query_range)
+	has_result "$r" && break
+	sleep 2
 done
-want='"cpu_cores":{"avg_5m":'
-[ "$MEMORY" = 1 ] && want='"memory_bytes":{"now":[1-9]'
-printf '%s' "$m" | grep -q '"metrics":{"window":"1h","at":"' && printf '%s' "$m" | grep -q "$want" \
-	&& pass "GET /blog with the deploy token carries its metrics: $(printf '%s' "$m" | grep -o '"metrics":{.*' | cut -c1-200)" \
-	|| fail "GET /blog's metrics: $(printf '%s' "$m" | grep -o '"metrics":.*' | cut -c1-300)"
+# The view is checked only once the store has the point: with none,
+# the store's failure is the one to read.
+if has_result "$r"; then
+	pass "the store answers the view's range query with a point"
+	m=""
+	end=$(( $(date +%s) + 40 ))
+	while [ "$(date +%s)" -lt "$end" ]; do
+		m=$(status)
+		if [ "$MEMORY" = 1 ]; then
+			printf '%s' "$m" | grep -q '"metrics":{[^}]*"memory_bytes":{"now":[1-9]' && break
+		else
+			printf '%s' "$m" | grep -q '"metrics":{[^}]*"cpu_cores":{"avg_5m":' && break
+		fi
+		sleep 3
+	done
+	want='"cpu_cores":{"avg_5m":'
+	[ "$MEMORY" = 1 ] && want='"memory_bytes":{"now":[1-9]'
+	printf '%s' "$m" | grep -q '"metrics":{"window":"1h","at":"' && printf '%s' "$m" | grep -q "$want" \
+		&& pass "GET /blog with the deploy token carries its metrics: $(printf '%s' "$m" | grep -o '"metrics":{.*' | cut -c1-200)" \
+		|| fail "GET /blog's metrics, 40 s after the store had the point: $(printf '%s' "$m" | grep -o '"metrics":.*' | cut -c1-300)"
+else
+	fail "the store has no point for the view's range query after 180 s (GET /blog's metrics not checked): $(printf '%s' "$r" | head -c 300)"
+fi
 code=$(curl -s -o /tmp/get-noauth -w '%{http_code}' --max-time 5 "$HOOK")
 [ "$code" = 401 ] && ! grep -q metrics /tmp/get-noauth && pass "GET /blog without a token: 401, no metrics" || fail "GET /blog without a token: $code"
 
@@ -334,6 +361,22 @@ amq='filter=alertname%3D%22ChannelFailed%22&filter=notify_channel%3D%22ops%22&fi
 n=$(am "http://am/api/v2/alerts?$amq" | grep -o '"fingerprint"' | wc -l)
 [ "$n" -eq 1 ] && pass "Alertmanager holds one ChannelFailed for ops naming oncall: the two sources are one alert" \
 	|| fail "Alertmanager holds $n such alerts: $(am "http://am/api/v2/alerts?$amq" | cut -c1-400)"
+# The store keeps of each job only what motel reads (scrape.yml): the
+# disk rule's free space, the counter vmalert's ChannelFailed just read,
+# and of vmalert nothing but `up`. up and scrape_* are the scraper's own,
+# which every job keeps; scrape_* is left out here.
+kept() {
+	vm -G --data-urlencode "match[]={job=\"$1\"}" http://vm/api/v1/label/__name__/values \
+		| sed -n 's/.*"data":\[\([^]]*\)\].*/\1/p' | tr -d '"' | tr ',' '\n' | grep -v '^scrape_' | sort | tr '\n' ' '
+}
+for jk in 'victoria-metrics:up vm_free_disk_space_bytes ' 'vmalert:up ' 'alertmanager:alertmanager_notifications_failed_total up '; do
+	j=${jk%%:*} want=${jk#*:}
+	got=$(kept "$j")
+	[ "$got" = "$want" ] && pass "the store keeps of job $j: ${want% }" || fail "the store keeps of job $j: '$got', not '$want'"
+done
+a=$(q 'vm_free_disk_space_bytes{job="victoria-metrics"} > 0')
+has_result "$a" && pass "the store reads its own free space live, which metrics_store_disk_fill reads" \
+	|| fail "no live vm_free_disk_space_bytes: $(printf '%s' "$a" | cut -c1-200)"
 # vmalert's post is counted where it is sent, not read from the merged
 # alert: that carries the generatorURL of whichever source posted last,
 # and each posts once a minute at a phase of its own (motel after its read
@@ -407,13 +450,15 @@ i=0
 until am "http://am/api/v2/alerts?$roq" | grep -q '"severity":"critical"'; do i=$((i + 1)); [ "$i" -ge 60 ] && break; sleep 2; done
 [ "$i" -lt 60 ] && pass "motel posted metrics_store_read_only, critical" \
 	|| fail "no metrics_store_read_only in Alertmanager after 120 s: $(am "http://am/api/v2/alerts?$roq" | cut -c1-300)"
-# Two of the store's 30 s self-scrapes have come and gone by now: had it
-# kept one, a rule would see the flag.
+# Two of the store's 30 s self-scrapes have come and gone by now, and
+# neither was kept: the free space the disk rule reads stops with every
+# other write. (The flag itself is no series the store keeps, scrape.yml.)
 while [ $(( $(date +%s) - ro_at )) -lt 75 ]; do sleep 2; done
-a=$(q 'max(max_over_time(vm_storage_is_read_only[5m])) > 0')
-printf '%s' "$a" | grep -q '"status":"success"' && ! has_result "$a" \
-	&& pass "75 s read-only and no series carries the flag: the store refused its own scrapes" \
-	|| fail "a rule could have seen the flag after all, or the store did not answer: $(printf '%s' "$a" | cut -c1-200)"
+before=$(q 'tlast_over_time(vm_free_disk_space_bytes[15m])')
+a=$(q "tlast_over_time(vm_free_disk_space_bytes[15m]) > $ro_at")
+has_result "$before" && printf '%s' "$a" | grep -q '"status":"success"' && ! has_result "$a" \
+	&& pass "75 s read-only and no sample of the store's free space since, only before: the store refused its own scrapes" \
+	|| fail "a scrape was kept while read-only, or none before it, or the store did not answer: $(printf '%s' "$before" | cut -c1-200) / $(printf '%s' "$a" | cut -c1-200)"
 rm "$dropin/20-e2e-read-only.conf"
 systemctl daemon-reload && systemctl restart victoria-metrics
 back_at=$(date +%s)
@@ -723,6 +768,18 @@ done
 [ -n "$thr" ] && [ "$thr" != bad ] \
 	&& pass "vmalert's errors_high fired for shop and reached Alertmanager: source rules, app shop, its key" \
 	|| fail "no errors_high for shop as wanted: $(printf '%s' "$thr" | cut -c1-500)"
+# The request thresholds' guard (pushedNow) over the pushes the store
+# stamped as they came: at every second of the last two minutes, each
+# app motel_app_observed named in the last 75 s was in it, its sample
+# within 15 s of the push's, and blog and shop were in it throughout
+# (115 of the 120 seconds, the subquery's edges aside).
+present='max by (app) (tlast_over_time(motel_app_observed[75s]))'
+pushed="$present > scalar(max(tlast_over_time(process_start_time_seconds{job=\"motel\"}[75s]))) - 15"
+out=$(q "(count_over_time(($present)[2m:1s]) - (count_over_time(($pushed)[2m:1s]) or count_over_time(($present)[2m:1s]) * 0)) > 0")
+inq=$(q "count_over_time(($pushed)[2m:1s]) >= 115")
+printf '%s' "$out" | grep -q '"result":\[\]' && printf '%s' "$inq" | grep -q '"app":"blog"' && printf '%s' "$inq" | grep -q '"app":"shop"' \
+	&& pass "every observed app was in the request thresholds' guard at each second of two minutes, blog and shop throughout" \
+	|| fail "the guard left out a pushing app: $(printf '%s' "$out" | cut -c1-300); in it: $(printf '%s' "$inq" | cut -c1-300)"
 i=0
 until sinklog | grep -q '/blog [a-z]* post_deploy_regressed blog '; do
 	i=$((i + 1)); [ "$i" -ge 20 ] && break; sleep 1
