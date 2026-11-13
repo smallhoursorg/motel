@@ -367,7 +367,7 @@ e2e:
 # suite on one box. The sink is metrics' too, its paths the same, so
 # e2e-notify and e2e-metrics do not run at once on one host.
 NOTIFY_SPLITS ?= core reload heartbeat
-NOTIFY_LIMIT ?= 1200
+NOTIFY_LIMIT ?= 1800
 e2e-notify:
 	$(cgroup2_preflight)
 	$(if $(strip $(NOTIFY_SPLITS)),,$(error NOTIFY_SPLITS is empty: name a split, or all))

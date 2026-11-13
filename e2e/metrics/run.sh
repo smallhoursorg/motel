@@ -32,7 +32,8 @@ STATE=/var/lib/motel-metrics
 NS=motel-metrics
 vm() { curl -s --max-time 10 --unix-socket "$VM" "$@"; }
 am() { curl -s --max-time 10 --unix-socket "$AMS" "$@"; }
-sinklog() { curl -s --max-time 5 "$SINK/log"; }
+# This box's deliveries alone: the sink is shared by every split's box.
+sinklog() { curl -s --max-time 5 "$SINK/log?mine=1"; }
 # q <query>: an instant query's answer, from the store.
 q() { vm -G --data-urlencode "query=$1" http://vm/api/v1/query; }
 # has_result <answer>: the answer holds at least one series.

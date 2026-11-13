@@ -83,8 +83,8 @@ failing_receivers() {
 # the sink, which answers each box with its own deliveries; unset, every
 # part runs, in order, on one box. A split holds parts that share state:
 # 6 and 9 count every delivery since the box began, 7a silences 3's
-# failed v3, 6b uses 6's helper, 14 reads the Caddyfile 11 keeps. 15,
-# five minutes of a held heartbeat and its resume, is a split alone.
+# failed v3. 15, five minutes of a held heartbeat and its resume, is a
+# split alone; 11 to 14 are another, near core's length.
 split_all="3 4 5 6 6b 7 7a 8 9 10 10a 11 12 13 14 15"
 split_core="3 4 5 6 6b 7 7a 8 9 10 10a" split_reload="11 12 13 14" split_heartbeat="15"
 case "${SPLIT:=all}" in
@@ -173,6 +173,8 @@ for f in "$STATE/alertmanager.yml"; do
 done
 am http://am/api/v2/status | grep -q 'e2e-sink' && fail "Alertmanager's status echoes a channel URL" || pass "Alertmanager's status echoes no channel URL"
 
+# The Caddyfile as the box began, which 11, 14 and 15 put back: kept
+# here, before any part edits it, for every split.
 cp /etc/motel/Caddyfile /tmp/Caddyfile.before
 
 echo "=== notify 2: the heartbeat ==="
@@ -441,8 +443,8 @@ case_11() {
 echo "=== notify 11: a secret missing at boot drops its channel; validate and reload refuse ==="
 # A channel line whose secret _box.env does not hold: the box's
 # consistency check refuses such a push, so this is a hand edit, or a
-# file lost. A boot must not take every site down for it.
-cp /etc/motel/Caddyfile /tmp/Caddyfile.before
+# file lost. A boot must not take every site down for it. The Caddyfile
+# to put back is the prelude's copy.
 sed -i 's#^\(\t*\)operator ops oncall#\1channel spare json {secret.NOTIFY_SPARE_URL}\n\1operator ops oncall spare#' /etc/motel/Caddyfile
 grep -q 'NOTIFY_SPARE_URL' /etc/motel/Caddyfile || fail "fixture: the spare channel line is not in the Caddyfile"
 if motel validate --adapter caddyfile --config /etc/motel/Caddyfile >/tmp/validate.out 2>&1; then

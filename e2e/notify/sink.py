@@ -18,6 +18,7 @@ import http.server
 import json
 import threading
 import time
+import urllib.parse
 
 LINES = []
 LOCK = threading.Lock()
@@ -57,7 +58,16 @@ class Sink(http.server.BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        mine = self.path.endswith("?mine=1")
+        url = urllib.parse.urlsplit(self.path)
+        query = urllib.parse.parse_qs(url.query)
+        # /log or /log?mine=1 alone: any other ask is refused, so a
+        # misspelt filter is a 400, never every box's lines.
+        if url.path != "/log" or set(query) - {"mine"} or query.get("mine", ["1"]) != ["1"]:
+            self.send_response(400)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        mine = "mine" in query
         with LOCK:
             lines = [line for addr, line in LINES if not mine or addr == self.client_address[0]]
         data = ("\n".join(lines) + "\n").encode() if lines else b""
