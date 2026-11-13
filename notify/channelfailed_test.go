@@ -332,6 +332,29 @@ func TestHeartbeatNotHeldWhenTheChannelDeliversAgain(t *testing.T) {
 		t.Fatalf("the heartbeat's own failure holds it: %+v", te.untold)
 	}
 
+	// A counter with no receiver_name (a drop-in without the feature):
+	// the suspects are a guess, and no delivery could end a hold.
+	*body = counters(1, 5, 1, 0) + amLines("heartbeat", 3, 12, 3) + failedLine("webhook", "", "other", 0)
+	te.scrapeFailed(context.Background(), read)
+	*body = counters(1, 5, 1, 0) + amLines("heartbeat", 3, 12, 3) + failedLine("webhook", "", "other", 2)
+	te.scrapeFailed(context.Background(), read)
+	if len(te.untold) != 0 {
+		t.Fatalf("a failure named by no receiver holds the heartbeat: %+v", te.untold)
+	}
+
+	// No heartbeat line: no check off the box to hear a hold.
+	te3, _, body3, read3 := holdEngine(t, `monitor {
+	channel ops ntfy {secret.NOTIFY_OPS_URL}
+	operator ops
+}`)
+	*body3 = counters(0, 3, 0, 0)
+	te3.scrapeFailed(context.Background(), read3)
+	*body3 = counters(1, 4, 1, 0)
+	te3.scrapeFailed(context.Background(), read3)
+	if len(te3.untold) != 0 {
+		t.Fatalf("a block with no heartbeat line records a hold: %+v", te3.untold)
+	}
+
 	// A second operator channel at warning hears ops' failure: no hold.
 	te2, _, body2, read2 := holdEngine(t, `monitor {
 	channel ops ntfy {secret.NOTIFY_OPS_URL}

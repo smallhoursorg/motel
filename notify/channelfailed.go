@@ -139,8 +139,11 @@ func (e *engine) scrapeFailed(ctx context.Context, read func(context.Context) ([
 		}
 		// No channel to tell: the heartbeat is what can, by stopping.
 		// A failure with no suspect is the heartbeat's own, which its
-		// check off the box hears already.
-		if len(to) == 0 && len(sus) > 0 {
+		// check off the box hears already. One the counter names no
+		// receiver for has suspects that are a guess, and no delivery
+		// count of their own to end a hold by; with no heartbeat line
+		// there is no check off the box to hear a hold.
+		if len(to) == 0 && len(sus) > 0 && s.receiver != "" && e.active.cfg != nil && e.active.cfg.heartbeat != "" {
 			e.untoldFor(key, sus, m, now)
 		}
 		if !e.bucketFor(key).take(now) {
