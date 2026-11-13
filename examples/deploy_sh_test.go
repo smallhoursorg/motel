@@ -181,6 +181,11 @@ func deployShIn(t *testing.T, srv *httptest.Server, dir string, args []string, e
 	if err != nil {
 		t.Fatal(err)
 	}
+	// sh opens the script, not this process: the stat is what puts it in
+	// Go's test cache, so an edit to it re-runs these tests.
+	if _, err := os.Stat(script); err != nil {
+		t.Fatal(err)
+	}
 	cmd := exec.Command("sh", append([]string{script}, args...)...)
 	cmd.Dir = dir
 	// Later entries win, so a developer's own MOTEL_AUDIENCE, or the

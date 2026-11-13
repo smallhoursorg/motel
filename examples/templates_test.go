@@ -24,6 +24,11 @@ func TestPublishTemplate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// sh opens the script, not this process: the stat is what puts it in
+	// Go's test cache, so an edit to it re-runs this test.
+	if _, err := os.Stat(script); err != nil {
+		t.Fatal(err)
+	}
 	root := t.TempDir()
 	env := append(os.Environ(),
 		"GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL="+os.DevNull,

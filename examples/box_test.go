@@ -65,18 +65,20 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		panic(err)
 	}
-	real, err := exec.LookPath("sleep")
+	realSleep, err := exec.LookPath("sleep")
 	if err != nil {
 		panic(err)
 	}
 	// Whole seconds alone are scaled, in the shell's integer arithmetic
-	// (no awk, whose decimal point is the locale's); anything else goes
-	// to the real sleep as asked.
-	q := "'" + strings.ReplaceAll(real, "'", `'\''`) + "'"
+	// (no awk, whose decimal point is the locale's), their leading zeros
+	// dropped (a 0 would make them octal); anything else, nine digits or
+	// more among it, goes to the real sleep as asked.
+	q := "'" + strings.ReplaceAll(realSleep, "'", `'\''`) + "'"
 	script := "#!/bin/sh\n" +
 		"[ $# -eq 1 ] || exec " + q + " \"$@\"\n" +
-		"case $1 in ''|*[!0-9]*) exec " + q + " \"$@\" ;; esac\n" +
-		"ms=$(($1 * 50))\n" +
+		"case $1 in ''|*[!0-9]*|?????????*) exec " + q + " \"$@\" ;; esac\n" +
+		"n=${1#\"${1%%[!0]*}\"}\n" +
+		"ms=$((${n:-0} * 50))\n" +
 		"exec " + q + " \"$((ms / 1000)).$(printf %03d $((ms % 1000)))\"\n"
 	if err := os.WriteFile(filepath.Join(shim, "sleep"), []byte(script), 0o755); err != nil {
 		panic(err)
@@ -134,9 +136,12 @@ func statMotelSources() error {
 		`{{range .GoFiles}}{{$d}}/{{.}}{{"\n"}}{{end}}{{range .CgoFiles}}{{$d}}/{{.}}{{"\n"}}{{end}}` +
 		`{{range .SFiles}}{{$d}}/{{.}}{{"\n"}}{{end}}{{range .EmbedFiles}}{{$d}}/{{.}}{{"\n"}}{{end}}` +
 		`{{.Module.GoMod}}{{"\n"}}{{end}}`
-	out, err := exec.Command("go", "list", "-deps", "-f", files, "github.com/smallhoursorg/motel/cmd/motel").Output()
+	var stderr bytes.Buffer
+	list := exec.Command("go", "list", "-deps", "-f", files, "github.com/smallhoursorg/motel/cmd/motel")
+	list.Stderr = &stderr
+	out, err := list.Output()
 	if err != nil {
-		return fmt.Errorf("go list motel's sources: %w", err)
+		return fmt.Errorf("go list motel's sources: %w\n%s", err, stderr.Bytes())
 	}
 	// The workspace's files are at the root, the parent of this package's.
 	paths := []string{filepath.Join("..", "go.work"), filepath.Join("..", "go.work.sum")}
