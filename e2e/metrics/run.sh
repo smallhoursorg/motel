@@ -216,11 +216,28 @@ else
 fi
 
 echo "=== metrics 3: GET /<app> ==="
+# The view's field shows once the store answers the view's own range
+# query (notify/metricsview.go: start now-1h, end now, step 60 s), and
+# then once the view's 30 s cache of its last answer, empty or not, has
+# passed. The store aligns the range's end down to a whole minute, so a
+# rate's first point is the minute after the second push: up to 89 s
+# after the first push, measured on 1.112.0 (PR #445). The suite waits
+# for that point in the store (a cap, not a timing), then gives the view
+# its cache and a margin.
+rq='sum(rate(motel_app_cpu_seconds_total{app="blog"}[2m]))'
+[ "$MEMORY" = 1 ] && rq='{__name__=~"motel_app_memory_bytes|motel_app_memory_max_bytes",app="blog"}'
+end=$(( $(date +%s) + 180 ))
+while [ "$(date +%s)" -lt "$end" ]; do
+	now=$(date +%s)
+	r=$(vm -G --data-urlencode "query=$rq" --data-urlencode "start=$((now - 3600))" --data-urlencode "end=$now" \
+		--data-urlencode step=60 http://vm/api/v1/query_range)
+	has_result "$r" && break
+	sleep 2
+done
+has_result "$r" && pass "the store answers the view's range query with a point" \
+	|| fail "the store has no point for the view's range query after 180 s: $(printf '%s' "$r" | head -c 300)"
 m=""
-# 150 s, not 90: a rate needs two pushes 30 s apart, the store aligns
-# the range's end down to the 60 s step, and the view caches for 30 s,
-# so cpu_cores can first show about 123 s after the first push.
-end=$(( $(date +%s) + 150 ))
+end=$(( $(date +%s) + 40 ))
 while [ "$(date +%s)" -lt "$end" ]; do
 	m=$(status)
 	if [ "$MEMORY" = 1 ]; then
@@ -234,7 +251,7 @@ want='"cpu_cores":{"avg_5m":'
 [ "$MEMORY" = 1 ] && want='"memory_bytes":{"now":[1-9]'
 printf '%s' "$m" | grep -q '"metrics":{"window":"1h","at":"' && printf '%s' "$m" | grep -q "$want" \
 	&& pass "GET /blog with the deploy token carries its metrics: $(printf '%s' "$m" | grep -o '"metrics":{.*' | cut -c1-200)" \
-	|| fail "GET /blog's metrics: $(printf '%s' "$m" | grep -o '"metrics":.*' | cut -c1-300)"
+	|| fail "GET /blog's metrics, 40 s after the store had the point: $(printf '%s' "$m" | grep -o '"metrics":.*' | cut -c1-300)"
 code=$(curl -s -o /tmp/get-noauth -w '%{http_code}' --max-time 5 "$HOOK")
 [ "$code" = 401 ] && ! grep -q metrics /tmp/get-noauth && pass "GET /blog without a token: 401, no metrics" || fail "GET /blog without a token: $code"
 
