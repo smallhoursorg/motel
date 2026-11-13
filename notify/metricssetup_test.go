@@ -997,6 +997,10 @@ func TestStoreReads(t *testing.T) {
 		{"sum(x) keep_metric_names default 0 or y limit 5", []storeRead{{"x", ""}, {"y", ""}}},
 		{`sum(increase(alertmanager_notifications_failed_total{integration="discord",receiver_name=~"a\\.b|c"}[5m])) > 0`,
 			[]storeRead{{"alertmanager_notifications_failed_total", ""}}},
+		// The request thresholds' guard (#442), as rendered: both series
+		// are motel's push, neither a scraped job's.
+		{"x and on (app) (" + pushedNow(`{app="blog"}`) + ")",
+			[]storeRead{{"x", ""}, {"motel_app_observed", ""}, {"process_start_time_seconds", "motel"}}},
 		{`scalar(min(tfirst_over_time(process_start_time_seconds{job="motel"}[7m]))) + 15`,
 			[]storeRead{{"process_start_time_seconds", "motel"}}},
 	} {
