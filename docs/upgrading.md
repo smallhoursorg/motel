@@ -363,6 +363,19 @@ either way: they ask the store for the 5 s themselves. The re-run
 rewrites the units and restarts the store and vmalert; a push or two
 fails meanwhile.
 
+**The same re-run trims what the store keeps of its own scrapes.** From
+this version the store keeps, of its scrapes of itself, vmalert and
+Alertmanager, only the series motel reads ([Monitor](monitor.md#promql-over-the-socket-as-root)):
+about 80 where it kept over 2,000. Only setup writes
+`/var/lib/motel-metrics/scrape.yml`, so a store set up before goes on
+keeping every series, and each load's warning names `scrape.yml`, until
+root runs `motel monitor setup --metrics` (the re-run above does it).
+The store is restarted onto the new file; the series it no longer
+keeps stop there and age out over the 14 days' retention. Nothing
+motel runs reads them, so no rule, check or `GET /<app>` changes. A
+query of your own over one of them finds its samples from before the
+re-run until the retention ends them, and none after.
+
 ## Patching the host
 
 Apps run on the box's own `/usr`, so `apt upgrade` reaches an app at

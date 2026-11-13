@@ -47,7 +47,13 @@ func LoadWarnings(cmd string, monitor []byte) []string {
 		}
 	}
 	if a.Metrics != nil {
-		if stale := staleUnits(metricsUnits()); len(stale) > 0 {
+		// With scrape.yml, which only setup writes: a box set up before
+		// it changed scrapes as it did until setup runs again.
+		files := append(metricsUnits(), struct {
+			path string
+			data []byte
+		}{filepath.Join(DefaultMetricsStateDir, scrapeName), scrapeConfig})
+		if stale := staleUnits(files); len(stale) > 0 {
 			out = append(out, "monitor: the units motel monitor setup --metrics wrote differ from this motel's ("+strings.Join(stale, ", ")+"): run motel monitor setup --metrics as root to put this version's in place")
 		}
 	}

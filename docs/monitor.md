@@ -444,7 +444,7 @@ or an error says what to do). If the block was loaded before setup ran,
 you will see
 `monitor: Alertmanager is not set up on this box (run motel monitor setup as root); events are journal lines only until it is`,
 and `motel validate` and `motel reload` say it too, as a `WARNING:`
-line. They also warn when the units a setup wrote differ from the ones
+line. They also warn when the units a setup wrote (or the store's `scrape.yml`) differ from the ones
 this motel would write (after an upgrade that changed them), and name
 the setup to run again.
 When Alertmanager cannot deliver, `journalctl -u prometheus-alertmanager`
@@ -538,6 +538,30 @@ curl -s --unix-socket /run/motel-metrics/vm.sock -G \
 `query_range` (`/api/v1/query_range` with `start`, `end` and `step`)
 works the same way. What each series means is in DESIGN-metrics.md's
 [What motel pushes](../notify/DESIGN-metrics.md#what-motel-pushes).
+
+The store also scrapes itself, vmalert and Alertmanager, and keeps
+only the series motel reads (`/var/lib/motel-metrics/scrape.yml`):
+`vm_free_disk_space_bytes`, which the store's disk rule reads,
+`alertmanager_notifications_failed_total`, which vmalert's
+`ChannelFailed` reads, and each job's `up` and `scrape_*` (motel reads
+`up{job="vmalert"}` to tell vmalert down). The rest would cost disk
+and memory with nothing reading it, and a series motel comes to read
+later is added to the list then, which breaks nothing
+([What the store scrapes](../notify/DESIGN-metrics.md#what-the-store-scrapes)).
+Each one's whole page is still there to read live, the store's over
+its socket and the other two inside its namespace:
+
+```sh
+curl -s --unix-socket /run/motel-metrics/vm.sock http://vm/metrics
+ip netns exec motel-metrics curl -s http://127.0.0.1:8880/metrics
+ip netns exec motel-metrics curl -s http://127.0.0.1:9093/metrics
+```
+
+A box whose store was set up before motel kept only these goes on
+keeping every series until root runs `motel monitor setup --metrics`
+again (each load warns that `scrape.yml` differs). After that, the
+series it no longer keeps age out over the 14 days, and nothing that
+reads the store reads them.
 
 ### What is firing, with `amtool`
 

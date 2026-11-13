@@ -69,6 +69,18 @@ func TestLoadWarningsSayStaleUnits(t *testing.T) {
 	if w := LoadWarnings("run", []byte(`{"metrics":{}}`)); len(w) != 1 || !strings.Contains(w[0], "--metrics") {
 		t.Fatalf("the store alone: %v", w)
 	}
+	// scrape.yml as setup wrote it before the store kept only what motel
+	// reads: the store scrapes every series until setup runs again.
+	put(metricsUnits()[5].path, metricsUnits()[5].data)
+	scrape := filepath.Join(DefaultMetricsStateDir, scrapeName)
+	put(scrape, []byte("global:\n  scrape_interval: 30s\nscrape_configs:\n  - job_name: vmalert\n    static_configs: [{targets: [\"127.0.0.1:8880\"]}]\n"))
+	if got := stale("run"); !strings.Contains(got, "("+scrape+"): run motel monitor setup --metrics as root") {
+		t.Fatalf("an old scrape.yml: %s", got)
+	}
+	put(scrape, append([]byte("# a comment of an older setup\n"), scrapeConfig...))
+	if got := stale("run"); strings.Contains(got, scrape) {
+		t.Fatalf("scrape.yml with a comment changed: %s", got)
+	}
 	if w := LoadWarnings("run", nil); len(w) != 0 {
 		t.Fatalf("no block: %v", w)
 	}
