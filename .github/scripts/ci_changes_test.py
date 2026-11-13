@@ -32,7 +32,6 @@ class Rule(unittest.TestCase):
             ["README.md"],
             ["docs/first-deploy.md", "liveswap/DESIGN-liveswap.md"],
             ["usage/runs.csv", "usage/claude/lima16.csv", "docs/footprint.md"],
-            [],  # an empty diff: nothing to build
         ):
             with self.subTest(paths=paths):
                 self.assertEqual(run(paths), "heavy=false\n")
@@ -47,6 +46,7 @@ class Rule(unittest.TestCase):
             ["liveswap/testdata/notes.md"],
             [".github/workflows/ci.yml"],
             ["usage.md.go"],
+            [],  # a diff that read nothing is a doubt, not a docs PR
         ):
             with self.subTest(paths=paths):
                 self.assertEqual(run(paths), "heavy=true\n")
