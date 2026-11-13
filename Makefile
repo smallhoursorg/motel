@@ -359,15 +359,36 @@ e2e-notify:
 	exit $$status
 
 # The metrics suite: notify's box with Debian's victoria-metrics, and the
-# same stub receiver; its own target and CI job, as notify's.
+# same stub receiver; its own target and CI job, as notify's. Its parts
+# are timer-bound, not CPU-bound (a minute's evaluation, a 75 s hold), so
+# its splits (e2e/metrics/run.sh's SPLIT) run at once, a box each, as the
+# backup suites do, with their output held and printed a split at a time.
+# METRICS_SPLITS=rules runs one; METRICS_SPLITS=all is the whole suite on
+# one box, the order it ran in before the split.
+METRICS_SPLITS ?= view vmalert store rules
 e2e-metrics:
 	$(cgroup2_preflight)
-	$(COMPOSE) up --build -d e2e-metrics-box e2e-sink e2e-artifacts
-	status=0; \
-	$(COMPOSE) exec -T e2e-metrics-box /bin/sh /suite-metrics.sh || status=1; \
-	if [ $$status -ne 0 ]; then \
-		$(COMPOSE) exec -T e2e-metrics-box journalctl --no-pager -n 200 -u motel -u victoria-metrics -u motel-vmalert -u motel-vm.socket -u motel-vm.service -u motel-am-metrics.socket -u prometheus-alertmanager -u motel-metrics-netns || true; \
-	fi; \
+	$(COMPOSE) rm -sf e2e-metrics-box e2e-sink >/dev/null
+	$(COMPOSE) up --build -d --scale e2e-metrics-box=$(words $(METRICS_SPLITS)) e2e-metrics-box e2e-sink e2e-artifacts
+	logs=$$(mktemp -d); i=0; \
+	for s in $(METRICS_SPLITS); do \
+		i=$$((i + 1)); \
+		( t0=$$(date +%s); $(COMPOSE) exec -T --index $$i -e SPLIT=$$s e2e-metrics-box /bin/sh /suite-metrics.sh >$$logs/$$s.log 2>&1; echo "$$? $$(($$(date +%s) - t0))" >$$logs/$$s.rc ) & \
+	done; \
+	wait; \
+	status=0; i=0; \
+	for s in $(METRICS_SPLITS); do \
+		i=$$((i + 1)); \
+		rc=; took=; read rc took <$$logs/$$s.rc || rc=unknown; \
+		echo "════ metrics split $$s (box $$i, $${took:-?}s) ════"; \
+		cat $$logs/$$s.log; \
+		if [ "$$rc" != 0 ]; then \
+			status=1; \
+			echo "════ metrics split $$s failed: box $$i's journal ════"; \
+			$(COMPOSE) exec -T --index $$i e2e-metrics-box journalctl --no-pager -n 200 -u motel -u victoria-metrics -u motel-vmalert -u motel-vm.socket -u motel-vm.service -u motel-am-metrics.socket -u prometheus-alertmanager -u motel-metrics-netns || true; \
+		fi; \
+	done; \
+	rm -rf $$logs; \
 	$(COMPOSE) rm -sf e2e-metrics-box e2e-sink >/dev/null; \
 	exit $$status
 
