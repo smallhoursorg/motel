@@ -410,7 +410,7 @@ func provision(t *testing.T, src string) (*App, error) {
 // each naming what to write instead.
 func TestTheOldBlocksAreRefused(t *testing.T) {
 	for src, want := range map[string]string{
-		"{\n\tadmin off\n\tnotify {\n\t\tchannel ops ntfy {secret.NOTIFY_OPS_URL}\n\t\toperator ops\n\t}\n}\n": "the notify block is now `monitor { … }`",
+		"{\n\tadmin off\n\tnotify {\n\t\tchannel ops ntfy {secret.NOTIFY_OPS_URL}\n\t\toperator ops\n\t}\n}\n": "the notify block is now `monitor { … }`, with the same lines but state_dir and alertmanager, whose paths are fixed",
 		"{\n\tadmin off\n\tmetrics_store\n}\n":                                              "metrics_store is now a `metrics [<socket path>]` line in the monitor block",
 		"{\n\tadmin off\n\tmetrics_store {\n\t\tstore /run/x/vm.sock\n\t}\n}\n":             "metrics_store is now a `metrics [<socket path>]` line in the monitor block",
 		"{\n\tadmin off\n\tmonitor {\n\t\tmetrics\n\t}\n\tmonitor {\n\t\tmetrics\n\t}\n}\n": "the monitor option is given more than once",

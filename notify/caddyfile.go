@@ -14,7 +14,7 @@ func init() {
 	// The two blocks the monitor block replaced: refused by name, so
 	// that a Caddyfile written for them says what to write instead of
 	// Caddy's "unrecognized global option".
-	httpcaddyfile.RegisterGlobalOption("notify", refusedOption("the notify block is now `monitor { … }`, with the same lines; to move a box onto it, docs/upgrading.md, \"From the notify and metrics_store blocks\""))
+	httpcaddyfile.RegisterGlobalOption("notify", refusedOption("the notify block is now `monitor { … }`, with the same lines but state_dir and alertmanager, whose paths are fixed; to move a box onto it, docs/upgrading.md, \"From the notify and metrics_store blocks\""))
 	httpcaddyfile.RegisterGlobalOption("metrics_store", refusedOption("metrics_store is now a `metrics [<socket path>]` line in the monitor block; to move a box onto it, docs/upgrading.md, \"From the notify and metrics_store blocks\""))
 }
 
