@@ -166,6 +166,16 @@ nvm=$(printf '%s\n' "$vmtests" | tr '|' '\n' | wc -l)
 [ $? -eq 0 ] && [ "$(grep -c '^--- PASS' /tmp/vmtests.out)" = "$nvm" ] && ! grep -q -- '--- SKIP' /tmp/vmtests.out \
 	&& pass "notify's $nvm vmalert tests run and pass against the box's vmalert, vmalert-tool and victoria-metrics" \
 	|| fail "notify's vmalert tests: $(grep -E -- '^(--- |FAIL|ok)|SKIP' /tmp/vmtests.out | head -10)"
+# notify's tests over amtool (Debian's prometheus-alertmanager, which
+# this box has as the notify box does): Alertmanager's own router over
+# the rendered tree, a receiver per channel. The list is every test
+# that calls amtool (TestE2EMetricsListsEveryVMAlertTest too).
+amtests='^(TestRenderPassesAmtoolCheckConfig|TestRenderRoutesWithAmtool)$'
+nam=$(printf '%s\n' "$amtests" | tr '|' '\n' | wc -l)
+(cd /tmp && notify.test -test.run "$amtests" -test.v -test.count=1) >/tmp/amtests.out 2>&1
+[ $? -eq 0 ] && [ "$(grep -c '^--- PASS' /tmp/amtests.out)" = "$nam" ] && ! grep -q -- '--- SKIP' /tmp/amtests.out \
+	&& pass "notify's $nam amtool tests run and pass against the box's amtool" \
+	|| fail "notify's amtool tests: $(grep -E -- '^(--- |FAIL|ok)|SKIP|→' /tmp/amtests.out | head -10)"
 # The operator's group: the threshold and disk_fill lines, motel's own
 # expressions, each counter through the guard (increase_pure for a
 # series new to the store since the push's first sample, else
@@ -348,7 +358,7 @@ a=$(wait_result vmalert-up 'up{job="vmalert"} == 1' 90) && pass "the store scrap
 a=$(wait_result am-up 'up{job="alertmanager"} == 1' 90) && pass "the store scrapes Alertmanager at its listener in the namespace" \
 	|| fail "the store has no up{job=\"alertmanager\"}: $(q 'up')"
 # A box event reaches ops and oncall; oncall answers 400, Alertmanager
-# counts the failure on event-box-warning's discord, and both motel and
+# counts the failure on event-warning-oncall, its discord, and both motel and
 # vmalert post ChannelFailed to ops with suspects=oncall.
 motel monitor send --source e2e --name nightly_job_failed --severity warning --summary "e2e: the nightly job failed" >/tmp/send.out 2>&1 \
 	|| fail "monitor send: $(cat /tmp/send.out)"
