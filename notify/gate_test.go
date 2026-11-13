@@ -142,7 +142,7 @@ func TestLoadWarningsSayTheProxyGoes(t *testing.T) {
 	put(svc, []byte("[Service]\nExecStart=/usr/lib/systemd/systemd-socket-proxyd /run/motel-notify/am.sock\n"))
 	// Setup restarts Alertmanager only when it does not listen in the
 	// namespace yet (a retirement cut short may have left it listening).
-	const restarts = " and, unless Alertmanager listens in the store's namespace already, restarts Alertmanager once so that it does"
+	const restarts = " and, unless Alertmanager listens in the store's namespace already, restarts (or starts) Alertmanager once so that it does"
 	want := "monitor: the proxy an older setup wrote for Alertmanager (" + sock + ", " + svc + ") is still in place: run motel monitor setup --metrics as root, which retires it" + restarts
 	if w := LoadWarnings("run", store); len(w) != 1 || w[0] != want {
 		t.Fatalf("the proxy alone:\n%v\nwant\n%s", w, want)

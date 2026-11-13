@@ -34,19 +34,21 @@ import (
 
 // longDescription is `motel --help`'s text above the commands.
 const longDescription = `motel is the smallhours app server: Caddy with zero-downtime app
-deploys (liveswap), rate-limit hint enforcement (penaltybox), the box's
-config channel, monitor (who motel tells, and the numbers) and HTTP
-caching compiled in. Its commands, Caddyfile and admin API are Caddy's,
-under the name motel.
+deploys (liveswap), rate-limit hint enforcement (penaltybox), backups,
+the box's config channel, monitor (who motel tells, and the numbers)
+and HTTP caching compiled in. Its commands, Caddyfile and admin API are
+Caddy's, under the name motel.
 
-On a box, motel runs as motel.service from /etc/motel/Caddyfile. After
-an edit there:
+On a box, motel runs as motel.service from /etc/motel/Caddyfile, and
+systemctl starts, stops and reloads it. With a box repository, change
+the Caddyfile by a push: the next push replaces an edit made here.
+Without one, after an edit:
 
 	motel validate --config /etc/motel/Caddyfile
 	systemctl reload motel
 
 motel's own commands are listed below beside Caddy's; the motel
-repository's README and docs/ describe them.
+repository's README and docs/ describe them. The examples are Caddy's.
 `
 
 func main() {

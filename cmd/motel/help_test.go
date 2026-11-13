@@ -18,20 +18,27 @@ func TestHelpNamesTheBinary(t *testing.T) {
 		main()
 		return
 	}
-	for _, c := range []struct{ args, want string }{
-		{"monitor --help", "Usage:\n  motel monitor [command]\n"},
-		{"monitor setup --help", "Usage:\n  motel monitor setup [--metrics] [flags]\n"},
-		{"monitor send --help", "Usage:\n  motel monitor send --source <name>"},
-		{"--help", "Usage:\n  motel [command]\n"},
-		{"--help", "motel is the smallhours app server"},
+	for _, c := range []struct {
+		args string
+		want []string
+	}{
+		{"monitor --help", []string{"Usage:\n  motel monitor [command]\n"}},
+		{"monitor setup --help", []string{"Usage:\n  motel monitor setup [--metrics] [flags]\n"}},
+		{"monitor send --help", []string{"Usage:\n  motel monitor send --source <name>"}},
+		{"--help", []string{"Usage:\n  motel [command]\n", "motel is the smallhours app server"}},
 	} {
-		// Bounded: a help that came to block would otherwise hang the
-		// suite to go test's own timeout, naming no case.
-		child := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^TestHelpNamesTheBinary$", "-test.timeout=60s")
+		// The child's own -test.timeout bounds a help that came to block,
+		// naming this test, before go test's timeout for the whole run.
+		child := exec.Command(os.Args[0], "-test.run=^TestHelpNamesTheBinary$", "-test.timeout=60s")
 		child.Env = append(os.Environ(), "MOTEL_HELP_ARGS="+c.args)
 		out, err := child.CombinedOutput()
-		if err != nil || !strings.Contains(string(out), c.want) {
-			t.Errorf("motel %s: %v\n%s\nwant %q", c.args, err, out, c.want)
+		if err != nil {
+			t.Errorf("motel %s: %v\n%s", c.args, err, out)
+		}
+		for _, w := range c.want {
+			if !strings.Contains(string(out), w) {
+				t.Errorf("motel %s:\n%s\nwant %q", c.args, out, w)
+			}
 		}
 		for _, caddy := range []string{"caddy monitor", "Use \"caddy ", "help for caddy", "To run Caddy, use"} {
 			if strings.Contains(string(out), caddy) {

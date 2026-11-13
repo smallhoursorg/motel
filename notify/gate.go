@@ -95,7 +95,7 @@ func LoadWarnings(cmd string, monitor []byte) []string {
 			if len(proxy) > 0 {
 				// Setup's own test (amListenInNamespace): a box whose
 				// retirement was cut short may listen there already.
-				msg += " and, unless Alertmanager listens in the store's namespace already, restarts Alertmanager once so that it does"
+				msg += " and, unless Alertmanager listens in the store's namespace already, restarts (or starts) Alertmanager once so that it does"
 			}
 			out = append(out, msg)
 		}

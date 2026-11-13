@@ -158,6 +158,10 @@ func TestMetricsSetupOrderAndFiles(t *testing.T) {
 	if !strings.HasPrefix(out.String(), "masked victoria-metrics.service, so nothing starts it while its units are written\nvictoria-metrics is installed\ninstalled iproute2\n") {
 		t.Errorf("iproute2 alone missing: setup said\n%s", out.String())
 	}
+	if i := slices.IndexFunc(fIP.cmds, func(c string) bool { return strings.HasPrefix(c, "apt-get") }); i < 0 ||
+		fIP.cmds[i] != "apt-get install -y --no-install-recommends iproute2" {
+		t.Errorf("iproute2 alone missing: %v; want it installed alone", fIP.cmds)
+	}
 }
 
 // A re-run that fails after the mask (here the units' reload) must not
@@ -270,7 +274,7 @@ func TestMetricsSetupRetiresTheProxyShape(t *testing.T) {
 	if n != 1 {
 		t.Errorf("Alertmanager in %d commands, want its one restart: %v", n, f.cmds)
 	}
-	for _, u := range []string{oldAMProxySocket, oldAMProxyService} {
+	for _, u := range oldAMProxyUnits {
 		if _, err := os.Lstat(filepath.Join(root, unitDir, u)); !errors.Is(err, fs.ErrNotExist) {
 			t.Errorf("%s is still there: %v", u, err)
 		}
