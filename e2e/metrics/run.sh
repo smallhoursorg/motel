@@ -74,14 +74,26 @@ RELOAD_WAIT=15
 # so a part that moves the store, Alertmanager or the Caddyfile moves
 # them for its own split alone. The shared sink is read by 10 alone, for
 # lines only the rules split's deploy can make.
+all="vm 3 3a 4 4a 4b 4c 4d 5 6 7 8 9 10 11"
+view="vm 3 3a" vmalert="4 4a" store="4b 4c 4d 5 6" rules="5 7 8 9 10 11"
 case "${SPLIT:=all}" in
-all) parts="vm 3 3a 4 4a 4b 4c 4d 5 6 7 8 9 10 11" ;;
-view) parts="vm 3 3a" ;;
-vmalert) parts="4 4a" ;;
-store) parts="4b 4c 4d 5 6" ;;
-rules) parts="5 7 8 9 10 11" ;;
+all) parts=$all ;;
+view) parts=$view ;;
+vmalert) parts=$vmalert ;;
+store) parts=$store ;;
+rules) parts=$rules ;;
 *) echo "FATAL: SPLIT=$SPLIT: all, view, vmalert, store or rules"; exit 1 ;;
 esac
+# Every part is in all and in some split, and every name in them is a
+# part: `make e2e-metrics` runs the splits, so a part in all alone would
+# never run there. Refused here, by name, on every box.
+for d in $(sed -n 's/^m\([0-9a-z]*\)() {$/\1/p' "$0"); do
+	case " $all " in *" $d "*) ;; *) echo "FATAL: part $d is not in all"; exit 1 ;; esac
+	case " $view $vmalert $store $rules " in *" $d "*) ;; *) echo "FATAL: part $d is in no split"; exit 1 ;; esac
+done
+for d in $all $view $vmalert $store $rules; do
+	grep -q "^m$d() {$" "$0" || { echo "FATAL: $d names no part (no function m$d)"; exit 1; }
+done
 
 echo "=== metrics 0: the box ==="
 i=0
@@ -199,6 +211,7 @@ nvm=$(printf '%s\n' "$vmtests" | tr '|' '\n' | wc -l)
 	&& pass "notify's $nvm vmalert tests run and pass against the box's vmalert, vmalert-tool and victoria-metrics" \
 	|| fail "notify's vmalert tests: $(grep -E -- '^(--- |FAIL|ok)|SKIP' /tmp/vmtests.out | head -10)"
 }
+case " $parts " in *" vm "*) mvm ;; esac
 # The operator's group: the threshold and disk_fill lines, motel's own
 # expressions, each counter through the guard (increase_pure for a
 # series new to the store since the push's first sample, else
@@ -684,6 +697,8 @@ i=0
 until inns curl -s --max-time 5 http://127.0.0.1:8880/api/v1/rules | grep -q '"type":"alerting"'; do
 	i=$((i + 1)); [ "$i" -ge 45 ] && break; sleep 2
 done
+[ "$i" -lt 45 ] && pass "vmalert has loaded the alerting rules before they are cut" \
+	|| fail "vmalert loaded no alerting rule in 90 s, so a zero after the cut would prove nothing"
 cp /etc/motel/Caddyfile /tmp/Caddyfile.both
 awk '/^\tmonitor \{$/ { inb = 1; print; next } inb && /^\t\}$/ { inb = 0; print; next } inb && !/^\t\tmetrics( |$)/ { next } { print }' \
 	/etc/motel/Caddyfile >/tmp/Caddyfile.nonotify
@@ -892,7 +907,7 @@ sleep 3
 	|| fail "after the upgrade: $(amstarts "$since") start(s) of Alertmanager, 9093 $(nsready && echo answers || echo 'does not answer'): $(inns ss -ltnpH | grep 9093)"
 }
 
-for p in $parts; do "m$p"; done
+for p in $parts; do [ "$p" = vm ] || "m$p"; done
 
 echo
 if [ "$FAILURES" -ne 0 ]; then

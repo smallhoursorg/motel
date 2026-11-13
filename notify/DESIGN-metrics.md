@@ -1341,11 +1341,12 @@ tests, metrics 3 and 3a), vmalert (4, 4a), store (4b to 6) and rules
 (5, 7 to 11), each after the prelude (metrics 0 to 2). Its parts wait on
 the store's and vmalert's clocks, not the CPU, so the lane takes its
 longest split: 253 s against 630 s for the whole suite on one box, the
-same 110 checks passing (2026-11-13, lima arm64 VM, with other suites
+same 110 distinct checks passing (the prelude's on every box) (2026-11-13, lima arm64 VM, with other suites
 running beside it). A split holds the parts that share state, and each
 box is fresh, so a part that moves the store, Alertmanager or the
 Caddyfile moves them for its own split alone; `METRICS_SPLITS=all` runs
-the suite whole, in its old order, on one box.
+the suite whole, in its old order, on one box. The suite refuses to
+start when a part is in no split.
 Not in e2e (unit-tested only): `metrics_store_down`'s five minutes and
 `metrics_rules_down`'s three reads, the cache's 30 s; the post-deploy
 comparison's old-is-worse guard, its p95 bound, a pass resetting the

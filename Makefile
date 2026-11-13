@@ -364,16 +364,22 @@ e2e-notify:
 # its splits (e2e/metrics/run.sh's SPLIT) run at once, a box each, as the
 # backup suites do, with their output held and printed a split at a time.
 # METRICS_SPLITS=rules runs one; METRICS_SPLITS=all is the whole suite on
-# one box, the order it ran in before the split.
+# one box, in the order it ran in before the split. Each split is ended
+# at METRICS_LIMIT inside its box, as a backup suite at SUITE_LIMIT, so a
+# wedged one still prints what it got to. Only the boxes are removed
+# first (a box count from an earlier run), not the sink, which a notify
+# run beside this one may be reading.
 METRICS_SPLITS ?= view vmalert store rules
+METRICS_LIMIT ?= 900
 e2e-metrics:
 	$(cgroup2_preflight)
-	$(COMPOSE) rm -sf e2e-metrics-box e2e-sink >/dev/null
+	$(if $(strip $(METRICS_SPLITS)),,$(error METRICS_SPLITS is empty: name a split, or all))
+	$(COMPOSE) rm -sf e2e-metrics-box >/dev/null
 	$(COMPOSE) up --build -d --scale e2e-metrics-box=$(words $(METRICS_SPLITS)) e2e-metrics-box e2e-sink e2e-artifacts
 	logs=$$(mktemp -d); i=0; \
 	for s in $(METRICS_SPLITS); do \
 		i=$$((i + 1)); \
-		( t0=$$(date +%s); $(COMPOSE) exec -T --index $$i -e SPLIT=$$s e2e-metrics-box /bin/sh /suite-metrics.sh >$$logs/$$s.log 2>&1; echo "$$? $$(($$(date +%s) - t0))" >$$logs/$$s.rc ) & \
+		( t0=$$(date +%s); $(COMPOSE) exec -T --index $$i -e SPLIT=$$s e2e-metrics-box timeout $(METRICS_LIMIT) /bin/sh /suite-metrics.sh >$$logs/$$s.log 2>&1; echo "$$? $$(($$(date +%s) - t0))" >$$logs/$$s.rc ) & \
 	done; \
 	wait; \
 	status=0; i=0; \
@@ -382,6 +388,7 @@ e2e-metrics:
 		rc=; took=; read rc took <$$logs/$$s.rc || rc=unknown; \
 		echo "════ metrics split $$s (box $$i, $${took:-?}s) ════"; \
 		cat $$logs/$$s.log; \
+		if [ "$$rc" = 124 ]; then echo "════ metrics split $$s ended at METRICS_LIMIT ($(METRICS_LIMIT)s) ════"; fi; \
 		if [ "$$rc" != 0 ]; then \
 			status=1; \
 			echo "════ metrics split $$s failed: box $$i's journal ════"; \
