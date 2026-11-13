@@ -74,8 +74,8 @@ RELOAD_WAIT=15
 # state: 4c reads 4b's restart of the store, 6 the probe release 5
 # deploys, 8 and 9 the Caddyfiles 7 and 8 cut. Each split's box is fresh,
 # so a part that moves the store, Alertmanager or the Caddyfile moves
-# them for its own split alone. The shared sink is read by 10 alone, for
-# lines only the rules split's deploy can make.
+# them for its own split alone. The shared sink answers each box with
+# its own deliveries (sinklog).
 split_all="vm 2b 3 3a 4 4a 4b 4c 4d 5 6 7 8 9 10 11"
 split_view="vm 2b 3 3a" split_vmalert="4 4a" split_store="4b 4c 4d 5 6" split_rules="5 7 8 9 10 11"
 case "${SPLIT:=all}" in

@@ -85,8 +85,8 @@ failing_receivers() {
 # 6 and 9 count every delivery since the box began, 7a silences 3's
 # failed v3. 15, five minutes of a held heartbeat and its resume, is a
 # split alone; 11 to 14 are another, near core's length.
-split_all="3 4 5 6 6b 7 7a 8 9 10 10a 11 12 13 14 15"
 split_core="3 4 5 6 6b 7 7a 8 9 10 10a" split_reload="11 12 13 14" split_heartbeat="15"
+split_all="$split_core $split_reload $split_heartbeat"
 case "${SPLIT:=all}" in
 all) parts=$split_all ;;
 core) parts=$split_core ;;

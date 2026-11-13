@@ -59,7 +59,7 @@ class Sink(http.server.BaseHTTPRequestHandler):
 
     def do_GET(self):
         url = urllib.parse.urlsplit(self.path)
-        query = urllib.parse.parse_qs(url.query)
+        query = urllib.parse.parse_qs(url.query, keep_blank_values=True)
         # /log or /log?mine=1 alone: any other ask is refused, so a
         # misspelt filter is a 400, never every box's lines.
         if url.path != "/log" or set(query) - {"mine"} or query.get("mine", ["1"]) != ["1"]:
