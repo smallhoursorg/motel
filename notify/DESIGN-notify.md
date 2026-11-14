@@ -385,7 +385,12 @@ whichever config serves when it clears.
   queue (512), retried with backoff from 2 s to 30 s for five minutes,
   then given up as `monitor: delivery failed` (error level for an
   event) and `motel_notify_delivery_failed_total` on the admin
-  `/metrics`. A refusal (4xx) is given up at once; a 5xx is retried like a refused connect. Socket activation
+  `/metrics`. A refusal (4xx) is given up at once; a 5xx is retried like a refused connect. A post whose own
+  `endsAt` passes while it waits (a one-shot's 5 m, `ChannelFailed`'s
+  15 m, the heartbeat's 4 m) is given up the same way, not posted:
+  Alertmanager would take it as resolved and tell no one. An end (a
+  resolve, the mute's end) is queued with `endsAt` at its queuing and
+  is posted however late. Socket activation
   restarts Alertmanager in about a second, so the usual outage is one
   failed connect.
 - **The mute** is `deploy_in_progress` for the app, posted at a
@@ -410,8 +415,9 @@ whichever config serves when it clears.
   Start stops the new config while the old one serves on; the engine
   goes back to the old one, and puts the old one's render back in the
   state directory and in Alertmanager. When the last config running
-  notify stops, the engine's table, mutes and buckets are emptied: a
-  block added back later starts clean. When that stop is a reload's
+  notify stops, the engine's table, mutes and buckets are emptied, and
+  each post still queued is given up as above (at motel's shutdown
+  too): a block added back later starts clean. When that stop is a reload's
   (a config serves on without notify: the block or its channels taken
   out), Alertmanager is given setup's config that sends nothing and
   the URL files are removed (`applyNothing`): what it holds ends at
