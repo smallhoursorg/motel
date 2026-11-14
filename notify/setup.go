@@ -79,7 +79,7 @@ func maskSaid(service string, installs bool) string {
 // when setup began) a failure unmasks the service and starts sockets:
 // a connection that arrived while the service was masked fails its
 // activation socket, which then starts nothing. daemons are started
-// too if the service was running. Every step is tried, whatever the one
+// too: the caller names them only if the service was running. Every step is tried, whatever the one
 // before it did. A first run that fails before its own unmask is left
 // masked: until the drop-in is written, Debian's unit listens beyond
 // the box. One that fails after it is left as far as it got, every unit
@@ -91,10 +91,7 @@ func putBackOnFailure(sys system, say func(string, ...any), rerun bool, service 
 	if !rerun {
 		return func() {}
 	}
-	start := sockets
-	if len(daemons) > 0 && sys.run("systemctl", "is-active", "--quiet", service) == nil {
-		start = append(slices.Clone(sockets), daemons...)
-	}
+	start := append(slices.Clone(sockets), daemons...)
 	return func() {
 		if *err == nil {
 			return
@@ -344,7 +341,7 @@ func setup(sys system, root string, out io.Writer) (err error) {
 
 // rewriteFile writes data to path as writeFileAtomic does, whatever path
 // holds, so its mode is setup's, and says whether its content changed:
-// a re-run names only the files it changed (wroteSaid).
+// a re-run names the files whose content it changed (wroteSaid).
 func rewriteFile(path string, data []byte, mode fs.FileMode) (changed bool, err error) {
 	old, rerr := os.ReadFile(path) //nolint:gosec // setup's own unit and state files
 	changed = rerr != nil || !bytes.Equal(old, data)
@@ -356,7 +353,7 @@ func wroteSaid(path string, changed bool) string {
 	if changed {
 		return "wrote " + path
 	}
-	return path + " is unchanged"
+	return path + ": content unchanged"
 }
 
 func writeFileAtomic(path string, data []byte, mode fs.FileMode) error {

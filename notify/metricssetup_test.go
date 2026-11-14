@@ -51,13 +51,15 @@ func TestMetricsSetupOrderAndFiles(t *testing.T) {
 	// A first run: Alertmanager's socket in the namespace does not listen
 	// yet, so Alertmanager is restarted, once, to take it up, before the
 	// namespace's own start (the restart starts it).
-	f := &fakeSystem{failOn: "systemctl is-active --quiet " + amNSSocket}
+	// The store is not running yet either.
+	f := &fakeSystem{failOn: "systemctl is-active --quiet " + amNSSocket + "|systemctl is-active --quiet " + vmService}
 	var out bytes.Buffer
 	if err := metricsSetup(f, root, &out); err != nil {
 		t.Fatal(err)
 	}
 	want := []string{
 		"systemctl mask victoria-metrics.service",
+		"systemctl is-active --quiet victoria-metrics.service",
 		"systemctl stop victoria-metrics.service",
 		"apt-get install -y --no-install-recommends victoria-metrics iproute2",
 		"systemctl daemon-reload",
@@ -159,7 +161,7 @@ func TestMetricsSetupOrderAndFiles(t *testing.T) {
 	// (the deploy of ecb829a to hotserve-1 said "wrote" for every file,
 	// and nothing of the store's and vmalert's restarts).
 	for _, u := range metricsUnits() {
-		if !strings.Contains(out.String(), "\n"+u.path+" is unchanged\n") || strings.Contains(out.String(), "wrote "+u.path) {
+		if !strings.Contains(out.String(), "\n"+u.path+": content unchanged\n") || strings.Contains(out.String(), "wrote "+u.path) {
 			t.Errorf("a re-run with %s as setup wrote it: setup said\n%s\nwant it unchanged", u.path, out.String())
 		}
 	}
@@ -181,6 +183,17 @@ func TestMetricsSetupOrderAndFiles(t *testing.T) {
 	if i := slices.IndexFunc(fIP.cmds, func(c string) bool { return strings.HasPrefix(c, "apt-get") }); i < 0 ||
 		fIP.cmds[i] != "apt-get install -y --no-install-recommends iproute2" {
 		t.Errorf("iproute2 alone missing: %v; want it installed alone", fIP.cmds)
+	}
+
+	// Restarted or started is the store's own state, not the run's: a
+	// re-run over a store that was not running starts it.
+	fStopped := &fakeSystem{isInstalled: true, failOn: "systemctl is-active --quiet " + vmService}
+	out.Reset()
+	if err := metricsSetup(fStopped, root, &out); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "\nstarted the store and vmalert: ") || strings.Contains(out.String(), "restarted the store") {
+		t.Errorf("a re-run over a stopped store: setup said\n%s\nwant it started", out.String())
 	}
 }
 

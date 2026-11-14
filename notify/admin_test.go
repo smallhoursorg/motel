@@ -536,7 +536,7 @@ func TestSetupOrderAndFiles(t *testing.T) {
 		strings.Contains(out.String(), "install starts nothing") {
 		t.Errorf("a re-run's mask: setup said\n%s", out.String())
 	}
-	if !strings.Contains(out.String(), "\nwrote "+dropInPath+"\n") || !strings.Contains(out.String(), "\n"+socketPath+" is unchanged\n") ||
+	if !strings.Contains(out.String(), "\nwrote "+dropInPath+"\n") || !strings.Contains(out.String(), "\n"+socketPath+": content unchanged\n") ||
 		strings.Contains(out.String(), "wrote "+socketPath) {
 		t.Errorf("a re-run with the drop-in edited: setup said\n%s\nwant the drop-in written and the socket unchanged", out.String())
 	}

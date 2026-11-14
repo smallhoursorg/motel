@@ -123,7 +123,15 @@ func metricsSetup(sys system, root string, out io.Writer) (err error) {
 	// then): from there on a failure may leave vmalert no outlet unless
 	// Alertmanager takes up its socket in the namespace.
 	retired := false
-	defer putBackOnFailure(sys, say, rerun, vmService, []string{vmSocket}, []string{vmService, vmalertUnit}, func() error {
+	// Asked before the stop: a failure starts the daemons again only if
+	// the store ran, and the line after the start says restarted or
+	// started.
+	var daemons []string
+	running := sys.run("systemctl", "is-active", "--quiet", vmService) == nil
+	if running {
+		daemons = []string{vmService, vmalertUnit}
+	}
+	defer putBackOnFailure(sys, say, rerun, vmService, []string{vmSocket}, daemons, func() error {
 		if !retired {
 			return nil
 		}
@@ -247,9 +255,8 @@ func metricsSetup(sys system, root string, out io.Writer) (err error) {
 			return err
 		}
 	}
-	// A re-run stopped the store above, before its units were written.
 	did := "started"
-	if rerun {
+	if running {
 		did = "restarted"
 	}
 	say("%s the store and vmalert: the store listens on %s only, its TCP in the motel-metrics namespace", did, DefaultStoreSocket)
