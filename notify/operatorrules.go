@@ -33,8 +33,8 @@ const (
 	// (postdeploy.go).
 	operatorGroup = "motel-operator"
 
-	// requestWindow is what a request metric is computed over, and
-	// what request_rate divides by.
+	// requestWindow is what a request metric is computed over;
+	// request_rate divides by the time its samples cover (windowSpan).
 	requestWindow = 5 * time.Minute
 )
 
@@ -698,6 +698,34 @@ func pushedNow(sel string) string {
 		" > scalar(max(tlast_over_time(" + pushSeries + w + "))) - " + strconv.Itoa(int(pushApart.Seconds()))
 }
 
+// prevReach is how far before a window the store's increase looks for
+// a counter's last sample, the base it counts from: the query's step,
+// which is vmalert's -datasource.queryStep (5m; motel-vmalert.service
+// leaves it unset) and the store's own default for an instant query
+// (the listing's value_query run by hand). Measured on 1.112.0.
+const prevReach = 5 * time.Minute
+
+// windowSpan is the seconds that a counter's increase over win (ending
+// at the query's time) covers: from the push's last sample before the
+// window, within prevReach, to its last in it, the two samples the
+// store's increase reads each counter between. Divided by win instead,
+// a steady rate read up to a push's worth (a tenth of 300 s) high or
+// low for part of each 30 s while a motel restart sat in the window,
+// since the old process's pushes and the new one's are on grids apart
+// by the stop's distance from the last tick (DESIGN-metrics.md, "The
+// push at stop"); without a restart the span is win, the pushes being
+// 30 s apart. With no push before the window (a store younger than it,
+// or a gap in the pushes of over prevReach over its start) scalar is
+// NaN and the rate is none, so the rule does not judge until the
+// pushes have run a window: the store's increase then drops each
+// series' first value, the counts since motel began, and over win a
+// steady rate read from nothing up, firing a `request_rate <` after
+// setup on a running box.
+func windowSpan(win time.Duration) string {
+	return "scalar(max(tlast_over_time(" + pushSeries + "[" + promDuration(win) + "]))" +
+		" - max(tlast_over_time(" + pushSeries + "[" + promDuration(prevReach) + "] offset " + promDuration(win) + ")))"
+}
+
 // ruleTerm is a store rule's expression in parts (DESIGN-metrics.md,
 // "How close each rule is"): value, the MetricsQL whose series are the
 // number compared (one per subject), op and threshold, and guards, the
@@ -781,7 +809,7 @@ func thresholdTerm(r Rule) ruleTerm {
 		t.value = "histogram_quantile(" + q + ", sum by (app, le) (" + histogramIncrease("motel_app_response_seconds", sel(), requestWindow, 0) + "))"
 		t.guards = append(floor(sum("motel_app_response_seconds_count"), "timed responses"), pushed)
 	case "request_rate":
-		t.value = sum("motel_app_requests_total") + " / " + strconv.Itoa(int(requestWindow.Seconds()))
+		t.value = sum("motel_app_requests_total") + " / " + windowSpan(requestWindow)
 		t.guards = []ruleTerm{pushed}
 	case "cache_hit_share":
 		// A hit result's series exists once there is one: an app whose

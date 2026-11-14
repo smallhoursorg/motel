@@ -539,7 +539,7 @@ parse, a JSON config's at Provision, both by `motel validate`):
 |---|---|---|---|---|
 | `threshold 5xx_share` | `(sum by (app) (inc(motel_app_requests_total{class="5xx"})) / SENT) > v and SENT >= floor and on (app) PUSHED`, SENT the same over `class!="aborted"` | `for` | `app`, `subject="app:<app>"`, `kind="state"`, `severity`, `source="rules"`, `key="rules/app:<app>/<name>"` | the operator and the app's bound channels |
 | `threshold p50`, `p95` | `histogram_quantile(q, sum by (app, le) (hinc(motel_app_response_seconds))) > v and sum by (app) (inc(motel_app_response_seconds_count)) >= floor and on (app) PUSHED`, v in seconds | `for` | as above | as above |
-| `threshold request_rate` | `sum by (app) (inc(motel_app_requests_total)) / 300 > v and on (app) PUSHED` | `for` | as above | as above |
+| `threshold request_rate` | `sum by (app) (inc(motel_app_requests_total)) / SPAN > v and on (app) PUSHED` | `for` | as above | as above |
 | `threshold cache_hit_share` | `(HITS or SPOKE * 0) / SPOKE > v and SPOKE >= floor and on (app) PUSHED`, both `sum by (app) (inc(motel_app_cache_responses_total))`, HITS over `result=~"hit\|stale"` | `for` | as above | as above |
 | `threshold memory_share` | `max by (app) (motel_app_memory_bytes / motel_app_memory_max_bytes) > v` | `for` | as above | as above |
 | `threshold cpu_cores` | `sum by (app) (rate(motel_app_cpu_seconds_total[5m])) > v` | `for` | as above | as above |
@@ -550,7 +550,8 @@ With `app`, every selector carries `app="<name>"`, quoted (a name of
 liveswap's own grammar); without, the expression is per app
 (`by (app)`), and the `app` label it carries is what route 6 sends to
 the app's channels, as for `app_memory_high`. The request metrics are
-over a fixed five minutes, and the 5xx share is of the responses sent, as
+over a fixed five minutes (`request_rate` divided by the time its
+samples cover, `SPAN`, below), and the 5xx share is of the responses sent, as
 `GET /<app>`'s is. `inc(X)` is a counter's increase over the window
 (notify/operatorrules.go, `counterIncrease`):
 
@@ -644,7 +645,53 @@ motel's heartbeat tells, or every push failing, which
 the 75 s the readings fall for 45 s at most (from the first push
 missed), which holds for one of vmalert's minutely evaluations, and a
 `for` is a minute or more ("Accepted residuals" for what the gap does to an alert
-already firing). `memory_share` and `cpu_cores` read the unit's
+already firing).
+
+`SPAN` (`windowSpan`) is the seconds the window's samples cover, which
+`request_rate` divides by:
+
+```
+scalar(max(tlast_over_time(process_start_time_seconds{job="motel"}[5m]))
+  - max(tlast_over_time(process_start_time_seconds{job="motel"}[5m] offset 5m)))
+```
+
+The store's `increase` reads each counter from its last sample before
+the window (within the query's step: 5 m, vmalert's
+`-datasource.queryStep` unset, and the store's default) to its last in
+it, and every push carries the push series beside the counters, so the
+push's two samples bound the same span. With pushes 30 s apart it is
+300 s, and the rate reads as it did over 300. Across a motel restart it
+is not: the old process's pushes and the new one's are on grids g'
+apart (the stop's distance from the old process's last tick), so for
+the five minutes the restart sits in the window the counts are of
+300 + g' s for part of each 30 s and of 270 + g' s for the rest, and
+over 300 a steady rate read g'/300 high, then (30 − g')/300 low, with
+a push at stop (#461's); without one, a tenth low for g/30 of each 30 s, as on
+the hotserve-1 deploy of ecb829a. Measured on 1.112.0 over imported
+pushes at every second of the 330 s after a restart with the push at
+stop, for 24 values of g' from 1 to 29.5 s: over 300, from 9.6 % low to
+9.8 % high, and a `<` or a `>` set 5 % from a steady 1.877 a second
+fired after 9 % and 14 % of restarts (at 6.8 %, the deploy's rule, 4 %
+and 5 %); over `SPAN`, within 0.25 % (the counts' rounding and the
+0.23 s the box was down), and neither fires at 2 %. Without a restart
+the two read the same. A gap in the pushes over the window's start of
+under five minutes (the store down, or refusing them) is covered too:
+over 300, a 150 s gap's counts read half again high after it. With no
+push before the window (a store younger than it, or a gap of over five
+minutes over its start) `scalar` is NaN and the rule has no value until
+the pushes have run a window: the store's `increase` then drops each
+series' first value, so over 300 the rate read from nothing up for five
+minutes and a `request_rate <` fired after setup on a running box
+(`TestOperatorRulesCountOnAFreshStore`; the restart's two grids, to the
+second, in `TestOperatorRulesRateAcrossARestart`). The `min_requests`
+floors stay counts: they ask whether there are responses enough to
+judge a share or a quantile, and the window holds that many whatever
+span it covers. A share or a quantile divides two counts over the same
+span, and `cpu_cores`' `rate` divides by each series' own. `GET /<app>`'s
+`per_second` is over an hour or a day, which a restart moves by under
+1 %, and no rule reads it.
+
+`memory_share` and `cpu_cores` read the unit's
 series, pushed while it runs whatever the routes observe.
 CPU is `rate` over the per-unit counters, each from
 zero when its unit starts. The summary says the bound and the value in
@@ -1713,3 +1760,11 @@ Dated one-liners; the full text of each is in git.
   guards, `rules.yml` byte-identical; the detectors' last numbers listed
   beside their thresholds. Recording rules and pushed Go series deferred
   with the spike's measured costs.
+- 2026-11-14 — `request_rate` over the time its samples cover (`SPAN`,
+  "Operator rules"), not 300 s: across a motel restart the two
+  processes' pushes are on grids apart, and with the push at stop a
+  steady rate read up to a tenth high or low for part of each 30 s;
+  over `SPAN` it reads within 0.25 % (measured on 1.112.0, 24 values
+  of the stop's distance from the last tick). With no push before the
+  window the rule has no value, where over 300 it read from nothing up
+  after setup. The fixed divisor's Owed row (24, #461's) is closed.
