@@ -554,9 +554,13 @@ systemctl daemon-reload && systemctl restart victoria-metrics
 # stamped after ro_at was kept read-only. The store before it was
 # writable up to the restart and kept its last scrape, stamped at a fixed
 # phase of its 30 s that can fall in the second the restart returns in:
-# arm CI at ed64772 kept one at .221 of the second date +%s gave. So
-# ro_at is the next whole second, past every sample that store kept.
-ro_at=$(( $(date +%s) + 1 ))
+# arm CI at ed64772 kept one at .221 of the second date +%s gave. Its
+# stamps run on that schedule, not the clock: one stepped back may leave
+# them ahead of it by up to a tenth of the interval, 3 s, before the
+# store takes the clock's time again (promscrape's scrapework.go). So
+# ro_at is 4 s on, past every sample that store kept; the 75 s after it
+# still hold two of a writable store's scrapes.
+ro_at=$(( $(date +%s) + 4 ))
 i=0
 until vm http://vm/metrics | grep -q '^vm_storage_is_read_only.* 1$'; do i=$((i + 1)); [ "$i" -ge 30 ] && break; sleep 2; done
 [ "$i" -lt 30 ] && pass "the store says it is read-only: $(vm http://vm/metrics | grep '^vm_storage_is_read_only')" \
@@ -574,7 +578,7 @@ before=$(q 'tlast_over_time(vm_free_disk_space_bytes[15m])')
 a=$(q "tlast_over_time(vm_free_disk_space_bytes[15m]) > $ro_at")
 has_result "$before" && printf '%s' "$a" | grep -q '"status":"success"' && ! has_result "$a" \
 	&& pass "75 s read-only and no sample of the store's free space since, only before: the store refused its own scrapes" \
-	|| fail "a scrape was kept while read-only, or none before it, or the store did not answer: $(printf '%s' "$before" | cut -c1-200) / $(printf '%s' "$a" | cut -c1-200)"
+	|| fail "a scrape was kept while read-only, or none before it, or the store did not answer (ro_at $ro_at): $(printf '%s' "$before" | cut -c1-200) / $(printf '%s' "$a" | cut -c1-200)"
 rm "$dropin/20-e2e-read-only.conf"
 systemctl daemon-reload && systemctl restart victoria-metrics
 back_at=$(date +%s)
