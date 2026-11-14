@@ -1491,7 +1491,8 @@ without the `metrics` line (and its rule lines) writing none; a restart without 
 writing none too, and vmalert loading zero alerting rules after, and
 its stop pushing blog's requests served since the last tick (the store's
 sum at least what the admin `/metrics` counted just before, in a sample
-the store took after the stop began, so a tick is no pass);
+the store took after the stop began: a tick before then is no pass, one
+in the milliseconds from then to the loop's cancel still is);
 the operator's rules (e2e/metrics/Caddyfile's four `rule` lines): the
 `motel-operator` group in `rules.yml` through the counter guard (`inc`), keyed
 `rules/<subject>/<name>`, with no post_deploy in it, vmalert loading

@@ -263,6 +263,8 @@ func (f *fakeStore) importText(ctx context.Context, text []byte) error {
 	f.mu.Unlock()
 	if hang {
 		<-ctx.Done()
+	}
+	if ctx.Err() != nil {
 		return ctx.Err()
 	}
 	return err
@@ -542,22 +544,69 @@ func TestPusherReleaseClearsWhatFires(t *testing.T) {
 // its start) is in.
 func runningPusher(t *testing.T) (*pusher, *fakeStore, *MetricsStore, prometheus.Counter, *observer.ObservedLogs) {
 	t.Helper()
-	p := newPusher(func(Event) {})
-	st, m := &fakeStore{}, &MetricsStore{}
 	reg := prometheus.NewRegistry()
 	served := prometheus.NewCounter(prometheus.CounterOpts{Name: "motel_test_requests_total", Help: "requests"})
 	reg.MustRegister(served)
+	p, st, m, logs := startPusher(t, reg)
+	return p, st, m, served, logs
+}
+
+// startPusher runs a pusher's loop over g on a fake store, and returns
+// once the loop's first push has ended (pushedAt set): the test's own
+// changes to its state then come after that push's.
+func startPusher(t *testing.T, g prometheus.Gatherer) (*pusher, *fakeStore, *MetricsStore, *observer.ObservedLogs) {
+	t.Helper()
+	p := newPusher(func(Event) {})
+	st, m := &fakeStore{}, &MetricsStore{}
 	core, logs := observer.New(zap.DebugLevel)
-	p.configure(liveStore{m: m, store: st, gather: reg, logger: zap.New(core)})
+	p.configure(liveStore{m: m, store: st, gather: g, logger: zap.New(core)})
 	deadline := time.Now().Add(5 * time.Second)
-	for len(st.importsNow()) == 0 {
+	for {
+		p.mu.Lock()
+		pushed := !p.pushedAt.IsZero()
+		p.mu.Unlock()
+		if pushed {
+			return p, st, m, logs
+		}
 		if time.Now().After(deadline) {
 			p.release(m)
 			t.Fatal("the loop's first push never came")
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
-	return p, st, m, served, logs
+}
+
+// A gather that is slow at the stop (a statfs that hangs, up to
+// diskStatWait) does not spend the import's budget: the counts still
+// reach a store that answers.
+func TestPusherReleaseSlowGatherKeepsTheImportsBudget(t *testing.T) {
+	was := finalPushTimeout
+	finalPushTimeout = 50 * time.Millisecond
+	defer func() { finalPushTimeout = was }()
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(prometheus.NewGauge(prometheus.GaugeOpts{Name: "motel_test_gauge", Help: "a gauge"}))
+	var slow sync.Mutex
+	slowGather := false
+	g := prometheus.GathererFunc(func() ([]*dto.MetricFamily, error) {
+		slow.Lock()
+		s := slowGather
+		slow.Unlock()
+		if s {
+			time.Sleep(3 * finalPushTimeout)
+		}
+		return reg.Gather()
+	})
+	p, st, m, logs := startPusher(t, g)
+	slow.Lock()
+	slowGather = true
+	slow.Unlock()
+	p.release(m)
+	if n := len(st.importsNow()); n != 2 {
+		t.Fatalf("%d imports, want the loop's first and the one at stop", n)
+	}
+	if n := logs.FilterLevelExact(zap.WarnLevel).Len(); n != 0 {
+		t.Fatalf("the push at stop failed after a slow gather: %v", logs.All())
+	}
 }
 
 // motel's stop pushes what was counted since the last tick: without it

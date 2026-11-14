@@ -43,11 +43,13 @@ const (
 // which the unit gives 5 s in all (packaging/motel.service,
 // TimeoutStopSec) before its SIGKILL. A push over the socket takes
 // milliseconds. The gather before it has its own bound, diskStatWait,
-// spent once at most: a statfs that hangs makes the loop's last gather
-// wait it out (release waits for the loop), and the push's gather then
-// finds that statfs still out and does not wait again. So a hung disk
-// and a store that does not answer, two faults, hold the stop about
-// 4 s. A var so that a test need not wait it out.
+// and is outside this one, so a hung disk does not cost the import its
+// time. That bound is spent once at most: a statfs that hangs makes the
+// loop's last gather wait it out (release waits for the loop), and the
+// push's gather then finds that statfs still out and does not wait
+// again; or the loop was idle, and the push's gather waits. So a hung
+// disk and a store that does not answer, two faults, hold the stop
+// about 4 s. A var so that a test need not wait it out.
 var finalPushTimeout = 2 * time.Second
 
 // storeAPI is the store, as the pusher uses it.
@@ -187,9 +189,17 @@ func (p *pusher) pushOnce(ctx context.Context) {
 	}
 }
 
-// push gathers g and imports it into st: one push, the tick's
-// (pushOnce) or the stop's (release).
+// push gathers g and imports it into st: the tick's (pushOnce).
 func push(ctx context.Context, st storeAPI, g prometheus.Gatherer, log *zap.Logger) error {
+	text, err := gatherText(g, log)
+	if err != nil {
+		return err
+	}
+	return st.importText(ctx, text)
+}
+
+// gatherText is g gathered, in the text format the store imports.
+func gatherText(g prometheus.Gatherer, log *zap.Logger) ([]byte, error) {
 	mfs, gerr := g.Gather()
 	if gerr != nil {
 		// A pedantic registry still returns what it could gather.
@@ -199,10 +209,10 @@ func push(ctx context.Context, st storeAPI, g prometheus.Gatherer, log *zap.Logg
 	enc := expfmt.NewEncoder(&buf, expfmt.NewFormat(expfmt.TypeTextPlain))
 	for _, mf := range mfs {
 		if err := enc.Encode(mf); err != nil {
-			return err
+			return nil, err
 		}
 	}
-	return st.importText(ctx, buf.Bytes())
+	return buf.Bytes(), nil
 }
 
 // checkReadOnly asks the store itself whether it is read-only, and
@@ -354,16 +364,19 @@ func (p *pusher) run(ctx context.Context) {
 // Without it a motel restart lost up to a push of every app's counts,
 // and the store's request_rate read up to a tenth low for the five
 // minutes the restart sat in its window: a `request_rate <` rule fired
-// and recovered on the hotserve-1 deploy of ecb829a. It has its own
-// budget, finalPushTimeout, since the loop's context is cancelled; a
-// failure is a journal line, as a tick's, and is not counted: the
-// counter goes with the process. failing is whether the pushes were
-// failing already, which the first tick's warning said; socket is the
-// store's, for the line.
+// and recovered on the hotserve-1 deploy of ecb829a. Its import has its
+// own budget, finalPushTimeout, started after the gather, since the
+// loop's context is cancelled; a failure is a journal line, as a
+// tick's, and is not counted: the counter goes with the process.
+// failing is whether the pushes were failing already, which the first
+// tick's warning said; socket is the store's, for the line.
 func finalPush(socket string, st storeAPI, g prometheus.Gatherer, log *zap.Logger, failing bool) {
-	ctx, cancel := context.WithTimeout(context.Background(), finalPushTimeout)
-	defer cancel()
-	err := push(ctx, st, g, log)
+	text, err := gatherText(g, log)
+	if err == nil {
+		ctx, cancel := context.WithTimeout(context.Background(), finalPushTimeout)
+		err = st.importText(ctx, text)
+		cancel()
+	}
 	switch {
 	case err == nil:
 	case failing:
