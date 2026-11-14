@@ -409,10 +409,17 @@ func TestMetricsUnitsAreTheMeasuredOnes(t *testing.T) {
 	has("the drop-in", unitVMDropIn, "ExecStart=\n", "-httpListenAddr=127.0.0.1:8428 ", "NetworkNamespacePath=/run/netns/motel-metrics",
 		"MemoryMax=256M", "-memory.allowedBytes=96MiB", "-retentionPeriod=14d", "-promscrape.config="+DefaultMetricsStateDir+"/"+scrapeName,
 		"Requires=motel-metrics-netns.service",
-		// The store's start brings vmalert, which a stop of the store stopped.
-		"Wants=motel-vmalert.service",
 		// Debian's 0755 would let every local uid read the series.
 		"ExecStartPre=+/usr/bin/chmod 0750 /var/lib/victoria-metrics\n")
+	// A store that cannot start restarted ~60 times a second for good
+	// (#470, measured): its restarts back off, and vmalert, which a stop
+	// of the store stopped, is started once the store's process has, as
+	// root, not wanted by the store.
+	has("the drop-in", uncommented(unitVMDropIn), "RestartSteps=6\n", "RestartMaxDelaySec=60\n",
+		"ExecStartPost=-+/usr/bin/systemctl --no-block start motel-vmalert.service\n")
+	lacks("the drop-in", unitVMDropIn, map[string]string{
+		"Wants=motel-vmalert": "has vmalert's failed start ask for a failing store again at once (#470)",
+	})
 	// A namespace left behind must not fail every later start, and a
 	// cold boot, which has none, must log no error for it.
 	has("the namespace unit", unitNetns, "ExecStartPre=-/bin/sh -c 'test ! -e /run/netns/motel-metrics || exec /usr/sbin/ip netns delete motel-metrics'\nExecStart=/usr/sbin/ip netns add motel-metrics",

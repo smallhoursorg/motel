@@ -415,6 +415,15 @@ either way: they ask the store for the 5 s themselves. The re-run
 rewrites the units and restarts the store and vmalert; a push or two
 fails meanwhile.
 
+**Run `motel monitor setup --metrics` again on a box whose store was set
+up before its restarts backed off** (each load's warning names
+`10-motel.conf`). Until it is, a store that
+fails at its start (a full disk, say) is restarted about 60 times a
+second for as long as the fault lasts, about a fifth of a core and some
+400 journal lines a second. The re-run writes the drop-in that backs
+the restarts off from 1 s to a minute; it restarts the store and
+vmalert, so a push or two fails meanwhile.
+
 **The same re-run trims what the store keeps of its own scrapes.** From
 this version the store keeps, of its scrapes of itself, vmalert and
 Alertmanager, only the series motel reads ([Monitor](monitor.md#promql-over-the-socket-as-root)):
