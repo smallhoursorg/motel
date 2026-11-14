@@ -335,6 +335,22 @@ Alertmanager loads its config is cancelled and counted in
 motel nor the rule reads that reason, so a count there after a load is
 no failed channel.
 
+`alertmanager_notifications_total` is no count of messages.
+Alertmanager raises it once for each notification it sets out to
+send, before any attempt: one whose every attempt fails is counted,
+and so, on a receiver that sends no recovery (`heartbeat`, and each
+channel's `ch-` receiver, which `motel monitor test` goes to), is an
+alert's end, though nothing is sent. `ch-ops`'s rises by 2 for each
+`motel monitor test ops`: at the delivery, and when the test alert
+ends five minutes later (measured on hotserve-1, 2026-11-14).
+`heartbeat`'s rises once with no ping when motel stops posting the
+`Watchdog` alert (the heartbeat held, or motel stopped while
+Alertmanager runs) and the alert ends. The messages that went are
+`alertmanager_notification_requests_total` less
+`alertmanager_notification_requests_failed_total`, each attempt (a
+retry too) being a request, which is how `motel monitor test` reads a
+delivery.
+
 The check also pages when a channel failed and no other channel could
 be told: motel stops the pings then, so a dead channel is not hidden
 behind a green check. If it pages while the box is up, look for
@@ -500,6 +516,16 @@ $ journalctl -u motel -o cat | grep '"monitor: event"'
 {"level":"info","ts":1794506376.5473716,"logger":"monitor","msg":"monitor: event","key":"external:reboot/box/reboot_required","state":"firing","severity":"warning","summary":"a kernel update waits for a reboot","source":"external:reboot"}
 {"level":"info","ts":1794506464.4814832,"logger":"monitor","msg":"monitor: event","key":"external:reboot/box/reboot_required","state":"resolved","severity":"warning","summary":"a kernel update waits for a reboot","source":"external:reboot"}
 ```
+
+The `resolved` line comes 30 to 35 seconds after the `--state
+resolved`, not at once: a producer's state that clears is held 30
+seconds before its recovery is told, and one that fires again within
+them tells none. Until the line, Alertmanager still lists the alert as
+active ([`amtool`](#what-is-firing-with-amtool)), and
+`/var/lib/motel-notify/external.json` still holds the state, with
+`"firing":false`. At the line the state goes from the file (the file
+with it, when no other state stands), and the channels get its
+`[RESOLVED]` within a minute after.
 
 `state` is `firing`, `resolved` or `oneshot`. The `key` says what the
 event is about: `<source>/<subject>/<name>[/<instance>]`. Other lines
@@ -999,3 +1025,4 @@ the sites: v0.6.1 refuses those too.
 | A reboot with monitor set up | hotserve-1 (Debian 13, at 9228935), three cold boots; again at a8038b4, with Alertmanager's own socket in the store's namespace, 2026-11-13 | the store and its sockets come back. At a8038b4 every unit of the stack is up within about a second of `sysinit.target`, Alertmanager starts once, by socket activation, nothing is started by hand and nothing fails; the heartbeat's next ping comes 6 min 50 s after its last before the reboot, the downtime included |
 | Setup's output with Alertmanager's socket in the store's namespace (first run, second run, upgrade from the proxy), and step 2's `--metrics` line | the metrics e2e box, 2026-11-12, with the change that replaced the proxy; the upgrade from the proxy again on hotserve-1 at a8038b4, 2026-11-13 | as shown; after step 2, Alertmanager, both its sockets and vmalert stay down for 70 s while the store scrapes 9093 and motel reads `am.sock`. On hotserve-1 the upgrade took 6 s, with the site answering throughout; its cold boot is the row above |
 | What the store keeps of its own scrapes, and the store's and vmalert's pages read live | the metrics e2e box at 59df185, 2026-11-13 (metrics 4) | of `victoria-metrics` `up` and `vm_free_disk_space_bytes`, of `vmalert` `up`, of `alertmanager` `up` and `alertmanager_notifications_failed_total`, each with `scrape_*`; Alertmanager's page is the store's scrape of it. Since then `scrape.yml` keeps `alertmanager_config_last_reload_success_timestamp_seconds` too (the store's `ChannelFailed` reads it), which e2e metrics 4 checks |
+| The branch on a real box: the install and setup's `--metrics` re-run, `motel monitor test`, a `--state firing` across `systemctl restart motel` and its `--state resolved`, and three restarts under a `request_rate` rule each way | hotserve-1 (Debian 13), at bf6f88a, 2026-11-14 | the re-run said `wrote` for the four files that changed and `…: content unchanged` for the other four, `restarted the store and vmalert`, and left Alertmanager as it ran, in 2.31 s with no push failed; each test delivered in 0.3–0.6 s, `ch-ops`'s `alertmanager_notifications_total` rising by 2 for it; the state was kept in `external.json` and told again (`"standing":true`), with no message for the 426 s watched; after the resolve the file held it as `"firing":false` until the `resolved` line, about 34 s later, the alert was gone from Alertmanager within 65 s, and ops had two messages in all; `request_rate` fell 0.13 to 0.28 % at each restart, and neither rule (about 5 % under it and 5 % over) went pending |
