@@ -859,7 +859,8 @@ func (s *standIn) post(w http.ResponseWriter, r *http.Request) {
 	// As the box's txn.reloads: the Caddyfile, or the box's own env
 	// file's bytes — which a name in the lists or an out-of-band edit of
 	// _box.env changes.
-	if res["diff"] != nil || slices.Contains(oob, "_box") || slices.ContainsFunc(slices.Concat(added, changed, removed), func(n string) bool { return strings.HasPrefix(n, "_box/") }) {
+	// A mode-only rewrite (envMode) changes nothing a load reads.
+	if res["diff"] != nil || slices.Contains(s.envEdited, "_box") || slices.ContainsFunc(slices.Concat(added, changed, removed), func(n string) bool { return strings.HasPrefix(n, "_box/") }) {
 		res["reloaded"] = true
 	}
 	s.results[id] = encode(res)
@@ -1319,7 +1320,16 @@ func TestBoxApply(t *testing.T) {
 		if code != 0 || !strings.Contains(out, "deploy.example.com at "+head[:7]+": the box's notify secrets updated and loaded; the Caddyfile is unchanged, running apps are not restarted") {
 			t.Fatalf("the box's own file rewritten: exit %d\n%s", code, out)
 		}
-		g.box.set(func(s *standIn) { s.envEdited = nil })
+		// Its mode alone changed on the box: rewritten, named out of band,
+		// and nothing reloaded, as the box's txn.reloads has it.
+		g.box.set(func(s *standIn) { s.envEdited, s.envMode = nil, []string{"_box"} })
+		head = g.commit("the box's file at another mode")
+		out, code = g.apply()
+		if code != 0 || !strings.Contains(out, "deploy.example.com at "+head[:7]+": secrets updated; the Caddyfile is unchanged, nothing reloaded") ||
+			!strings.Contains(out, "_box's env file on the box had been edited there since the last apply") {
+			t.Fatalf("the box's own file at another mode: exit %d\n%s", code, out)
+		}
+		g.box.set(func(s *standIn) { s.envEdited, s.envMode = nil, nil })
 		g.remove("deploy.example.com/secrets/_box")
 		g.change("no notify secrets")
 		if out, code := g.apply(); code != 0 {

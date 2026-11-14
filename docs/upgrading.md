@@ -245,10 +245,11 @@ the box repository's old apply runs (logs and job summaries) and
 `journalctl -u motel-box-apply` for a name after `removed` that is no
 variable's, and give any value found that way a new one ([Change a
 value](secrets.md#change-a-value)). `make secrets-import` had the same
-gap: copy this release's `examples/box/bin/secrets` into the box
-repository's `bin/`, and a name in `make secrets` that is a value is
-one to change too, since the old name stays in the repository's
-history.
+gap: copy this release's `examples/box/bin/secrets` and
+`examples/box/bin/apply` into the box repository's `bin/` (the second
+says a push left a hand-edited file's own variables unnamed), and a
+name in `make secrets` that is a value is one to change too, since the
+old name stays in the repository's history.
 
 The box repository's workflow checks config with the latest stable
 release, so it needs nothing after an upgrade — unless its
