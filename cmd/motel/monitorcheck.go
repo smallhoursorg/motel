@@ -5,9 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/user"
-	"strconv"
-	"syscall"
 
 	"github.com/smallhoursorg/motel/notify"
 )
@@ -51,14 +48,14 @@ var (
 // resolve_timeout with a recovery that did not happen
 // (notify.SendNothing). A reload's case is notify's own
 // (engine.release); a config that runs notify renders its own at Start.
-// A process that does not own the state directory is not the service's
-// start, and leaves it alone, saying so (notOwner).
+// A process that does not run as the state directory's owner leaves it
+// and Alertmanager alone, saying why (notify.NotOwner).
 func sendNothing(monitor []byte, stderr io.Writer) {
 	if notify.ReadsSecrets(monitor) {
 		return
 	}
-	if why := notOwner(notifyStateDir); why != "" {
-		_, _ = fmt.Fprintf(stderr, "WARNING: monitor: this config has no monitor block with channels, and Alertmanager was not given the config that sends nothing: %s; %s\n", why, notOwnerSaid)
+	if why := notify.NotOwner(notifyStateDir, euid()); why != "" {
+		_, _ = fmt.Fprintf(stderr, "WARNING: monitor: this config has no monitor block with channels, and Alertmanager was left as it is: %s: this process writes nothing there and reloads nothing\n", why)
 		return
 	}
 	switch changed, err := notify.SendNothing(notifyStateDir, notifySocket); {
@@ -72,42 +69,6 @@ func sendNothing(monitor []byte, stderr io.Writer) {
 // euid is this process's effective uid. A variable only so a test can
 // run as a user that does not own its state directories.
 var euid = os.Geteuid
-
-// notOwner is why the gate at `motel run` leaves dir, a state directory
-// setup made the motel user's, alone: this process runs as another
-// user, so it is not motel.service's start but a run by hand (root
-// trying a file on a live box), whose writes would retire what the
-// running service rendered without telling it, and leave files that
-// user owns, which the service cannot read. "" when it runs as dir's
-// owner, or when dir's owner is not known: dir missing (setup has not
-// run), which the gate leaves unsaid, or another error, which the write
-// it then tries says.
-func notOwner(dir string) string {
-	fi, err := os.Stat(dir)
-	if err != nil {
-		return ""
-	}
-	st, ok := fi.Sys().(*syscall.Stat_t)
-	if !ok || int(st.Uid) == euid() {
-		return ""
-	}
-	return fmt.Sprintf("%s is owned by %s, and this motel runs as %s", dir, userText(int(st.Uid)), userText(euid()))
-}
-
-// notOwnerSaid ends what the gate says when notOwner leaves a directory
-// alone: for root by hand, that the running service is untouched; for
-// a service that runs as a user other than setup's, that its starts
-// never retire anything.
-const notOwnerSaid = "only a start as that directory's owner, motel.service's, acts on it: a run by hand leaves the running service's state as it is, and a motel.service run as another user never acts on it"
-
-// userText is a uid as a message names it: the user's name, or the
-// number when it has none.
-func userText(uid int) string {
-	if u, err := user.LookupId(strconv.Itoa(uid)); err == nil {
-		return u.Username
-	}
-	return "uid " + strconv.Itoa(uid)
-}
 
 // reloadForces reports whether `motel reload` must load the config even
 // when it is unchanged: a monitor block with channels reads the box's

@@ -104,6 +104,11 @@ func TestARunByHandLeavesTheServicesAlertmanagerAlone(t *testing.T) {
 	wasDir, wasSock := notifyStateDir, notifySocket
 	notifyStateDir, notifySocket = state, filepath.Join(t.TempDir(), "absent.sock")
 	t.Cleanup(func() { notifyStateDir, notifySocket = wasDir, wasSock })
+	// The store's directory is not there: this machine's own, if it has
+	// one, is not this test's to report on.
+	wasMetrics := metricsStateDir
+	metricsStateDir = filepath.Join(t.TempDir(), "motel-metrics")
+	t.Cleanup(func() { metricsStateDir = wasMetrics })
 	rendered := "# Rendered by motel\nreceivers: [ops]\n"
 	write(t, filepath.Join(state, notify.ConfigName), rendered, 0o640)
 	write(t, filepath.Join(state, "url-NOTIFY_OPS_URL"), "https://ntfy.sh/ops\n", 0o640)
@@ -123,8 +128,8 @@ func TestARunByHandLeavesTheServicesAlertmanagerAlone(t *testing.T) {
 	}
 	said := stderr.String()
 	if strings.Contains(said, notify.SendNothingMessage) ||
-		!strings.Contains(said, "WARNING: monitor: this config has no monitor block with channels, and Alertmanager was not given the config that sends nothing: "+state+" is owned by ") ||
-		!strings.Contains(said, notOwnerSaid) {
+		!strings.Contains(said, "WARNING: monitor: this config has no monitor block with channels, and Alertmanager was left as it is: "+state+" is owned by ") ||
+		!strings.Contains(said, ", not as its owner: this process writes nothing there and reloads nothing\n") {
 		t.Errorf("said %q; want why the service's Alertmanager was left alone", said)
 	}
 

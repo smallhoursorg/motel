@@ -104,8 +104,8 @@ func TestARunByHandLeavesTheServicesRulesAlone(t *testing.T) {
 	}
 	said := stderr.String()
 	if strings.Contains(said, notify.RulesRetiredMessage) ||
-		!strings.Contains(said, "WARNING: monitor metrics: this config has no metrics line, and the rules in "+filepath.Join(dir, notify.RulesName)+" were not retired: "+dir+" is owned by ") ||
-		!strings.Contains(said, notOwnerSaid) {
+		!strings.Contains(said, "WARNING: monitor metrics: this config has no metrics line, and the rules in "+filepath.Join(dir, notify.RulesName)+" were left as they are: "+dir+" is owned by ") ||
+		!strings.Contains(said, ", not as its owner: this process writes nothing there\n") {
 		t.Errorf("said %q; want why the rules were left alone", said)
 	}
 }
