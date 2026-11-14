@@ -560,6 +560,8 @@ done
 x1=$(x_ends)
 [ -n "$x0" ] && [ -n "$x1" ] && expr "$x1" \> "$x0" >/dev/null \
 	&& pass "and Alertmanager's alert for it is kept alive (endsAt $x0 → $x1)" || fail "restart_probe's endsAt did not move: '$x0' → '$x1'"
+n=$(am 'http://am/api/v2/alerts?filter=alertname%3D%22restart_probe%22' | grep -o '"fingerprint"' | wc -l)
+[ "$n" -eq 1 ] && pass "one alert for it: the standing report has the original's labels" || fail "$n restart_probe alerts in Alertmanager"
 send --name restart_probe --state resolved --summary "e2e: firing across a restart" || fail "send resolved: $(cat /tmp/send.out)"
 grep -q '^sent ' /tmp/send.out && pass "the producer's resolve after the restart finds its state" || fail "the resolve after the restart: $(cat /tmp/send.out)"
 i=0

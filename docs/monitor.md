@@ -352,9 +352,10 @@ A state outlives a restart of motel (an upgrade of the package restarts
 it): motel keeps what is firing in `/var/lib/motel-notify/external.json`
 and tells it again when it starts, and the later `--state resolved`
 ends it. Alertmanager ends an alert five minutes after motel last
-told it, which motel does every minute: back within four minutes, the
-restart sends no second message; stopped longer, your channels hear
-`[RESOLVED]` while motel is down, and the start fires the state again.
+told it, which motel does about every minute: a restart back within
+three minutes sends no second message, and a stop of five minutes or
+more sends your channels `[RESOLVED]` while motel is down, then a new
+`[FIRING]` when it starts (in between, either can happen).
 A reload that takes the monitor block out, or a start without it,
 forgets the states. A repeat of
 `--state firing` while the state fires sends no second message, so a
