@@ -505,10 +505,12 @@ integration beside it (ntfy and json are both the webhook) is told,
 not blamed; when the counter names no receiver (a drop-in without
 `receiver-name-in-metrics`) the suspects are every channel of the
 integration. A delivery Alertmanager's own reload cancelled is counted
-too (with `receiver-name-in-metrics`, after the reload has reset the counters), under reason
-`contextCanceled` (the reason only when no attempt failed before the
-cancel); it is no channel's failure and the new config re-sends it, so
-neither this read nor vmalert's rules count it. A key's bucket bounds the storm. A failure with no
+too, under reason `contextCanceled` (the reason only when no attempt
+failed before the cancel), and with `receiver-name-in-metrics` after
+the reload has reset the counters, so it reads as a rise; it is no
+channel's failure, and the new config sends it again wherever it still
+routes it, so neither this read nor vmalert's rules count it. A key's
+bucket bounds the storm. A failure with no
 channel left to tell holds the heartbeat ("Dead-man and uptime"). This
 needs no metrics package: the review's point that a notify-only box
 would otherwise have no `channel_failed`.

@@ -24,11 +24,12 @@ const (
 	requestsMetric       = "alertmanager_notification_requests_total"
 	requestsFailedMetric = "alertmanager_notification_requests_failed_total"
 	// reasonCanceled is the failed counter's reason for a notification
-	// Alertmanager cancelled before any attempt at it failed: at a
-	// reload, a delivery in flight, which the new config's dispatcher
-	// sends again, and no channel's failure (at a stop the counters go
-	// with the process). With receiver-name-in-metrics the reload resets
-	// the counters first, so it would read as a rise. A channel that
+	// Alertmanager cancelled before any attempt at it failed. At a
+	// reload that is a delivery in flight: no channel's failure, and
+	// sent again by the new config wherever it still routes the alert.
+	// (At a stop the counters go with the process.) With
+	// receiver-name-in-metrics the reload resets the counters before
+	// the cancel is counted, so it would read as a rise. A channel that
 	// failed an attempt before the cancel keeps that attempt's reason.
 	// Neither channel_failed nor vmalert's rules count it.
 	reasonCanceled = "contextCanceled"
