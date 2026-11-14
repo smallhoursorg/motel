@@ -508,8 +508,11 @@ the URL:
 time=2026-11-12T17:45:33.575Z level=ERROR source=dispatch.go:360 msg="Notify for alerts failed" component=dispatcher num_alerts=1 err="state-warning-oncall/discord[0]: notify retry canceled due to unrecoverable error after 1 attempts: unexpected status code 400"
 ```
 
-Every load of a config motel rendered also logs one warning, for the
-heartbeat's route:
+Every load of a config rendered from a monitor block with channels, with
+a `heartbeat` line or without, also logs one warning, for the
+heartbeat's route (without the line, the route leads nowhere). Setup's
+config that sends nothing, which motel also puts back when no block
+with channels is loaded, has no such route and logs no such warning:
 
 ```
 time=2026-11-14T08:17:49.812Z level=WARN source=main.go:510 msg="repeat_interval is less than group_interval. Notifications will not repeat until the next group_interval." component=configuration repeat_interval=4m0s group_interval=5m0s route="{}/{alertname=\"Watchdog\"}"
