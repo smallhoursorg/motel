@@ -363,12 +363,13 @@ e2e:
 # which answers each box with its own deliveries; their output is held
 # and printed a split at a time, each ended at NOTIFY_LIMIT inside its
 # box. The heartbeat split, five minutes of motel's hold and its resume
-# (~9.5 min), is the lane's length: CI runs it (GitHub sets CI=true),
-# and a local run leaves it out unless named, and says so at its end.
+# (~9.5 min), is the lane's length: CI runs it (any CI or
+# GITHUB_ACTIONS value; GitHub sets both), and a local run leaves it
+# out unless named, and says so at its end.
 # NOTIFY_SPLITS=heartbeat runs it alone; =all the whole suite on one
 # box. The sink is metrics' too, its paths the same, so e2e-notify and
 # e2e-metrics do not run at once on one host.
-NOTIFY_SPLITS ?= core reload$(if $(filter true,$(CI)), heartbeat)
+NOTIFY_SPLITS ?= core reload$(if $(CI)$(GITHUB_ACTIONS), heartbeat)
 NOTIFY_LIMIT ?= 1800
 e2e-notify:
 	$(cgroup2_preflight)
