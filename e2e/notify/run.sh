@@ -532,6 +532,12 @@ within "relaunch_refused to the operator (group_wait)" "$t" "$t_rr" 0 45
 send --name restart_probe --state firing --summary "e2e: firing across a restart" || fail "send firing: $(cat /tmp/send.out)"
 grep -q '"name":"restart_probe"' "$STATE/external.json" 2>/dev/null \
 	&& pass "external.json keeps the producer's state for a restart" || fail "external.json: $(cat "$STATE/external.json" 2>&1)"
+x_ends() { am 'http://am/api/v2/alerts?filter=alertname%3D%22restart_probe%22' | sed -n 's/.*"endsAt":"\([^"]*\)".*/\1/p' | head -1; }
+i=0
+until [ -n "$(x_ends)" ]; do
+	i=$((i + 1)); [ "$i" -ge 20 ] && break; sleep 0.5
+done
+x0=$(x_ends)
 e0=$(rr_ends)
 t_restart=$(date +%s)
 systemctl restart motel
@@ -547,6 +553,13 @@ journalctl -u motel --since "@$t_restart" -o cat --no-pager | grep 'monitor: eve
 	&& pass "after the restart, motel tells it again, standing" || fail "no standing relaunch_refused after the restart"
 journalctl -u motel --since "@$t_restart" -o cat --no-pager | grep 'monitor: event' | grep 'external:e2e/box/restart_probe' | grep -q '"standing":true' \
 	&& pass "and the producer's state, standing" || fail "no standing restart_probe after the restart"
+i=0
+until [ -n "$x0" ] && [ -n "$(x_ends)" ] && expr "$(x_ends)" \> "$x0" >/dev/null; do
+	i=$((i + 1)); [ "$i" -ge 40 ] && break; sleep 0.5
+done
+x1=$(x_ends)
+[ -n "$x0" ] && [ -n "$x1" ] && expr "$x1" \> "$x0" >/dev/null \
+	&& pass "and Alertmanager's alert for it is kept alive (endsAt $x0 → $x1)" || fail "restart_probe's endsAt did not move: '$x0' → '$x1'"
 send --name restart_probe --state resolved --summary "e2e: firing across a restart" || fail "send resolved: $(cat /tmp/send.out)"
 grep -q '^sent ' /tmp/send.out && pass "the producer's resolve after the restart finds its state" || fail "the resolve after the restart: $(cat /tmp/send.out)"
 i=0

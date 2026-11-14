@@ -196,6 +196,27 @@ func TestExternalFileAtConfigureAndRelease(t *testing.T) {
 	}
 }
 
+// A state sent before setup made the state directory is written once it
+// has: the next tick tries again, without a warning meanwhile.
+func TestExternalStateWrittenOnceSetUp(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "state")
+	useStateDir(t, dir)
+	te := restored(t)
+	te.report(external(true))
+	te.tick()
+	if l := te.lines("monitor: the producers' states could not be kept for a restart: until the next change, a restart tells what the file still says"); len(l) != 0 {
+		t.Fatalf("warned before setup: %+v", l)
+	}
+	if err := os.Mkdir(dir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	te.advance(5 * time.Second)
+	te.tick()
+	if b, err := os.ReadFile(filepath.Join(dir, externalName)); err != nil || !strings.Contains(string(b), "disk_failing") {
+		t.Fatalf("after setup: %s, %v", b, err)
+	}
+}
+
 // A start into a config without the block forgets the file, as a
 // reload's release does; a box setup has not run on is no error.
 func TestSendNothingForgetsTheProducersStates(t *testing.T) {

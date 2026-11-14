@@ -124,31 +124,66 @@ func (e *engine) persistExternal() {
 	if bytes.Equal(data, e.externalSaved) {
 		return
 	}
-	e.externalSaved = data
-	e.writeExternal(data)
+	if e.writeExternal(data) {
+		e.externalSaved = data
+	}
 }
 
-// writeExternal replaces the file with data, or removes it for nil,
-// with a warning when that fails: the file stays as it was until the
-// next change. A state directory that is not there is a box setup has
-// not run on, which `send` already says.
-func (e *engine) writeExternal(data []byte) {
-	var err error
+// writeExternal replaces the file with data, or removes it for nil. It
+// reports false only when the state directory is not there (a box setup
+// has not run on, which `send` already says), so that the next tick
+// writes again once setup has made it. Any other failure is a warning,
+// and the file stays as it was until the next change, as alerts.json
+// does.
+func (e *engine) writeExternal(data []byte) bool {
 	if data == nil {
-		err = os.Remove(e.externalPath)
-	} else {
-		err = writeFileAtomic(e.externalPath, data, 0o600)
+		if err := removeExternal(e.externalPath); err != nil {
+			e.logger.Warn("monitor: the producers' states could not be kept for a restart: until the next change, a restart tells what the file still says",
+				zap.String("file", e.externalPath), zap.Error(err))
+		}
+		return true
 	}
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+	err := writeExternalFile(e.externalPath, data)
+	if errors.Is(err, fs.ErrNotExist) {
+		return false
+	}
+	if err != nil {
 		e.logger.Warn("monitor: the producers' states could not be kept for a restart: until the next change, a restart tells what the file still says",
 			zap.String("file", e.externalPath), zap.Error(err))
 	}
+	return true
 }
 
-// removeExternal forgets the producers' states in dir: the block that
-// took them is gone.
-func removeExternal(dir string) error {
-	if err := os.Remove(filepath.Join(dir, externalName)); err != nil && !errors.Is(err, fs.ErrNotExist) {
+// writeExternalFile replaces path with data as liveswap's writeOwnFile
+// does: a fresh 0600 temp file beside it, renamed over the name, and no
+// flush, since the write runs under the engine's lock. A crash before
+// the rename leaves the temp file; a power loss after it may leave an
+// empty file, which the next start says and takes as nothing.
+func writeExternalFile(path string, data []byte) (err error) {
+	f, err := os.CreateTemp(filepath.Dir(path), ".external-*.tmp")
+	if err != nil {
+		return err
+	}
+	tmp := f.Name()
+	defer func() {
+		if err != nil {
+			_ = os.Remove(tmp) // best effort: the write's own error is the one to report
+		}
+	}()
+	if _, err = f.Write(data); err != nil {
+		_ = f.Close() // the write already failed; its error is the one to report
+		return err
+	}
+	if err = f.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
+}
+
+// removeExternal forgets the producers' states kept at path: none
+// stands, or the block that took them is gone.
+func removeExternal(path string) error {
+	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
 	return nil

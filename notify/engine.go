@@ -3,7 +3,6 @@ package notify
 import (
 	"context"
 	"errors"
-	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -830,7 +829,7 @@ func (e *engine) release(a *App) {
 	// reload's alone here, as for the store's rules (pusher.release).
 	if configRunning() {
 		if external != "" {
-			if err := removeExternal(filepath.Dir(external)); err != nil {
+			if err := removeExternal(external); err != nil {
 				logger.Warn("monitor: the producers' states kept for a restart could not be removed: a later start with the block would tell them again", zap.String("file", external), zap.Error(err))
 			}
 		}

@@ -129,7 +129,7 @@ func ReadsSecrets(monitor []byte) bool {
 // for a restart are forgotten with the block, as at a reload's
 // (external.go): a later start with it must not tell them again.
 func SendNothing(dir, socket string) (changed bool, err error) {
-	defer func() { err = errors.Join(err, removeExternal(dir)) }()
+	defer func() { err = errors.Join(err, removeExternal(filepath.Join(dir, externalName))) }()
 	changed, _, err = writeState(dir, defaultConfig, map[string]string{})
 	if errors.Is(err, errNotSetUp) || err == nil && !changed {
 		return false, nil
