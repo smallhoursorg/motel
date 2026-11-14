@@ -830,22 +830,27 @@ printf '%s' "$rules" | grep -q '"type":"alerting"' && pass "vmalert loads alerti
 cp /tmp/Caddyfile.nostore /etc/motel/Caddyfile
 # The stop pushes what was counted since the last tick: blog's requests
 # served just before it are in the store after it, which nothing else
-# pushes (the config it starts has no metrics line).
+# pushes (the config it starts has no metrics line), in a sample the
+# store took after the stop began: a tick before it is no push at stop.
 i=1
 while [ "$i" -le 7 ]; do curl -s -o /dev/null --max-time 5 "$PROXY/?fp=$i"; i=$((i + 1)); done
+sleep 1 # the observer counts a response as its handler returns
 counted=$(curl -s --max-time 5 --unix-socket /run/motel/admin.sock http://localhost/metrics \
 	| awk '/^motel_app_requests_total\{.*app="blog"/ { s += $NF } END { printf "%d", s }')
 since=$(date '+%Y-%m-%d %H:%M:%S')
+stop_at=$(date +%s)
 systemctl restart motel && pass "restarted without the metrics line" || fail "the restart without the metrics line failed"
-stored=""
+stored="" pushed_at=0
 end=$(( $(date +%s) + RELOAD_WAIT ))
 while [ "$(date +%s)" -lt "$end" ]; do
 	stored=$(val 'sum(last_over_time(motel_app_requests_total{app="blog"}[1m]))')
-	[ "$stored" = "$counted" ] && break
+	pushed_at=$(val 'floor(max(tlast_over_time(motel_app_requests_total{app="blog"}[1m])))')
+	[ "${pushed_at:-0}" -ge "$stop_at" ] && break
 	sleep 1
 done
-[ "$counted" -gt 0 ] 2>/dev/null && [ "$stored" = "$counted" ] && pass "the stop pushed what it counted since the last push: $stored of blog's requests in the store" \
-	|| fail "the store has $stored of blog's requests after the stop, motel had counted $counted"
+[ "$counted" -gt 0 ] 2>/dev/null && [ "${stored:-0}" -ge "$counted" ] && [ "${pushed_at:-0}" -ge "$stop_at" ] \
+	&& pass "the stop pushed what it counted since the last push: $stored of blog's requests in the store, counted $counted" \
+	|| fail "after the stop the store has $stored of blog's requests, last pushed at ${pushed_at:-none} (the stop began at $stop_at); motel had counted $counted"
 grep -q 'alert:' "$STATE/rules.yml" && fail "restarted with no metrics line, yet rules.yml has alerting rules: $(grep -c 'alert:' "$STATE/rules.yml")" \
 	|| pass "restarted with no metrics line: rules.yml has no alerting rule"
 journalctl -u motel --since "$since" -o cat --no-pager | grep -q 'monitor metrics: the metrics line is gone: vmalert is given no rule' \

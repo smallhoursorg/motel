@@ -608,6 +608,28 @@ func TestPusherReleaseGivesUpOnAStoreThatDoesNotAnswer(t *testing.T) {
 	}
 }
 
+// With the pushes failing already, the first tick's warning said so:
+// the push at stop failing too is a debug line, not a second warning.
+func TestPusherReleaseFailingAlreadyIsNoSecondWarning(t *testing.T) {
+	p, st, m, _, logs := runningPusher(t)
+	st.mu.Lock()
+	st.importErr = errors.New("connect: no such file or directory")
+	st.mu.Unlock()
+	p.mu.Lock()
+	p.failingSince = time.Now().Add(-time.Minute)
+	p.mu.Unlock()
+	p.release(m)
+	if n := len(st.importsNow()); n != 2 {
+		t.Fatalf("%d imports, want the loop's first and the one at stop", n)
+	}
+	if n := logs.FilterLevelExact(zap.WarnLevel).Len(); n != 0 {
+		t.Fatalf("%d warnings: %v", n, logs.All())
+	}
+	if n := logs.FilterMessage("monitor metrics: the push at stop failed").FilterLevelExact(zap.DebugLevel).Len(); n != 1 {
+		t.Fatalf("%d debug lines for the push at stop, want 1: %v", n, logs.All())
+	}
+}
+
 func TestPusherGoesBackToTheOlderConfig(t *testing.T) {
 	tp := newTestPusher(t)
 	dir := t.TempDir()

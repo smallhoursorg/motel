@@ -38,11 +38,16 @@ const (
 	sourceMetrics      = "metrics"
 )
 
-// finalPushTimeout bounds the push when the pusher stops (release): a
-// store that does not answer must not hold motel's stop, which the
-// unit gives 5 s in all (packaging/motel.service, TimeoutStopSec)
-// before its SIGKILL. A push over the socket takes milliseconds. A var
-// so that a test need not wait it out.
+// finalPushTimeout bounds the import of the push when the pusher stops
+// (release): a store that does not answer must not hold motel's stop,
+// which the unit gives 5 s in all (packaging/motel.service,
+// TimeoutStopSec) before its SIGKILL. A push over the socket takes
+// milliseconds. The gather before it has its own bound, diskStatWait,
+// spent once at most: a statfs that hangs makes the loop's last gather
+// wait it out (release waits for the loop), and the push's gather then
+// finds that statfs still out and does not wait again. So a hung disk
+// and a store that does not answer, two faults, hold the stop about
+// 4 s. A var so that a test need not wait it out.
 var finalPushTimeout = 2 * time.Second
 
 // storeAPI is the store, as the pusher uses it.
@@ -353,17 +358,18 @@ func (p *pusher) run(ctx context.Context) {
 // budget, finalPushTimeout, since the loop's context is cancelled; a
 // failure is a journal line, as a tick's, and is not counted: the
 // counter goes with the process. failing is whether the pushes were
-// failing already, which the first tick's warning said.
-func finalPush(m *MetricsStore, st storeAPI, g prometheus.Gatherer, log *zap.Logger, failing bool) {
+// failing already, which the first tick's warning said; socket is the
+// store's, for the line.
+func finalPush(socket string, st storeAPI, g prometheus.Gatherer, log *zap.Logger, failing bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), finalPushTimeout)
 	defer cancel()
 	err := push(ctx, st, g, log)
 	switch {
 	case err == nil:
 	case failing:
-		log.Debug("monitor metrics: the push at stop failed", zap.String("store", m.store()), zap.Error(err))
+		log.Debug("monitor metrics: the push at stop failed", zap.String("store", socket), zap.Error(err))
 	default:
-		log.Warn("monitor metrics: the push at stop failed: the counts since the last push are not in the store", zap.String("store", m.store()), zap.Error(err))
+		log.Warn("monitor metrics: the push at stop failed: the counts since the last push are not in the store", zap.String("store", socket), zap.Error(err))
 	}
 }
 
@@ -415,7 +421,7 @@ func (p *pusher) release(m *MetricsStore) {
 		return
 	}
 	// What the last push is made with, once the loop has stopped.
-	st, g, log, failing := p.store, p.gather, p.logger, !p.failingSince.IsZero()
+	socket, st, g, log, failing := m.store(), p.store, p.gather, p.logger, !p.failingSince.IsZero()
 	// Nothing of the stopped config is held: its registry holds its
 	// apps, its store client a transport.
 	p.setLive(liveStore{logger: p.logger})
@@ -438,7 +444,7 @@ func (p *pusher) release(m *MetricsStore) {
 	if running {
 		cancel()
 		<-done
-		finalPush(m, st, g, log, failing)
+		finalPush(socket, st, g, log, failing)
 	}
 	for _, ev := range evs {
 		p.report(ev)
