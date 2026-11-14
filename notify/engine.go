@@ -49,8 +49,9 @@ type Event struct {
 	// send --detail), annotations detail_<key>, through the filter.
 	Details map[string]string
 	// Standing, on a state alert, is a detector's report of what it
-	// told before and has not ended (liveswap's ReportStanding, at
-	// Start): ignored for a key the table holds; for one it does not —
+	// told before and has not ended (liveswap's ReportStanding at Start,
+	// and the producers' states kept in external.json): ignored for a key
+	// the table holds; for one it does not —
 	// a motel restarted since, its table empty while Alertmanager still
 	// holds the alert — taken as told: a firing one fires, a cleared one
 	// is held as after a firing one was told, so its recovery comes

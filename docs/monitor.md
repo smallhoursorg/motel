@@ -845,7 +845,8 @@ rules as root`. What each field means is in DESIGN-metrics.md's
 
 A reload that takes the block out gives Alertmanager the config that
 sends nothing (setup's own), removes the channel URLs motel copied for
-it (`/var/lib/motel-notify/url-*`) and retires vmalert's rules. What
+it (`/var/lib/motel-notify/url-*`) and the states your producers sent
+(`external.json`), and retires vmalert's rules. What
 Alertmanager still holds then ends with no message, rather than as a
 `[RESOLVED]` that did not happen; the journal says
 `monitor: no loaded config has the monitor block's channels: Alertmanager was given the config that sends nothing …`.
@@ -939,7 +940,7 @@ the sites: v0.6.1 refuses those too.
 | The laptop's unix-socket forward | OpenSSH 10.0p2, ssh to an sshd on localhost in a Debian 13 container, 2026-11-13 | the socket `srw-------`, another user refused, a stale file failing the forward without `StreamLocalBindUnlink=yes`; not tried against a real box |
 | Real Slack, Discord and ntfy servers | not tried. On hotserve-1, an ntfy topic showed the JSON body as the message | owed (DESIGN-notify.md, "Owed") |
 | The heartbeat's pings | the same image at c979404, at the stub receiver | 299 s and 300 s apart undisturbed; 439 s across a restart of motel 140 s after a ping |
-| A `--state firing` across a restart of motel | the same image at c979404 | `[RESOLVED]` five minutes after the restart, nothing having resolved it |
+| A `--state firing` across a restart of motel | motel's notify e2e box (`make e2e-notify`, section 12), Debian 13, 2026-11-14 | kept in `external.json`, told again at the start (`"standing":true`), and found by the `--state resolved` after it. Before motel kept it (the metrics box at c979404): `[RESOLVED]` five minutes after the restart, nothing having resolved it |
 | A reboot after going back to v0.6.1 | the same image, the container restarted | the store and vmalert come back, Alertmanager and both its sockets stay down, nothing is sent |
 | A reboot with monitor set up | hotserve-1 (Debian 13, at 9228935), three cold boots; again at a8038b4, with Alertmanager's own socket in the store's namespace, 2026-11-13 | the store and its sockets come back. At a8038b4 every unit of the stack is up within about a second of `sysinit.target`, Alertmanager starts once, by socket activation, nothing is started by hand and nothing fails; the heartbeat's next ping comes 6 min 50 s after its last before the reboot, the downtime included |
 | Setup's output with Alertmanager's socket in the store's namespace (first run, second run, upgrade from the proxy), and step 2's `--metrics` line | the metrics e2e box, 2026-11-12, with the change that replaced the proxy; the upgrade from the proxy again on hotserve-1 at a8038b4, 2026-11-13 | as shown; after step 2, Alertmanager, both its sockets and vmalert stay down for 70 s while the store scrapes 9093 and motel reads `am.sock`. On hotserve-1 the upgrade took 6 s, with the site answering throughout; its cold boot is the row above |
