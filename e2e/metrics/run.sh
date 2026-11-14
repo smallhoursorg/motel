@@ -549,7 +549,14 @@ dropin=/etc/systemd/system/victoria-metrics.service.d
 	echo "$(grep '^ExecStart=/' "$dropin/10-motel.conf") -storage.minFreeDiskSpaceBytes=1000000000000000"
 } >"$dropin/20-e2e-read-only.conf"
 systemctl daemon-reload && systemctl restart victoria-metrics
-ro_at=$(date +%s)
+# The new store is read-only before it scrapes at all (it checks the
+# floor as its storage opens, before its scraper starts), so any sample
+# stamped after ro_at was kept read-only. The store before it was
+# writable up to the restart and kept its last scrape, stamped at a fixed
+# phase of its 30 s that can fall in the second the restart returns in:
+# arm CI at ed64772 kept one at .221 of the second date +%s gave. So
+# ro_at is the next whole second, past every sample that store kept.
+ro_at=$(( $(date +%s) + 1 ))
 i=0
 until vm http://vm/metrics | grep -q '^vm_storage_is_read_only.* 1$'; do i=$((i + 1)); [ "$i" -ge 30 ] && break; sleep 2; done
 [ "$i" -lt 30 ] && pass "the store says it is read-only: $(vm http://vm/metrics | grep '^vm_storage_is_read_only')" \
