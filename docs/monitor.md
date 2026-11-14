@@ -137,7 +137,7 @@ wrote /etc/systemd/system/motel-vmalert.service
 wrote /var/lib/motel-metrics/scrape.yml
 wrote /var/lib/motel-metrics/rules.yml
 started Alertmanager, once, so that it listens in the namespace (motel-am-metrics.socket) beside its unix socket
-the store listens on /run/motel-metrics/vm.sock only, its TCP in the motel-metrics namespace
+started the store and vmalert: the store listens on /run/motel-metrics/vm.sock only, its TCP in the motel-metrics namespace
 reloaded motel, whose config has no monitor block with a metrics line: nothing is pushed until there is one (docs/monitor.md); add it, then systemctl reload motel
 ```
 
@@ -146,7 +146,9 @@ what setup made: here it has no monitor block yet, so nothing is
 rendered and nothing is pushed until step 4 loads one. With the block
 loaded, they say `which renders the monitor block's channels into …`
 and `which renders the store's rules into … and pushes`. Run again later, setup puts
-its units back as the binary ships them. `motel monitor setup` (without
+its units back as the binary ships them, says `wrote` for each file it
+changed and `… is unchanged` for the others, and `--metrics` says
+`restarted the store and vmalert`. `motel monitor setup` (without
 `--metrics`) restarts Alertmanager, which forgets the alerts it holds,
 so run it at a quiet moment. `--metrics` on a box where Alertmanager is
 already set up redoes only the store. The first time, and after an
@@ -304,6 +306,18 @@ The ping is Alertmanager's JSON for an alert named `Watchdog`, POSTed
 to the URL: `"summary":"motel is running and can reach Alertmanager"`.
 Healthchecks treats any request to the URL as a ping. **Pause the check
 before you stop motel or Alertmanager on purpose**, or it will page you.
+
+To see when the pings went out, or how long a gap was, read the check's
+log at Healthchecks. The box holds no history of them: the store does
+not keep `alertmanager_notifications_total` (below, "PromQL over the
+socket, as root"), and Alertmanager starts each of its
+`alertmanager_notifications_*` counters again from 0 at every load of
+its config: at every start of motel, and at every reload that changes
+the config. Read live, the counts since the last load are
+`curl -s --unix-socket /run/motel-notify/am.sock http://am/metrics | grep 'receiver_name="heartbeat"'`.
+motel and the store's `ChannelFailed` rule read a counter that fell as
+one started again, so a load neither raises `ChannelFailed` nor holds
+the heartbeat.
 
 The check also pages when a channel failed and no other channel could
 be told: motel stops the pings then, so a dead channel is not hidden
@@ -488,6 +502,17 @@ the URL:
 ```
 time=2026-11-12T17:45:33.575Z level=ERROR source=dispatch.go:360 msg="Notify for alerts failed" component=dispatcher num_alerts=1 err="state-warning-oncall/discord[0]: notify retry canceled due to unrecoverable error after 1 attempts: unexpected status code 400"
 ```
+
+Every load of its config also logs one warning, for the heartbeat's
+route:
+
+```
+time=2026-11-14T08:17:49.812Z level=WARN source=main.go:510 msg="repeat_interval is less than group_interval. Notifications will not repeat until the next group_interval." component=configuration repeat_interval=4m0s group_interval=5m0s route="{}/{alertname=\"Watchdog\"}"
+```
+
+That one is expected: the heartbeat's route repeats every 4 minutes
+under a 5-minute interval on purpose, which keeps the pings 5 minutes
+apart and not 10 (`notify/render.go`).
 
 motel reads Alertmanager's failure counters, and tells the operator's
 other channels about a failure as `ChannelFailed` (DESIGN-notify.md,

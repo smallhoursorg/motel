@@ -153,10 +153,11 @@ func metricsSetup(sys system, root string, out io.Writer) (err error) {
 		if err := os.MkdirAll(filepath.Dir(at(f.path)), 0o755); err != nil { //nolint:gosec // G301: systemd's unit directories are world-readable
 			return err
 		}
-		if err := writeFileAtomic(at(f.path), f.data, 0o644); err != nil {
+		changed, err := rewriteFile(at(f.path), f.data, 0o644)
+		if err != nil {
 			return err
 		}
-		say("wrote %s", f.path)
+		say("%s", wroteSaid(f.path, changed))
 	}
 
 	// The state directory: motel's, setgid _victoria-metrics, so what
@@ -185,13 +186,14 @@ func metricsSetup(sys system, root string, out io.Writer) (err error) {
 		if _, err := os.Lstat(p); f.keep && err == nil {
 			continue
 		}
-		if err := writeFileAtomic(p, f.data, 0o640); err != nil {
+		changed, err := rewriteFile(p, f.data, 0o640)
+		if err != nil {
 			return err
 		}
 		if err := sys.chown(p, motelUID, vmGID); err != nil {
 			return err
 		}
-		say("wrote %s", filepath.Join(DefaultMetricsStateDir, f.name))
+		say("%s", wroteSaid(filepath.Join(DefaultMetricsStateDir, f.name), changed))
 	}
 
 	// The proxy shape's socket holds 127.0.0.1:9093 in the namespace,
@@ -245,7 +247,12 @@ func metricsSetup(sys system, root string, out io.Writer) (err error) {
 			return err
 		}
 	}
-	say("the store listens on %s only, its TCP in the motel-metrics namespace", DefaultStoreSocket)
+	// A re-run stopped the store above, before its units were written.
+	did := "started"
+	if rerun {
+		did = "restarted"
+	}
+	say("%s the store and vmalert: the store listens on %s only, its TCP in the motel-metrics namespace", did, DefaultStoreSocket)
 	if err := sys.run("systemctl", "try-reload-or-restart", "motel.service"); err != nil {
 		return err
 	}

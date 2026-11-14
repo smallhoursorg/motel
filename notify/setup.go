@@ -282,10 +282,11 @@ func setup(sys system, root string, out io.Writer) (err error) {
 		if err := os.MkdirAll(filepath.Dir(at(f.path)), 0o755); err != nil { //nolint:gosec // G301: systemd's unit directories are world-readable
 			return err
 		}
-		if err := writeFileAtomic(at(f.path), f.data, 0o644); err != nil {
+		changed, err := rewriteFile(at(f.path), f.data, 0o644)
+		if err != nil {
 			return err
 		}
-		say("wrote %s", f.path)
+		say("%s", wroteSaid(f.path, changed))
 	}
 
 	// The state directory: motel's, setgid prometheus, so what motel
@@ -339,6 +340,23 @@ func setup(sys system, root string, out io.Writer) (err error) {
 	}
 	say("%s", loadedSays(sys, false))
 	return nil
+}
+
+// rewriteFile writes data to path as writeFileAtomic does, whatever path
+// holds, so its mode is setup's, and says whether its content changed:
+// a re-run names only the files it changed (wroteSaid).
+func rewriteFile(path string, data []byte, mode fs.FileMode) (changed bool, err error) {
+	old, rerr := os.ReadFile(path) //nolint:gosec // setup's own unit and state files
+	changed = rerr != nil || !bytes.Equal(old, data)
+	return changed, writeFileAtomic(path, data, mode)
+}
+
+// wroteSaid is setup's line for a file it wrote.
+func wroteSaid(path string, changed bool) string {
+	if changed {
+		return "wrote " + path
+	}
+	return path + " is unchanged"
 }
 
 func writeFileAtomic(path string, data []byte, mode fs.FileMode) error {

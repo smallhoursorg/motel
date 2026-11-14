@@ -84,6 +84,14 @@ func TestMetricsSetupOrderAndFiles(t *testing.T) {
 		t.Errorf("a first run's mask: setup said\n%s", out.String())
 	}
 	for _, u := range metricsUnits() {
+		if !strings.Contains(out.String(), "\nwrote "+u.path+"\n") {
+			t.Errorf("a first run did not say it wrote %s:\n%s", u.path, out.String())
+		}
+	}
+	if !strings.Contains(out.String(), "\nstarted the store and vmalert: the store listens on /run/motel-metrics/vm.sock only") {
+		t.Errorf("a first run did not say it started the store and vmalert:\n%s", out.String())
+	}
+	for _, u := range metricsUnits() {
 		b, err := os.ReadFile(filepath.Join(root, u.path))
 		if err != nil {
 			t.Fatal(err)
@@ -146,6 +154,18 @@ func TestMetricsSetupOrderAndFiles(t *testing.T) {
 	}
 	if b, _ := os.ReadFile(filepath.Join(dir, scrapeName)); !bytes.Equal(b, scrapeConfig) {
 		t.Fatalf("setup left an edited scrape.yml: %q", b)
+	}
+	// It names what it changed, here scrape.yml alone, and the restarts
+	// (the deploy of ecb829a to hotserve-1 said "wrote" for every file,
+	// and nothing of the store's and vmalert's restarts).
+	for _, u := range metricsUnits() {
+		if !strings.Contains(out.String(), "\n"+u.path+" is unchanged\n") || strings.Contains(out.String(), "wrote "+u.path) {
+			t.Errorf("a re-run with %s as setup wrote it: setup said\n%s\nwant it unchanged", u.path, out.String())
+		}
+	}
+	if !strings.Contains(out.String(), "\nwrote /var/lib/motel-metrics/scrape.yml\n") ||
+		!strings.Contains(out.String(), "\nrestarted the store and vmalert: the store listens on /run/motel-metrics/vm.sock only") {
+		t.Errorf("a re-run with scrape.yml edited: setup said\n%s\nwant it written, and the restarts named", out.String())
 	}
 
 	// iproute2 alone to install: the mask is for the units, not for an
