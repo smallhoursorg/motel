@@ -153,6 +153,17 @@ Before you upgrade:
   motel refuses root's run only when the Caddyfile's liveswap root
   exists and is not root's, as on a packaged box (it is motel's);
   otherwise nothing stops it, so do not rely on the refusal.
+- **Check motel.service runs as the motel user.** That refusal cannot
+  tell root's run by hand from a unit edited to run motel as root, and
+  the install makes `/var/lib/liveswap` motel's again, so such a box
+  is refused at every start, the install's own included, and serves
+  nothing until someone at the console mends it.
+  `systemctl show -p User --value motel` prints `motel` on a packaged
+  box; `root`, or nothing at all, means the unit was edited to run as
+  root (a drop-in from `systemctl edit motel`, or a copy of the unit in
+  `/etc/systemd/system/`). Before the install, take the `User=` line
+  out of that edit, or run `systemctl revert motel`, which drops every
+  local edit of the unit, then `systemctl daemon-reload`.
 - **A box with an ECDSA signer rotates it first** (upgrading from
   v0.6.0 or earlier). A `signer` line with an `ecdsa-sha2-nistp256`,
   `-384`, `-521` or `sk-ecdsa-sha2-nistp256@openssh.com` key is refused
@@ -251,7 +262,12 @@ variable's name. If a push ever took over such a file, look through
 the box repository's old apply runs (logs and job summaries) and
 `journalctl -u motel-box-apply` for a name after `removed` that is no
 variable's, and give any value found that way a new one ([Change a
-value](secrets.md#change-a-value)). `make secrets-import` had the same
+value](secrets.md#change-a-value)). The lines you are looking for may
+hold a secret, so count before you read:
+`journalctl -u motel-box-apply | grep -c removed` prints 0 when the
+journal has nothing to look at. Read any lines it counts on the box
+itself, and the old runs only where they are, and never paste them
+into a chat, an issue or a bug report. `make secrets-import` had the same
 gap: copy this release's `examples/box/bin/secrets` and
 `examples/box/bin/apply` into the box repository's `bin/` (the second
 says a push left a hand-edited file's own variables unnamed), and a
