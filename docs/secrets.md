@@ -153,9 +153,14 @@ make secrets-import APP=example < example.env
 sets one secret for each `KEY=VALUE` line, reading the file the way
 motel reads an env file: `#` comments and blank lines skipped, an
 optional `export ` dropped, one pair of quotes around a value taken off.
-A value that is empty or only `=` signs is refused, without the line's
-name: a base64 secret pasted alone on its line reads that way, the
-secret as the name and its padding as the value.
+A value that is empty or only `=` signs is refused, and so is an
+unquoted one that starts with `=` or `#`, or that has white space
+after the `=` and none before it, each without the line's name: a
+base64 secret pasted alone on its line reads that way, the secret as
+the name and its padding, and whatever follows, as the value. Two
+tokens glued (`<secret>=<token>=`) read as a name and a value like any
+other line: when a name the import adds has a lower-case letter, it
+asks you to check the names before you commit.
 For a file that is already on the box, see [Move a hand-made env file
 in](#move-a-hand-made-env-file-in).
 

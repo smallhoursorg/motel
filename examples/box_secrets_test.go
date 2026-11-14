@@ -1093,6 +1093,9 @@ func TestBoxSecretsImport(t *testing.T) {
 		!strings.Contains(out, fmt.Sprintf("secrets: %d values, encrypted to 2 keys, in the commit\n", len(last))) {
 		t.Errorf("summary:\n%s", out)
 	}
+	if strings.Contains(out, "check the names added above") {
+		t.Errorf("names in capitals alone, and the note of a value read as a name:\n%s", out)
+	}
 
 	// Lines motel refuses, it refuses, and then imports nothing. It also
 	// refuses lines motel takes, without naming the line's name, in the
@@ -1144,6 +1147,21 @@ func TestBoxSecretsImport(t *testing.T) {
 		if r.exists("deploy.example.com/secrets/other") {
 			t.Fatalf("%q: a refused import wrote something", c.line)
 		}
+	}
+	// Two tokens glued read as a name and a value, which no rule about
+	// the line's shape tells from KEY=<base64 value>: the import takes
+	// it, and since a name added has a lower-case letter, says so in a
+	// line that names nothing; its command takes the staged file out.
+	// A quoted value after white space is taken too.
+	note := "secrets: check the names added above: a value pasted alone on a line reads as a name; if one of them is a value, git rm -f deploy.example.com/secrets/glued/<that name>.age before you commit, and fix the line\n"
+	out, code = r.secrets("", "QUOTED= \"value\"\n"+pasted+"="+second+"=\n", "import", "APP=glued")
+	if code != 0 || !strings.Contains(out, "secrets: deploy.example.com/secrets/glued: added QUOTED "+pasted+"\n"+note) {
+		t.Fatalf("a glued pair: exit %d\n%s", code, out)
+	}
+	r.mustDecrypt(boxID, "deploy.example.com/secrets/glued/QUOTED.age", "value")
+	r.git("rm", "-q", "-f", "deploy.example.com/secrets/glued/"+pasted+".age")
+	if r.exists("deploy.example.com/secrets/glued/"+pasted+".age") || strings.Contains(r.git("ls-files", "deploy.example.com/secrets/glued"), pasted) {
+		t.Error("git rm -f left the file named after the value")
 	}
 	if out, code := r.secrets("", "# nothing\n", "import", "APP=other"); code != 1 || !strings.Contains(out, "the env file has no KEY=VALUE line") {
 		t.Errorf("an empty file: exit %d\n%s", code, out)
