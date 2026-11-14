@@ -662,7 +662,10 @@ echo "=== notify 14a: a reload that fails at an app's Start after notify's ends 
 # started and the old config serves on. It starts them in map order, so
 # notify's Start runs before that failure in about half the tries; the
 # fallback's journal line says when it did, and the tries go on until
-# two have. Each try is checked; then a minute and a quarter for a
+# two have, at most sixteen: two, so that a failed reload after a first
+# fallback is one too (the engine's configs and table as the first left
+# them), and fewer fail the case (with even odds, 17 in 65536 runs).
+# Each try is checked; then a minute and a quarter for a
 # recovery Alertmanager would send; then a reload that drops blog for
 # real must end both, so the case cannot pass by never ending anything.
 rr_alert() { am 'http://am/api/v2/alerts?filter=alertname%3D%22relaunch_refused%22&filter=app%3D%22blog%22'; }
@@ -692,7 +695,7 @@ motel validate --adapter caddyfile --config /tmp/Caddyfile.failstart >/tmp/valid
 	&& pass "the candidate passes validate: what fails is a Start" || fail "validate refused the candidate: $(tail -3 /tmp/validate-14a.out)"
 
 tries=0 fellback=0
-while [ "$tries" -lt 12 ] && [ "$fellback" -lt 2 ]; do
+while [ "$tries" -lt 16 ] && [ "$fellback" -lt 2 ]; do
 	tries=$((tries + 1))
 	sleep 1 # each try's journal lines from a second of its own
 	t_try=$(date +%s)
@@ -714,8 +717,8 @@ while [ "$tries" -lt 12 ] && [ "$fellback" -lt 2 ]; do
 	echo "$log" | grep -q 'the config no longer has its source' && fail "try $tries: the journal has a resolve for a source the candidate dropped"
 	grep -q '"name":"failed_reload_probe"' "$STATE/external.json" 2>/dev/null || fail "try $tries: external.json lost the producer's state"
 done
-[ "$fellback" -ge 1 ] && pass "$fellback of $tries failed reloads ran notify's Start before the failing one, and fell back" \
-	|| fail "no try of $tries ran notify's Start before the failing one: the fallback was not exercised"
+[ "$fellback" -ge 2 ] && pass "$fellback of $tries failed reloads ran notify's Start before the failing one, and fell back" \
+	|| fail "$fellback of $tries tries ran notify's Start before the failing one, want 2: the fallback was not exercised twice"
 systemctl is-active -q motel && pass "the old config serves on, blog in it" || fail "motel is not active after the failed reloads"
 # A recovery the candidate's Start had posted would reach /ops at the
 # group's next flush (group_interval 1m).
