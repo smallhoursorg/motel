@@ -967,8 +967,11 @@ each delivery with the address it came from and answers a box's
 `GET /log?mine=1` with its own, so a count is of that box's deliveries
 alone. The lane takes its longest split, the heartbeat's: 581 s against
 914 s for the whole suite on one box, the same 115 distinct checks
-passing (2026-11-13, lima arm64 VM). `NOTIFY_SPLITS=all` runs it whole
-on one box; the suite refuses to start when a part is in no split.
+passing (2026-11-13, lima arm64 VM). CI runs all three; a local
+`make e2e-notify` leaves heartbeat out unless named
+(`NOTIFY_SPLITS=heartbeat`), and says so at its end, since only a change
+to the hold needs it before CI. `NOTIFY_SPLITS=all` runs it whole on one
+box; the suite refuses to start when a part is in no split.
 
 ## Later slices
 
