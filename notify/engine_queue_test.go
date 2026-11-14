@@ -74,18 +74,19 @@ func TestOneShotPastItsLifeIsGivenUp(t *testing.T) {
 // wallStepped is t with its wall clock moved by d and its monotonic
 // reading left as it was: what time.Now returns after a clock step.
 // time.Time has no way to make one, so the reading (its ext field) is
-// copied back; the test is skipped if the layout is not that one.
+// copied back; the test fails if the layout is not that one, so that
+// a Go upgrade that moves it is seen, not skipped unread.
 func wallStepped(t *testing.T, at time.Time, d time.Duration) time.Time {
 	t.Helper()
 	u := at.Add(d)
 	src := reflect.ValueOf(&at).Elem().FieldByName("ext")
 	dst := reflect.ValueOf(&u).Elem().FieldByName("ext")
 	if !src.IsValid() || src.Kind() != reflect.Int64 {
-		t.Skip("time.Time has no int64 ext field in this Go")
+		t.Fatalf("time.Time has no int64 ext field in this Go")
 	}
 	*(*int64)(unsafe.Pointer(dst.UnsafeAddr())) = *(*int64)(unsafe.Pointer(src.UnsafeAddr()))
 	if u.Sub(at) != 0 || u.Round(0).Sub(at.Round(0)) != d {
-		t.Skip("time.Time's monotonic reading is not in ext in this Go")
+		t.Fatalf("time.Time's monotonic reading is not in ext in this Go")
 	}
 	return u
 }
@@ -121,7 +122,7 @@ func TestExpiryIsOnTheWallClock(t *testing.T) {
 	}
 }
 
-// TestEndsArePostedLate:a resolve and a mute's end carry endsAt=now
+// TestEndsArePostedLate: a resolve and a mute's end carry endsAt=now
 // when they are queued, so their endsAt is past whenever they are
 // posted; they are owed all the same, however late.
 func TestEndsArePostedLate(t *testing.T) {
@@ -216,10 +217,15 @@ func TestReleaseOfAnOlderConfigKeepsTheQueue(t *testing.T) {
 		a, b := &App{}, &App{}
 		e.configure(a, &recPoster{err: &netErr{syscall.ECONNREFUSED}}, nil, zap.NewNop())
 		e.report(watchdog(true))
-		p := &recPoster{}
+		// b's Alertmanager is down too until a's Stop has run, so that
+		// the post cannot leave through b before it.
+		p := &recPoster{err: &netErr{syscall.ECONNREFUSED}}
 		e.configure(b, p, nil, zap.NewNop())
 		e.release(a)
 		defer e.release(b)
+		p.mu.Lock()
+		p.err = nil
+		p.mu.Unlock()
 		deadline := time.Now().Add(10 * time.Second)
 		for time.Now().Before(deadline) {
 			p.mu.Lock()
