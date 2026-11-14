@@ -172,8 +172,12 @@ type pending struct {
 // queued (a one-shot, ChannelFailed, the heartbeat) and it has passed:
 // Alertmanager would take it as resolved and tell no one. An end (a
 // resolve, the mute's end) is queued with endsAt at its queuing, and is
-// owed however late.
+// not given up for it. Passed is on the wall clock, Alertmanager's (the
+// JSON's endsAt against its own clock): now carries a monotonic reading
+// that a clock step does not move, and Round(0) drops it. endsAt and
+// first come from one reading, so either clock orders them alike.
 func (p *pending) expired(now time.Time) bool {
+	now = now.Round(0)
 	for _, a := range p.alerts {
 		if a.EndsAt.After(p.first) && !now.Before(a.EndsAt) {
 			return true
@@ -841,7 +845,8 @@ func (e *engine) release(a *App) {
 	}
 	// What waits for Alertmanager must not be posted either, whatever its
 	// age, by a later config that brings the block back. With the
-	// goroutine stopped, each post still queued was not delivered: it is
+	// goroutine stopped, no post still queued is known to be delivered
+	// (the cancel may cut one whose body Alertmanager had taken): each is
 	// given up as a full queue's oldest is, at a reload and at motel's
 	// shutdown alike.
 	e.mu.Lock()
