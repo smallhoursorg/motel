@@ -549,18 +549,7 @@ dropin=/etc/systemd/system/victoria-metrics.service.d
 	echo "$(grep '^ExecStart=/' "$dropin/10-motel.conf") -storage.minFreeDiskSpaceBytes=1000000000000000"
 } >"$dropin/20-e2e-read-only.conf"
 systemctl daemon-reload && systemctl restart victoria-metrics
-# The new store is read-only before it scrapes at all (it checks the
-# floor as its storage opens, before its scraper starts), so any sample
-# stamped after ro_at was kept read-only. The store before it was
-# writable up to the restart and kept its last scrape, stamped at a fixed
-# phase of its 30 s that can fall in the second the restart returns in:
-# arm CI at ed64772 kept one at .221 of the second date +%s gave. Its
-# stamps run on that schedule, not the clock: one stepped back may leave
-# them ahead of it by up to a tenth of the interval, 3 s, before the
-# store takes the clock's time again (promscrape's scrapework.go). So
-# ro_at is 4 s on, past every sample that store kept; the 75 s after it
-# still hold two of a writable store's scrapes.
-ro_at=$(( $(date +%s) + 4 ))
+ro_at=$(date +%s)
 i=0
 until vm http://vm/metrics | grep -q '^vm_storage_is_read_only.* 1$'; do i=$((i + 1)); [ "$i" -ge 30 ] && break; sleep 2; done
 [ "$i" -lt 30 ] && pass "the store says it is read-only: $(vm http://vm/metrics | grep '^vm_storage_is_read_only')" \
@@ -570,15 +559,23 @@ i=0
 until am "http://am/api/v2/alerts?$roq" | grep -q '"severity":"critical"'; do i=$((i + 1)); [ "$i" -ge 60 ] && break; sleep 2; done
 [ "$i" -lt 60 ] && pass "motel posted metrics_store_read_only, critical" \
 	|| fail "no metrics_store_read_only in Alertmanager after 120 s: $(am "http://am/api/v2/alerts?$roq" | cut -c1-300)"
-# Two of the store's 30 s self-scrapes have come and gone by now, and
-# neither was kept: the free space the disk rule reads stops with every
-# other write. (The flag itself is no series the store keeps, scrape.yml.)
+# Two of the store's 30 s self-scrapes, and motel's pushes, have come and
+# gone by now, and none was kept: the free space the disk rule reads
+# stops with every other write. (The flag itself is no series the store
+# keeps, scrape.yml.) The store counts the rows it adds from its start,
+# and its every write path is refused before that count when read-only
+# (vmstorage's AddRows), so a store read-only from its start reads 0.
+# Not a sample's stamp against a mark taken at the restart: the store
+# before it was writable and kept its last scrape, which can be stamped
+# after that mark (arm CI at ed64772: .221 into the second date +%s gave;
+# and the scraper stamps on its own 30 s schedule, up to 3 s off a clock
+# stepped back, promscrape's scrapework.go).
 while [ $(( $(date +%s) - ro_at )) -lt 75 ]; do sleep 2; done
 before=$(q 'tlast_over_time(vm_free_disk_space_bytes[15m])')
-a=$(q "tlast_over_time(vm_free_disk_space_bytes[15m]) > $ro_at")
-has_result "$before" && printf '%s' "$a" | grep -q '"status":"success"' && ! has_result "$a" \
-	&& pass "75 s read-only and no sample of the store's free space since, only before: the store refused its own scrapes" \
-	|| fail "a scrape was kept while read-only, or none before it, or the store did not answer (ro_at $ro_at): $(printf '%s' "$before" | cut -c1-200) / $(printf '%s' "$a" | cut -c1-200)"
+added=$(vm http://vm/metrics | awk '$1 == "vm_rows_added_to_storage_total" { print $2 }')
+has_result "$before" && [ "$added" = 0 ] \
+	&& pass "75 s read-only and no row added, its own scrapes with the rest; its free space read from before it" \
+	|| fail "the read-only store added '$added' rows (0 is none, empty no answer), or holds no sample of its free space: $(printf '%s' "$before" | cut -c1-200)"
 rm "$dropin/20-e2e-read-only.conf"
 systemctl daemon-reload && systemctl restart victoria-metrics
 back_at=$(date +%s)
