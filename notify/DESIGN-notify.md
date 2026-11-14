@@ -403,7 +403,8 @@ whichever config serves when it clears.
   more: the keys of an app it no longer runs (and its mute), the backup
   keys once `backup_record off`, a filesystem's once its path is not
   measured; each fired key is resolved with a journal line, once the
-  config serves: a reload's at the old config's Stop. An
+  config serves: a reload's at the old config's Stop, and a poll that
+  was reading then tells nothing of what it dropped. An
   unreadable backup record keeps what fired firing beside
   `backup_unreadable`, and a filesystem statfs cannot measure keeps
   what it fired, and fires nothing new: a statfs that fails, or that
@@ -1020,7 +1021,8 @@ reload that drops blog, while its refused relaunch and a producer's
 state for it fire, and fails at the http app's Start (a site bound to
 an address the box does not have, which `motel validate` passes),
 tried until notify's Start ran before the failure twice (the
-fallback's journal line; at most twelve tries): after each, the old
+fallback's journal line; at most sixteen tries, and fewer than two
+fail the case): after each, the old
 config serves with blog, the journal resolves nothing and
 `external.json` keeps the state; after a minute and a quarter no
 recovery has reached the operator and both alerts are active in

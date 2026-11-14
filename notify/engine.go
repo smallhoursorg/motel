@@ -664,15 +664,23 @@ func (e *engine) poll(ctx context.Context) {
 		evs = append(evs, e.disk.poll(paths)...)
 	}
 	e.mu.Lock()
-	e.seen.backups, e.seen.backupsAt = e.backup.read, e.backup.readAt
+	// A config that serves may have been settled while the sources were
+	// read (a reload's old Stop): what was read of a source it dropped is
+	// not listed, and its events are not told, since they would fire
+	// again what prune has just ended, with no poll of this config to
+	// clear it (backup_record off reads nothing).
+	if path == e.backupPath {
+		e.seen.backups, e.seen.backupsAt = e.backup.read, e.backup.readAt
+	}
 	if diskDue {
 		for i := range e.disk.read {
 			if e.disk.read[i].at.IsZero() {
 				e.disk.read[i].at = now
 			}
 		}
-		e.seen.disks = e.disk.read
+		e.seen.disks = slices.DeleteFunc(slices.Clone(e.disk.read), func(r diskReading) bool { return !slices.Contains(e.diskPaths, r.path) })
 	}
+	evs = slices.DeleteFunc(evs, e.unread)
 	e.mu.Unlock()
 	for _, ev := range evs {
 		e.report(ev)
@@ -797,9 +805,7 @@ func (e *engine) prune(apps []string) {
 	now := e.now()
 	for key, st := range e.states {
 		ev := st.ev
-		gone := ev.App != "" && !slices.Contains(apps, ev.App) ||
-			ev.Source == "backup" && e.backupPath == "" ||
-			ev.Source == "disk" && !slices.Contains(e.diskPaths, ev.Instance)
+		gone := ev.App != "" && !slices.Contains(apps, ev.App) || e.unread(ev)
 		if !gone {
 			continue
 		}
@@ -819,6 +825,13 @@ func (e *engine) prune(apps []string) {
 			e.enqueue(&pending{key: "mute/" + app, alerts: []amAlert{muteAlert(app, now, now)}, first: now})
 		}
 	}
+}
+
+// unread says the settled config does not read ev's source: the backup
+// record off, or a filesystem it does not measure. With mu held.
+func (e *engine) unread(ev Event) bool {
+	return ev.Source == "backup" && e.backupPath == "" ||
+		ev.Source == "disk" && !slices.Contains(e.diskPaths, ev.Instance)
 }
 
 // release is App.Stop: when the stopping config is the one the engine

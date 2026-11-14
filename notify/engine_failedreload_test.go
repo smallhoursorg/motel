@@ -5,10 +5,14 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"go.uber.org/zap"
+
+	"github.com/smallhoursorg/motel/backups/record"
 )
 
 // notStarted keeps configure from starting the engine's goroutine: the
@@ -174,5 +178,67 @@ func TestFailedReloadKeepsTheHeartbeatHold(t *testing.T) {
 	}
 	if l := te.lines("monitor: heartbeat resumed"); len(l) != 1 {
 		t.Fatalf("resumed lines = %+v", l)
+	}
+}
+
+// TestPollSettledMidReadTellsNothingDropped: a poll reads the sources
+// outside the lock, and a reload that drops them serves (the old
+// config's Stop settles the new one) while it reads: what it read of
+// them is neither told nor listed. Told, the backup's drill_failed would
+// fire again with nothing to clear it (backup_record off reads nothing),
+// and the disk's would fire, then recover a poll later.
+func TestPollSettledMidReadTellsNothingDropped(t *testing.T) {
+	dir := t.TempDir()
+	rec := filepath.Join(dir, "status.json")
+	disk := filepath.Join(dir, "data") // its own path: the stats in flight are the process's
+	te := newTestEngine(t)
+	writeRecord(t, rec, &record.Status{Apps: map[string]*record.App{}, LastDrill: &record.Drill{Time: te.at, Detail: "could not begin"}})
+	old := &App{BackupRecord: rec, diskPaths: []string{disk}, cfg: &resolved{}, logger: te.logger}
+	te.setConfig(old, te.p, te.known, te.logger)
+	nu := &App{BackupRecord: "off", cfg: &resolved{}, logger: te.logger}
+	var midRead atomic.Bool
+	var once sync.Once
+	te.disk.stat = func(string) (diskNumbers, error) {
+		if midRead.Load() {
+			once.Do(func() {
+				te.mu.Lock()
+				te.settle(nu)
+				te.mu.Unlock()
+			})
+		}
+		return diskNumbers{usedPct: 95, dev: 1}, nil
+	}
+	drill := Event{Name: "drill_failed", Source: "backup"}.key()
+	full := Event{Name: alertDiskLow, Source: "disk", Instance: disk}.key()
+	te.poll(context.Background())
+	te.drain()
+	if te.states[drill] == nil || te.states[full] == nil {
+		t.Fatalf("the first poll fired %v", te.states)
+	}
+
+	te.mu.Lock()
+	te.point(nu, te.p, te.known, te.logger) // the candidate's Start
+	te.mu.Unlock()
+	te.advance(backupEvery)
+	midRead.Store(true)
+	te.poll(context.Background())
+	for _, a := range te.drain() {
+		if n := a.Labels["alertname"]; (n == "drill_failed" || n == alertDiskLow) && a.EndsAt.IsZero() {
+			t.Errorf("%s fired again after the reload dropped it", n)
+		}
+	}
+	if st := te.states[drill]; st != nil {
+		t.Fatalf("drill_failed is back in the table: %+v", st)
+	}
+	if st := te.states[full]; st != nil {
+		t.Fatalf("disk_low is back in the table: %+v", st)
+	}
+	if te.seen.backups != nil || len(te.seen.disks) != 0 {
+		t.Fatalf("listed: backups %v, disks %v", te.seen.backups, te.seen.disks)
+	}
+	te.advance(time.Minute)
+	te.tick()
+	if got := te.drain(); countAlert(got, "drill_failed") != 0 || countAlert(got, alertDiskLow) != 0 {
+		t.Fatalf("posted a minute on: %+v", got)
 	}
 }
