@@ -150,7 +150,7 @@ func TestScrapeFailedKeepsTheBaselineOverABadRead(t *testing.T) {
 	_, _, a.receivers = render(r, testStateDir)
 	te.setConfig(a, te.p, te.known, te.logger)
 	line := func(v string) string {
-		return failedMetric + `{integration="discord",receiver_name="event-app-blog-warning",reason="clientError"} ` + v + "\n"
+		return failedMetric + `{integration="discord",receiver_name="event-warning-alice",reason="clientError"} ` + v + "\n"
 	}
 	bodies := []string{
 		line("2"),      // baseline: two failures before motel looked
