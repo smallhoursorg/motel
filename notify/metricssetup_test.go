@@ -417,9 +417,14 @@ func TestMetricsUnitsAreTheMeasuredOnes(t *testing.T) {
 	// root, not wanted by the store.
 	has("the drop-in", uncommented(unitVMDropIn), "RestartSteps=6\n", "RestartMaxDelaySec=60\n",
 		"ExecStartPost=-+/usr/bin/systemctl --no-block start motel-vmalert.service\n")
-	lacks("the drop-in", unitVMDropIn, map[string]string{
-		"Wants=motel-vmalert": "has vmalert's failed start ask for a failing store again at once (#470)",
-	})
+	// Any dependency on vmalert (Wants=, Upholds=, measured 1,805
+	// restarts in 30 s) had vmalert's failed start ask for a failing
+	// store again at once; ExecStartPost= alone starts it.
+	for _, line := range strings.Split(string(uncommented(unitVMDropIn)), "\n") {
+		if strings.Contains(line, "motel-vmalert") && !strings.HasPrefix(line, "ExecStartPost=") {
+			t.Errorf("the drop-in has %q: a dependency on vmalert brings the restart storm back (#470)", line)
+		}
+	}
 	// A namespace left behind must not fail every later start, and a
 	// cold boot, which has none, must log no error for it.
 	has("the namespace unit", unitNetns, "ExecStartPre=-/bin/sh -c 'test ! -e /run/netns/motel-metrics || exec /usr/sbin/ip netns delete motel-metrics'\nExecStart=/usr/sbin/ip netns add motel-metrics",

@@ -1640,7 +1640,7 @@ Alertmanager inactive 150 s on, two of vmalert's sends refused, back
 only at motel's start); the store scraping Alertmanager again after the
 namespace's restart;
 the store stopped by hand, started again by motel's next push with vmalert beside it;
-the store failing at its start: 6 s after its start no more than 5 restarts (#470: 237 to 384 before), and once the fault is gone the store answering through `vm.sock` with vmalert beside it (metrics 4f);
+the store failing at its start: 6 s after its start no more than 3 restarts (#470: 237 to 384 before), and once the fault is gone the store answering through `vm.sock` with vmalert beside it (metrics 4f);
 the store made read-only (its free-space floor set above any disk): no sample of its free space kept from then while one from before is (the flag itself is no series it keeps), and motel's `metrics_store_read_only` is in Alertmanager, critical;
 a reload to a monitor block that is a `metrics` line alone writing no
 alerting rule, vmalert loading none, and its warning;

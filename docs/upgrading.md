@@ -196,8 +196,8 @@ Before you upgrade:
   The store keeps running after this, and so do Alertmanager and
   vmalert if you skip step 1, as do any of Monitor's recipe units you
   installed (they fail once `motel monitor send` is gone). A reboot
-  starts vmalert again with the store, whose unit wants it, though
-  step 1 disabled it; Alertmanager and its socket in the store's
+  starts vmalert again with the store, whose drop-in starts it
+  (`ExecStartPost=`), though step 1 disabled it; Alertmanager and its socket in the store's
   namespace stay down, so it reaches no Alertmanager and nothing is
   sent. They are
   setup's or yours, not the package's, and the older release neither
