@@ -680,11 +680,13 @@ func (e *engine) poll(ctx context.Context) {
 		}
 		e.seen.disks = slices.DeleteFunc(slices.Clone(e.disk.read), func(r diskReading) bool { return !slices.Contains(e.diskPaths, r.path) })
 	}
-	evs = slices.DeleteFunc(evs, e.unread)
-	e.mu.Unlock()
-	for _, ev := range evs {
-		e.report(ev)
+	// Told before the lock is let go, so that no settle comes between the
+	// filter and the reports. A poll carries a few events: one per
+	// backup key and per filesystem.
+	for _, ev := range slices.DeleteFunc(evs, e.unread) {
+		e.reportLocked(ev)
 	}
+	e.mu.Unlock()
 }
 
 // run is the engine's goroutine: the queue, and a tick every

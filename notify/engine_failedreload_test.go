@@ -192,7 +192,7 @@ func TestPollSettledMidReadTellsNothingDropped(t *testing.T) {
 	rec := filepath.Join(dir, "status.json")
 	disk := filepath.Join(dir, "data") // its own path: the stats in flight are the process's
 	te := newTestEngine(t)
-	writeRecord(t, rec, &record.Status{Apps: map[string]*record.App{}, LastDrill: &record.Drill{Time: te.at, Detail: "could not begin"}})
+	writeRecord(t, rec, &record.Status{Apps: map[string]*record.App{"blog": {Class: record.OK, LastOK: &record.Snapshot{ID: "a", Time: te.at}}}, LastDrill: &record.Drill{Time: te.at, Detail: "could not begin"}})
 	old := &App{BackupRecord: rec, diskPaths: []string{disk}, cfg: &resolved{}, logger: te.logger}
 	te.setConfig(old, te.p, te.known, te.logger)
 	nu := &App{BackupRecord: "off", cfg: &resolved{}, logger: te.logger}
@@ -215,6 +215,9 @@ func TestPollSettledMidReadTellsNothingDropped(t *testing.T) {
 	if te.states[drill] == nil || te.states[full] == nil {
 		t.Fatalf("the first poll fired %v", te.states)
 	}
+	if len(te.seen.backups) != 1 {
+		t.Fatalf("the first poll listed backups %v", te.seen.backups)
+	}
 
 	te.mu.Lock()
 	te.point(nu, te.p, te.known, te.logger) // the candidate's Start
@@ -233,7 +236,7 @@ func TestPollSettledMidReadTellsNothingDropped(t *testing.T) {
 	if st := te.states[full]; st != nil {
 		t.Fatalf("disk_low is back in the table: %+v", st)
 	}
-	if te.seen.backups != nil || len(te.seen.disks) != 0 {
+	if len(te.seen.backups) != 0 || len(te.seen.disks) != 0 {
 		t.Fatalf("listed: backups %v, disks %v", te.seen.backups, te.seen.disks)
 	}
 	te.advance(time.Minute)
