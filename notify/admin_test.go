@@ -158,6 +158,49 @@ func TestServeSendRefusals(t *testing.T) {
 	}
 }
 
+// TestRefusalsEchoNoInput: Caddy journals an admin route's refusal, so
+// none repeats the value it refuses. Each value here is the pager
+// channel's URL, or its topic where a grammar admits only a name: what
+// an operator who pastes the URL for a name would put in the journal.
+func TestRefusalsEchoNoInput(t *testing.T) {
+	withEngine(t)
+	url := testSecrets()["NOTIFY_PAGER_URL"]
+	topic := url[strings.LastIndex(url, "/")+1:]
+	refused := func(what string, err error, want int, values ...string) {
+		t.Helper()
+		if apiStatus(err) != want {
+			t.Fatalf("%s: %v, want %d", what, err, want)
+		}
+		for _, v := range values {
+			if strings.Contains(err.Error(), v) {
+				t.Errorf("%s: the refusal %q echoes %q", what, err, v)
+			}
+		}
+	}
+
+	// The finding: motel monitor test given the channel's URL.
+	_, err := callAdmin(t, serveTest, http.MethodPost, TestRequest{Channel: url})
+	refused("test's channel", err, http.StatusUnprocessableEntity, url, topic)
+	if !strings.Contains(err.Error(), "its channels are alice, bob, ops, pager") {
+		t.Errorf("test's channel: the refusal %q does not list the block's channels", err)
+	}
+
+	r := goodSend()
+	r.Details = map[string]string{url: "x"}
+	_, err = callAdmin(t, serveSend, http.MethodPost, r)
+	refused("a detail's name", err, http.StatusUnprocessableEntity, url, topic)
+
+	r = goodSend()
+	r.Subject = "app:" + topic
+	_, err = callAdmin(t, serveSend, http.MethodPost, r)
+	refused("the subject's app", err, http.StatusUnprocessableEntity, topic)
+
+	r = goodSend()
+	r.Name = "watchdog_" + strings.ReplaceAll(topic, "-", "_")
+	_, err = callAdmin(t, serveSend, http.MethodPost, r)
+	refused("a watchdog_ name", err, http.StatusUnprocessableEntity, r.Name)
+}
+
 func amCounts(notifications, requests, requestsFailed, failed int) string {
 	const receiver = "ch-ops"
 	return fmt.Sprintf("alertmanager_notifications_total{integration=\"slack\",receiver_name=%q} %d\n", receiver, notifications) +
@@ -618,8 +661,8 @@ func TestUnitsAreTheMeasuredOnes(t *testing.T) {
 }
 
 func TestAPIRefusal(t *testing.T) {
-	err := apiRefusal(errors.New(`caddy responded with error: HTTP 422: {"error":"subject app:x names no app this box runs"}` + "\n"))
-	if err.Error() != "subject app:x names no app this box runs" {
+	err := apiRefusal(errors.New(`caddy responded with error: HTTP 422: {"error":"subject names no app this box runs"}` + "\n"))
+	if err.Error() != "subject names no app this box runs" {
 		t.Fatalf("err = %q", err)
 	}
 	other := errors.New("performing request: dial unix /run/motel/admin.sock: connect: permission denied")

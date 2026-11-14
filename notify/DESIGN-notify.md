@@ -637,8 +637,13 @@ and `motel reload` warn (cmd/motel's gate, `notify.LoadWarnings`). A
 `resolved` that finds nothing firing under its key answers `resolved
 nothing` with exit 0, since a producer may resolve whatever it last
 said. `test` on a channel a boot dropped names it dropped, and the
-mend. Every load's gate, `run`'s among them, warns when a unit setup
-wrote differs from the one this binary would write, naming the setup
+mend; on a name the block does not have, it lists the block's channels
+and not the name given. No refusal of these two routes echoes a value
+given that is not one of motel's own names (a channel, an event's or a
+detail's name, an app): Caddy journals a route's refusal (`admin.api`
+`request error`), and the value may be a channel's URL or topic pasted
+for a name. Every load's gate, `run`'s among them, warns when a unit
+setup wrote differs from the one this binary would write, naming the setup
 to run again: an upgraded box keeps the old units until root does.
 
 ## Silences
