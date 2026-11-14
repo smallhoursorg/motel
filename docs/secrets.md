@@ -349,7 +349,7 @@ next push, as a hand edit of the Caddyfile is: the repository is the
 truth. The run says so, as a warning:
 
 ```
-apply: example's env file on the box had been edited there since the last apply; this push replaced the edit with deploy.example.com/secrets/example/ at 9be0d44; a variable the edit had and the commit does not is gone, and not named (a line of a file the box did not write may be a value)
+apply: example's env file on the box had been edited there since the last apply; this push replaced the edit with deploy.example.com/secrets/example/ at 9be0d44; any variable only the edit had is gone, and the box does not name those (a line of a file it did not write may be a value)
 ```
 
 ## What is checked, and where

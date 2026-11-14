@@ -306,20 +306,13 @@ func (a *Applier) planSecrets(s *proof.Secrets, base *applied, caddyfile string)
 		p.entries = append(p.entries, envEntry{App: app, Prev: cur.data, PrevSHA256: digest(cur.data)})
 	}
 	slices.SortFunc(p.entries, func(x, y envEntry) int { return strings.Compare(x.App, y.App) })
-	p.added, p.changed, p.removed = capNames(p.added), capNames(p.changed), capNames(p.removed)
+	// Every name is HEAD's or one root rendered from an earlier HEAD, so
+	// no list passes maxSecretNames (rule 6).
+	slices.Sort(p.added)
+	slices.Sort(p.changed)
+	slices.Sort(p.removed)
 	slices.Sort(p.oob)
 	return p, nil
-}
-
-// capNames sorts names and keeps the first maxSecretNames (rule 6): a
-// file a console made can hold more variables than any push writes, and
-// the names are a report, never a decision.
-func capNames(names []string) []string {
-	slices.Sort(names)
-	if len(names) > maxSecretNames {
-		names = names[:maxSecretNames]
-	}
-	return names
 }
 
 // readEnvFor is readEnv before the transaction, a file over the cap and

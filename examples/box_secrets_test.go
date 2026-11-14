@@ -1054,15 +1054,16 @@ func TestBoxSecretsImport(t *testing.T) {
 		`D='single'`,
 		`E="unbalanced`,
 		"F=a=b=c",
-		"G=  spaced" + nbsp,
+		"G =  spaced" + nbsp,
 		em + "H=em" + em,
 		`I="  inner spaces kept  "`,
-		"J=#not a comment",
-		"K=" + ideo + "tail" + mmsp,
+		`J="#not a comment"`,
+		"K =" + ideo + "tail" + mmsp,
 		"\tTAB_ED=x\t",
-		"L=" + nel + "nel" + nel,
+		"L =" + nel + "nel" + nel,
 		`M=""quoted twice""`,
 		"N=caf" + string(rune(0xe9)),
+		`O="=x # kept"`,
 		"A=again",
 		"CR=line\r",
 		"",
@@ -1077,7 +1078,7 @@ func TestBoxSecretsImport(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d\n%s", code, out)
 	}
-	if !strings.Contains(out, "secrets: note: A is given again on line 19; the last one is kept\n") {
+	if !strings.Contains(out, "secrets: note: A is given again on line 20; the last one is kept\n") {
 		t.Errorf("no note of A twice:\n%s", out)
 	}
 	last := map[string]string{}
@@ -1088,16 +1089,21 @@ func TestBoxSecretsImport(t *testing.T) {
 	for k, v := range last {
 		r.mustDecrypt(boxID, "deploy.example.com/secrets/example/"+k+".age", v)
 	}
-	if !strings.Contains(out, "secrets: deploy.example.com/secrets/example: added A B C D E F G H I J K TAB_ED L M N CR\n") ||
+	if !strings.Contains(out, "secrets: deploy.example.com/secrets/example: added A B C D E F G H I J K TAB_ED L M N O CR\n") ||
 		!strings.Contains(out, fmt.Sprintf("secrets: %d values, encrypted to 2 keys, in the commit\n", len(last))) {
 		t.Errorf("summary:\n%s", out)
 	}
 
 	// Lines motel refuses, it refuses, and then imports nothing. It also
-	// refuses a value that is empty or only = signs, which motel takes,
-	// without naming the line's name: a base64 secret pasted alone on its
-	// line reads that way, the secret as the name (made up for this test).
-	pasted := "dGhpc2lzYXNlY3JldA"
+	// refuses lines motel takes, without naming the line's name, in the
+	// shapes a base64 secret pasted alone on its line reads as, the secret
+	// as the name: a value that is empty or only = signs, an unquoted one
+	// starting with = or # (a comment after it), white space after the =
+	// and none before (another token after it). Both tokens are made up
+	// for this test.
+	pasted, second := "dGhpc2lzYXNlY3JldA", "c2Vjb25kc2VjcmV0"
+	startsWith := "line 2: the value starts with = or #, as a base64 value alone on the line reads when a comment or another token follows it; quote the value if it is one"
+	spacedOut := "line 2: white space after the = and none before it, as a base64 value alone on the line reads when another token follows it; write NAME=value"
 	for _, c := range []struct {
 		line, want string
 		motelTakes bool
@@ -1109,11 +1115,19 @@ func TestBoxSecretsImport(t *testing.T) {
 		{line: "BAD-NAME=x", want: "line 2: the name is not letters"},
 		{line: "EMPTY=", want: "line 2: the value is empty", motelTakes: true},
 		{line: `EMPTY=""`, want: "line 2: the value is empty", motelTakes: true},
-		{line: "EQUALS==", want: "line 2: the value is only = signs", motelTakes: true},
+		{line: "EQUALS==", want: "line 2: the value is only = signs, as a base64 value alone on the line reads, its padding as the value; a value that is only = signs goes in with make secret", motelTakes: true},
 		{line: `EQUALS="=="`, want: "line 2: the value is only = signs", motelTakes: true},
 		{line: pasted + "=", want: "line 2: the value is empty", motelTakes: true},
 		{line: pasted + "==", want: "line 2: the value is only = signs", motelTakes: true},
 		{line: strings.Repeat("L", 129) + "=x", want: "line 2: the name is longer than 128 bytes", motelTakes: true},
+		{line: pasted + "== # prod", want: startsWith, motelTakes: true},
+		{line: pasted + "= # prod", want: startsWith, motelTakes: true},
+		{line: "export " + pasted + "= # prod", want: startsWith, motelTakes: true},
+		{line: pasted + "= =x", want: startsWith, motelTakes: true},
+		{line: "HASH=#x", want: startsWith, motelTakes: true},
+		{line: pasted + "= " + second + "=", want: spacedOut, motelTakes: true},
+		{line: pasted + "=\t" + second, want: spacedOut, motelTakes: true},
+		{line: "SPACED= value", want: spacedOut, motelTakes: true},
 	} {
 		input := "OK=1\n" + c.line + "\n"
 		if _, err := liveswap.ParseEnvLines("input", []byte(input)); (err == nil) != c.motelTakes {
@@ -1123,7 +1137,8 @@ func TestBoxSecretsImport(t *testing.T) {
 		if code != 1 || !strings.Contains(out, "secrets: "+c.want) || !strings.Contains(out, "nothing imported") {
 			t.Errorf("%q: exit %d, want %q\n%s", c.line, code, c.want, out)
 		}
-		if c.motelTakes && (strings.Contains(out, pasted) || strings.Contains(out, "EMPTY") || strings.Contains(out, "EQUALS") || strings.Contains(out, "LLL")) {
+		if c.motelTakes && (strings.Contains(out, pasted) || strings.Contains(out, "EMPTY") || strings.Contains(out, "EQUALS") || strings.Contains(out, "LLL") ||
+			strings.Contains(out, "HASH") || strings.Contains(out, "SPACED")) {
 			t.Errorf("%q: the refusal prints the line's name\n%s", c.line, out)
 		}
 		if r.exists("deploy.example.com/secrets/other") {
