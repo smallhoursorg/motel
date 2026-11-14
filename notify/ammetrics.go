@@ -37,7 +37,7 @@ const (
 	// seconds: at its start and at every reload that took. With
 	// receiver-name-in-metrics the three counters above start again
 	// from 0 at each such load (notify.Metrics.InitializeFor, 0.28.1),
-	// and the stamp is set just after, so a stamp newer than the last
+	// and the stamp is set just after, so a stamp other than the last
 	// read's says that all of a count is since that load. A reload
 	// that fails resets nothing and keeps the stamp.
 	loadedMetric = "alertmanager_config_last_reload_success_timestamp_seconds"
@@ -61,10 +61,12 @@ type amMetrics struct {
 	loaded float64
 }
 
-// loadedAfter reports whether a read whose load stamp is loaded
-// (amMetrics.loaded) says Alertmanager loaded a config after t (unix
-// seconds; 0 is no earlier stamp), and so counts from 0 since.
-func loadedAfter(loaded, t float64) bool { return t > 0 && loaded > t }
+// newLoad reports whether a read's load stamp (amMetrics.loaded) says
+// Alertmanager loaded a config since a read whose stamp was last, and
+// so counts from 0 since; 0 is no stamp. Any other stamp is a load, not
+// only a later one: the stamp changes only at a load, and one after the
+// wall clock stepped back is earlier.
+func newLoad(loaded, last float64) bool { return last > 0 && loaded > 0 && loaded != last }
 
 // errNoFailedCounter is a body without failedMetric. Alertmanager makes
 // its series at zero for every receiver and integration the config uses

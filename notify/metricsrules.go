@@ -7,6 +7,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	"go.yaml.in/yaml/v3"
 )
@@ -94,6 +95,11 @@ func fixedRules() vmGroup {
 	}}
 }
 
+// channelFailedWindow is the ChannelFailed rule's increase window, and
+// how long after a config load any count of the counter is a failure:
+// together they cover what increase alone cannot see across a load.
+const channelFailedWindow = 5 * time.Minute
+
 // channelFailedRules is vmalert's second source of ChannelFailed
 // (DESIGN-metrics.md, "Rules"): for each receiver of the notify render,
 // each integration among its channels, and each operator channel not
@@ -161,10 +167,10 @@ func channelFailedRules(n *App) vmGroup {
 			// A config load resets the counter (loadedMetric), and a
 			// failure before the next scrape can bring it back to the
 			// value the scrape before the load read, which increase reads
-			// as none. For five minutes after a load the counter's value
-			// is all failures since it, so any is one.
-			Expr: fmt.Sprintf(`(sum(increase(%[1]s[5m])) > 0) or (sum(%[1]s) > 0 and on () (time() - max(%[2]s)) < 300)`,
-				sel, loadedMetric),
+			// as none. For the increase's own window after a load the
+			// counter's value is all failures since it, so any is one.
+			Expr: fmt.Sprintf(`(sum(increase(%[1]s[%[3]dm])) > 0) or (sum(%[1]s) > 0 and on () (time() - max(%[2]s)) < %[4]d)`,
+				sel, loadedMetric, int(channelFailedWindow/time.Minute), int(channelFailedWindow/time.Second)),
 			Labels: map[string]string{
 				labelChannel: k.channel, "severity": SeverityWarning, "subject": "box",
 				"integration": k.integration, "suspects": k.suspects,

@@ -53,9 +53,10 @@ func loadedAt(stamp float64) string {
 	return fmt.Sprintf("# TYPE %s gauge\n%s %v\n", loadedMetric, loadedMetric, stamp)
 }
 
-// TestLoadSince: a stamp newer than the last read's is a load since,
+// TestLoadSince: a stamp other than the last read's is a load since
+// (an earlier one too: the wall clock stepped back between two loads),
 // and the first read's is compared with motel's start; a read without
-// a stamp, or an older one, is none.
+// a stamp, or after reads that never had one, is none.
 func TestLoadSince(t *testing.T) {
 	start := time.Unix(1_794_000_000, 0)
 	w := failWatch{started: start}
@@ -70,21 +71,23 @@ func TestLoadSince(t *testing.T) {
 		t.Fatal("a watch with no start reads a baseline first")
 	}
 	w.prev, w.loaded = map[string]float64{}, 1_794_000_100
-	for stamp, want := range map[float64]bool{0: false, 1_794_000_050: false, 1_794_000_100: false, 1_794_000_100.5: true} {
+	for stamp, want := range map[float64]bool{0: false, 1_794_000_050: true, 1_794_000_100: false, 1_794_000_100.5: true} {
 		if got := w.loadSince(at(stamp)); got != want {
 			t.Errorf("last read's load %v, this read's %v: loadSince = %v", w.loaded, stamp, got)
 		}
 	}
-	w.loaded = 0
+	w.loaded = 0 // no read so far had a stamp
 	if w.loadSince(at(1_794_000_100)) {
-		t.Fatal("a stamp after a read without one is no load since")
+		t.Fatal("the first stamp after reads that never had one is no load since")
 	}
 }
 
 // TestChannelFailedAcrossAConfigLoad: 1 before a config load, the load
 // (0), and one failure before the next minute's read (1 again) is a
-// rise: the read's load stamp is newer than the last read's. Compared
-// with the last read alone it is none.
+// rise: the read's load stamp is not the last read's. Compared with the
+// last read alone it is none. A read without the stamp keeps the last
+// one, so the load after it is still seen; so is one stamped earlier
+// (the clock stepped back).
 func TestChannelFailedAcrossAConfigLoad(t *testing.T) {
 	te, _, body, read := holdEngine(t, fullBlock)
 	line := func(v int) string { return metricsHead + failedLine("webhook", "event-warning-bob", "clientError", v) }
@@ -97,6 +100,9 @@ func TestChannelFailedAcrossAConfigLoad(t *testing.T) {
 		{line(1) + loadedAt(1_794_000_100.25), false},
 		{line(0) + loadedAt(1_794_000_200), false}, // a load, nothing since
 		{line(1) + loadedAt(1_794_000_200), true},
+		{line(1), false}, // a body without the stamp
+		{line(1) + loadedAt(1_794_000_300), true},
+		{line(1) + loadedAt(1_794_000_250), true}, // the clock stepped back
 	} {
 		*body = c.body
 		te.scrapeFailed(context.Background(), read)
@@ -375,9 +381,12 @@ func TestHeartbeatHeldWhileAFailureIsToldToNoChannel(t *testing.T) {
 
 // TestHeartbeatResumesAtADeliveryAfterALoad: the documented mend, the
 // URL mended (a reload of Alertmanager, which starts its counts from 0)
-// and then `motel monitor test`, resumes the heartbeat at the next read
-// though the test's count is no higher than ops's before the load (one
-// earlier test). A read between the load and the test resumes nothing.
+// and then `motel monitor test`, resumes the heartbeat at the next read.
+// First with a read between the load and the test: the load alone
+// resumes nothing (that read's 0 is any reader's baseline for the
+// test's 1). Then the case that needs the load's stamp: the test read
+// in the load's own read, its count no higher than ops's before the
+// load (one earlier test).
 func TestHeartbeatResumesAtADeliveryAfterALoad(t *testing.T) {
 	te, _, body, read := holdEngine(t, oneChannelBlock)
 	const before, after = 1_794_000_000, 1_794_000_900

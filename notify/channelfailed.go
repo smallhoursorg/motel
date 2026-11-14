@@ -64,9 +64,9 @@ func sampleKey(s failedSample) string { return s.integration + "/" + s.receiver 
 // earlier motel may have told of what it counts.
 func (w *failWatch) loadSince(m amMetrics) bool {
 	if w.prev == nil {
-		return !w.started.IsZero() && loadedAfter(m.loaded, float64(w.started.UnixMilli())/1e3)
+		return !w.started.IsZero() && m.loaded > float64(w.started.UnixMilli())/1e3
 	}
-	return loadedAfter(m.loaded, w.loaded)
+	return newLoad(m.loaded, w.loaded)
 }
 
 // rises compares a read of the counter with the last and returns the

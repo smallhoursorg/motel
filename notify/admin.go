@@ -322,7 +322,7 @@ func serveTest(w http.ResponseWriter, r *http.Request) error {
 		if err != nil {
 			continue // no reading this time; the next one may be whole
 		}
-		if loadedAfter(after.loaded, before.loaded) {
+		if newLoad(after.loaded, before.loaded) {
 			// A config load (another root's reload, setup's) started the
 			// counters again: what they hold now is since it, and an
 			// attempt before it was the old config's.

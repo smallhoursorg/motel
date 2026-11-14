@@ -251,7 +251,7 @@ func TestServeTest(t *testing.T) {
 // TestServeTestAcrossAConfigLoad: a config load during the test (another
 // root's reload, setup's) starts the counters again from 0, so a
 // delivery after it reads below the count taken before the post. With
-// the load's stamp newer than the baseline's, the baseline is 0: the
+// the load's stamp other than the baseline's, the baseline is 0: the
 // load's cancelled attempt is the old config's, and the new config's
 // delivery is the test's.
 func TestServeTestAcrossAConfigLoad(t *testing.T) {

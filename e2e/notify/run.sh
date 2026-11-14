@@ -668,7 +668,10 @@ systemctl reload motel || fail "the reload with oncall alone"
 # file at each send; no load). The mend below reloads Alertmanager, which
 # counts from 0 again, so the mend's test brings that count back to 1,
 # no higher than before: the hold is released only if motel counts from
-# the load (notify/channelfailed.go, loadSince).
+# the load (notify/channelfailed.go, loadSince). A minute's read that
+# falls between the mend's reload and the test would release it anyway;
+# the unit test TestHeartbeatResumesAtADeliveryAfterALoad holds the case
+# without one.
 f15=$STATE/url-NOTIFY_ONCALL_URL
 cp -p "$f15" /tmp/oncall.url.15
 printf '%s' "$SINK/oncall" >"$f15"
