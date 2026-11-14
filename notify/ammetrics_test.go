@@ -181,8 +181,8 @@ func TestScrapeFailedKeepsTheBaselineOverABadRead(t *testing.T) {
 // TestReloadCancelIsNoFailure: Alertmanager's reload cancels a delivery
 // in flight and counts it failed with reason contextCanceled, after the
 // reload has reset the counters. That is no channel's failure: it
-// neither raises ChannelFailed nor answers `motel monitor test` as
-// failed, and a rise of another reason beside it still does.
+// raises no ChannelFailed, and is not the failed count `motel monitor
+// test` reads; a rise of another reason beside it still raises one.
 func TestReloadCancelIsNoFailure(t *testing.T) {
 	te := newTestEngine(t)
 	a := mustParse(t, fullBlock)
@@ -194,7 +194,7 @@ func TestReloadCancelIsNoFailure(t *testing.T) {
 	_, _, a.receivers = render(r, testStateDir)
 	te.setConfig(a, te.p, te.known, te.logger)
 	line := func(reason, v string) string {
-		return failedMetric + `{integration="discord",receiver_name="event-app-blog-warning",reason="` + reason + `"} ` + v + "\n"
+		return failedMetric + `{integration="discord",receiver_name="event-warning-alice",reason="` + reason + `"} ` + v + "\n"
 	}
 	bodies := []string{
 		line(reasonCanceled, "0") + line("clientError", "0"), // baseline
@@ -216,7 +216,7 @@ func TestReloadCancelIsNoFailure(t *testing.T) {
 			}
 		}
 	}
-	c, err := countsFor([]byte(line(reasonCanceled, "1")), "event-app-blog-warning")
+	c, err := countsFor([]byte(line(reasonCanceled, "1")), "event-warning-alice")
 	if err != nil {
 		t.Fatal(err)
 	}
