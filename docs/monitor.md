@@ -348,12 +348,15 @@ producer may resolve whatever it last said). On a box where
 most 200 characters. When a state resolves, the message repeats the
 summary it fired with, not the one you give.
 
-**A state does not outlive a restart of motel** (an upgrade of the
-package restarts it). motel forgets the state, and five minutes later
-Alertmanager tells your channels it is `[RESOLVED]`, although nothing
-recovered. So a producer of a state sends `--state firing` again every
-two or three minutes for as long as the condition holds (a repeat while the
-state is firing sends no second message), or sends one-shots instead.
+A state outlives a restart of motel (an upgrade of the package restarts
+it): motel keeps what is firing in `/var/lib/motel-notify/external.json`
+and tells it again when it starts, and the later `--state resolved`
+ends it. Back within five minutes, that sends no second message;
+stopped longer, Alertmanager has told your channels `[RESOLVED]` at
+five minutes, and the start fires it again. A reload that takes the monitor block
+out, or a start without it, forgets the states. A repeat of
+`--state firing` while the state fires sends no second message, so a
+producer may send it as often as it checks.
 
 The names motel uses itself are refused:
 
