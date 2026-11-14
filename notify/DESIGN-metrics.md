@@ -901,12 +901,16 @@ together and compares them with the rendered `expr`, for every rule of
 - a request threshold's `pushedNow` (`and on (app) (…)`, listed with
   its `match`), which has no op: the app is one motel's last push says
   is observed, so one whose `observe` line is gone is not read;
+- `request_rate`'s `pushBefore` (`and on () …`, listed with its
+  `match`), which has no op and no labels: the store holds a push from
+  the five minutes before the window, without which `SPAN` is unknown
+  and the value has no series;
 - disk_fill's short window (`< 0`) and its history term, which has no
   op: it holds when its value has a series at all;
 - `metrics_store_disk_fill`'s hour window.
 
 The seven threshold metrics and `app_memory_high` split with no guard
-of their own beyond the floor. `ChannelFailed`'s vmalert rule is listed
+of their own beyond the floor and the request terms above. `ChannelFailed`'s vmalert rule is listed
 as an event: its threshold is 0 on a counter, nothing to be close to.
 
 **What a store rule lists.** `value_query`, `op`, `threshold`, `unit`

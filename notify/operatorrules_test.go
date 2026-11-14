@@ -799,11 +799,11 @@ func pushedSeries(pushes []int, value func(at int) int) string {
 // the restart was in the window. up (gp 25, each evaluation on
 // the new grid's push) read 2.17 and fired `high`; down (gp 5, each
 // 29 s after the new grid's push) read 1.83 and fired `low`. gapped's
-// store refused every push for 150 s while motel counted on: over
-// 300 s the counts of the gap and the window read up to half again
-// high, and fired `high`. Over the time the samples cover, each reads
-// 2 within a third of a percent (the second the box was down), and
-// neither fires.
+// store refused five pushes (150 s; 180 s between its samples) while
+// motel counted on: over 300 s the counts of the gap and the window
+// read up to 2.8, and fired `high`. Over the time the samples cover,
+// each reads 2 within a third of a percent (the second the box was
+// down), and neither fires.
 func TestOperatorRulesRateAcrossARestart(t *testing.T) {
 	tool := vmTool(t, "vmalert-tool")
 	dir := t.TempDir()
@@ -856,7 +856,7 @@ func TestOperatorRulesRateAcrossARestart(t *testing.T) {
 `
 		// The value itself, so that a rate with no value (a divisor
 		// that is NaN) cannot pass for one that does not fire.
-		for _, m := range []int{19, 22, 24, 26} {
+		for _, m := range []int{19, 22, 24, 26, 27} {
 			want := "2"
 			if gap == 0 && (m == 22 || m == 24) {
 				want = "1.99"

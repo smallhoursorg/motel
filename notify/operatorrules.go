@@ -747,7 +747,8 @@ type ruleTerm struct {
 	// meaning is a guard's, in words, for a screen to say why the rule
 	// cannot fire.
 	meaning string
-	// match is a guard's matching, "on (app)", or none: what follows
+	// match is a guard's matching, "on (app)", "on ()" (a guard with
+	// no labels, request_rate's pushBefore) or none: what follows
 	// its "and".
 	match  string
 	guards []ruleTerm
