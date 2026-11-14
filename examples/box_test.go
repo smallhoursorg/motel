@@ -839,8 +839,11 @@ func (s *standIn) post(w http.ResponseWriter, r *http.Request) {
 			changed = append(changed, k)
 		}
 	}
+	// As the box's: removed names only from a file the box wrote, never
+	// from one edited on it, where a line may be a value pasted alone.
 	for k := range s.secrets {
-		if _, ok := values[k]; !ok {
+		app, _, _ := strings.Cut(k, "/")
+		if _, ok := values[k]; !ok && !slices.Contains(s.envEdited, app) {
 			removed = append(removed, k)
 		}
 	}
@@ -1327,25 +1330,22 @@ func TestBoxApply(t *testing.T) {
 			t.Fatalf("a recipients file with CRLF endings: exit %d\n%s", code, out)
 		}
 
-		// One of two removed, and the Caddyfile changed in the same push,
-		// over an env file edited on the box: the file is rewritten with
-		// the value left, not removed.
-		g.box.set(func(s *standIn) { s.envEdited = []string{"example"} })
+		// One of two removed, and the Caddyfile changed in the same push:
+		// the file is rewritten with the value left, not removed.
 		g.remove("deploy.example.com/secrets/example/COPY.age")
 		head = g.change("three")
 		out, code = g.apply()
 		if code != 0 || !strings.Contains(out, "apply: deploy.example.com secrets: example: removed COPY\n") ||
-			!strings.Contains(out, "deploy.example.com at "+head[:7]+": loaded; running apps are not restarted") ||
-			!strings.Contains(out, "this push replaced the edit with deploy.example.com/secrets/example/ at "+head[:7]) {
+			!strings.Contains(out, "deploy.example.com at "+head[:7]+": loaded; running apps are not restarted") {
 			t.Fatalf("a removal: exit %d\n%s", code, out)
 		}
-		g.box.set(func(s *standIn) { s.envEdited = nil })
 
 		// An env file edited on the box: said, and on the job page.
 		g.box.set(func(s *standIn) { s.envEdited = []string{"example"} })
 		head = g.change("four")
 		out, code = g.apply("GITHUB_ACTIONS=true")
-		if code != 0 || !strings.Contains(out, "example's env file on the box had been edited there since the last apply; this push replaced the edit with deploy.example.com/secrets/example/ at "+head[:7]) ||
+		if code != 0 || !strings.Contains(out, "example's env file on the box had been edited there since the last apply; this push replaced the edit with deploy.example.com/secrets/example/ at "+head[:7]+
+			"; a variable the edit had and the commit does not is gone, and not named (a line of a file the box did not write may be a value)\n") ||
 			!strings.Contains(out, "::warning title=apply deploy.example.com::example's env file") {
 			t.Fatalf("an env file edited on the box: exit %d\n%s", code, out)
 		}
@@ -1379,8 +1379,8 @@ func TestBoxApply(t *testing.T) {
 		g.write(boxFile, strings.Replace(g.read(boxFile), "\tenv_file /etc/motel/secrets/example.env", "\t# env_file /etc/motel/secrets/example.env", 1))
 		g.box.set(func(s *standIn) { s.envEdited = []string{"example"} })
 		head = g.commit("no secrets")
-		if out, code := g.apply(); code != 0 || !strings.Contains(out, "apply: deploy.example.com secrets: example: removed DATABASE_URL\n") ||
-			!strings.Contains(out, "example's env file on the box had been edited there since the last apply; this push removed it, as "+head[:7]+" has no secrets for example") {
+		if out, code := g.apply(); code != 0 || strings.Contains(out, "removed DATABASE_URL") ||
+			!strings.Contains(out, "example's env file on the box had been edited there since the last apply; this push removed it, as "+head[:7]+" has no secrets for example\n") {
 			t.Fatalf("every secret removed: exit %d\n%s", code, out)
 		}
 	})

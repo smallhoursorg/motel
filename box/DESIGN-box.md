@@ -823,7 +823,7 @@ by id.
 | **I6** | Root installs nothing a listed signer did not sign (every chain commit), nothing that fails the file proof, nothing that does not descend from the baseline, nothing for another host or path. It decrypts nothing whose blob a proved tree does not name, and nothing before every signature on the chain has verified (step 15a). |
 | **I7** | No pending outlives its bound: a marker stops blocking admission at thirty minutes (the file is kept by Retention); a bundle in `in/` blocks admission until root takes it, with no age-out. |
 | **I8** | Every write that recovery reasons from is durable before the next step: the temporary is `fsync`ed, renamed, and the parent directory `fsync`ed. |
-| **I9** | A secret's plaintext is only in its env file and, while a transaction is in flight, in the record (root's alone, 0600): never in a result, a journal line, the `diff`, or the arguments or environment of a child the applier starts. Results and the journal name a secret as `<app>/<VAR>`. |
+| **I9** | A secret's plaintext is only in its env file and, while a transaction is in flight, in the record (root's alone, 0600): never in a result, a journal line, the `diff`, or the arguments or environment of a child the applier starts. Results and the journal name a secret as `<app>/<VAR>`, a `<VAR>` from the repository's file names or from bytes root rendered from them, never read from a file root did not write, where a value pasted alone on a line parses as a name ("Values and the env file"). |
 
 ### States
 
@@ -868,7 +868,7 @@ touched does not stop their write-back.
 | record | `new_sha256` | applier | the incoming file's digest |
 | record | `secrets` | applier | one entry per env file in the set: `{app, prev, prev_sha256, new_sha256}` — `prev` the file's bytes before the push (base64; absent when there was no file), `prev_sha256` their digest (`""` when absent), `new_sha256` the rendered file's digest (`""` when the push removes it). The plaintext of I9's exception |
 | record | `secrets_tree`, `secrets_installed` | applier | HEAD's secrets tree id (`""` for none) and the `app → sha256` map of every env file the box manages once the push applies: what `applied.json` gets |
-| record, result | `secrets_added`, `secrets_changed`, `secrets_removed` | applier | the secrets the push adds, changes or removes, as `<app>/<VAR>`, sorted; never a value. In the record too, so a result recovery writes carries them. A secret is changed when its value is, so a rekey that keeps the values lists none |
+| record, result | `secrets_added`, `secrets_changed`, `secrets_removed` | applier | the secrets the push adds, changes or removes, as `<app>/<VAR>`, sorted; never a value. In the record too, so a result recovery writes carries them. A secret is changed when its value is, so a rekey that keeps the values lists none. Added and changed are HEAD's names; removed ones only an env file at the digest `applied.json` records gives, so a file root did not write names none (I9), and its app is in `secrets_edited_out_of_band` |
 | record, result | `secrets_edited_out_of_band` | applier | the apps whose env file root wrote or removed over bytes it had not installed — a digest differing from `applied.json`'s, a listed file gone or not at the mode and owner it set, or a file it never installed for an app this push installs ("Values and the env file") |
 | result | `reloaded` | applier | on an applied result, `true` when the push reloaded motel: the Caddyfile changed, or the box's own env file's bytes did ("The box's own slot"); absent otherwise. The names above cannot say it: the same values over other bytes reload, and a rekey that renders the same bytes does not. The template's `bin/apply` reads it for its line |
 | record, result | `diff` | applier | unified diff, redacted (layers 3 and 4), capped per Caps |
@@ -1530,11 +1530,13 @@ key. It reads each installed env file the set may touch the same way
 is larger is the box's error, `failed`, since its bytes could not be
 kept in the record for a rollback, and so is anything at the name
 that is neither a regular file nor a link — a directory, a FIFO, a
-socket — which no rename replaces. Names read from a file root did
-not write are held to the caps the record and the result are read
-back with: a variable no secret could be named is not reported, and
-each list stops at its cap. Then each value is held to these rules, in
-this order:
+socket — which no rename replaces. A file root did not write — not
+at the digest `applied.json` records for it — gives no names: a
+secret pasted alone on one of its lines, base64 with its `=` padding
+(`dGhpc2lzYXNlY3JldA==`), parses as a variable named after it, so the
+push names none of that file's variables as removed (I9); its app is
+named in `secrets_edited_out_of_band`. Then each value is held to
+these rules, in this order:
 
 | Rule | Past it |
 |---|---|
@@ -2704,3 +2706,11 @@ Dated one-liners; the full text of each is in git.
   name, as validate does, pointing at docs/upgrading.md's upgrade order:
   read as no monitor block, a push with `secrets/_box/` was refused for
   having none (/code-review pass 2 on the monitor block).
+- 2026-11-14 — A push names no variable read from an env file root did
+  not write: a base64 secret pasted alone on a line there parses as a
+  name, which `secrets_removed` printed in the result, the journal and
+  the CI log (I9; a review finding, 5×5×5). Removed names come only
+  from a file at the digest `applied.json` records; `bin/apply`'s
+  out-of-band warning says the rest is gone unnamed, and `make
+  secrets-import` refuses a value that is empty or only `=` signs
+  without naming the line's name (5×5×3).

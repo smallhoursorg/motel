@@ -1093,23 +1093,38 @@ func TestBoxSecretsImport(t *testing.T) {
 		t.Errorf("summary:\n%s", out)
 	}
 
-	// Lines motel refuses, it refuses, and then imports nothing.
-	for _, c := range []struct{ line, want string }{
-		{"1BAD=x", "line 2: the name is not letters, digits and _, not starting with a digit"},
-		{"NOEQUALS", "line 2: not KEY=VALUE"},
-		{"=x", "line 2: not KEY=VALUE"},
-		{"export\tX=1", "line 2: the name is not letters"},
-		{"BAD-NAME=x", "line 2: the name is not letters"},
-		{"EMPTY=", "line 2: EMPTY is empty"},
-		{`EMPTY=""`, "line 2: EMPTY is empty"},
+	// Lines motel refuses, it refuses, and then imports nothing. It also
+	// refuses a value that is empty or only = signs, which motel takes,
+	// without naming the line's name: a base64 secret pasted alone on its
+	// line reads that way, the secret as the name (made up for this test).
+	pasted := "dGhpc2lzYXNlY3JldA"
+	for _, c := range []struct {
+		line, want string
+		motelTakes bool
+	}{
+		{line: "1BAD=x", want: "line 2: the name is not letters, digits and _, not starting with a digit"},
+		{line: "NOEQUALS", want: "line 2: not KEY=VALUE"},
+		{line: "=x", want: "line 2: not KEY=VALUE"},
+		{line: "export\tX=1", want: "line 2: the name is not letters"},
+		{line: "BAD-NAME=x", want: "line 2: the name is not letters"},
+		{line: "EMPTY=", want: "line 2: the value is empty", motelTakes: true},
+		{line: `EMPTY=""`, want: "line 2: the value is empty", motelTakes: true},
+		{line: "EQUALS==", want: "line 2: the value is only = signs", motelTakes: true},
+		{line: `EQUALS="=="`, want: "line 2: the value is only = signs", motelTakes: true},
+		{line: pasted + "=", want: "line 2: the value is empty", motelTakes: true},
+		{line: pasted + "==", want: "line 2: the value is only = signs", motelTakes: true},
+		{line: strings.Repeat("L", 129) + "=x", want: "line 2: the name is longer than 128 bytes", motelTakes: true},
 	} {
 		input := "OK=1\n" + c.line + "\n"
-		if _, err := liveswap.ParseEnvLines("input", []byte(input)); err == nil && !strings.Contains(c.want, "is empty") {
-			t.Errorf("%q: motel's parser takes it, the test expects a refusal", c.line)
+		if _, err := liveswap.ParseEnvLines("input", []byte(input)); (err == nil) != c.motelTakes {
+			t.Errorf("%q: motel's parser error %v, the test expects it to take the line: %v", c.line, err, c.motelTakes)
 		}
 		out, code := r.secrets("", input, "import", "APP=other")
 		if code != 1 || !strings.Contains(out, "secrets: "+c.want) || !strings.Contains(out, "nothing imported") {
 			t.Errorf("%q: exit %d, want %q\n%s", c.line, code, c.want, out)
+		}
+		if c.motelTakes && (strings.Contains(out, pasted) || strings.Contains(out, "EMPTY") || strings.Contains(out, "EQUALS") || strings.Contains(out, "LLL")) {
+			t.Errorf("%q: the refusal prints the line's name\n%s", c.line, out)
 		}
 		if r.exists("deploy.example.com/secrets/other") {
 			t.Fatalf("%q: a refused import wrote something", c.line)
