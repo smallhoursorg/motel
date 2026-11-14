@@ -104,6 +104,7 @@ func TestChannelFailedAcrossAConfigLoad(t *testing.T) {
 		{line(1) + loadedAt(1_794_000_300), true},
 		{line(1) + loadedAt(1_794_000_250), true}, // the clock stepped back
 	} {
+		te.advance(20 * time.Minute) // a key's bucket takes four an hour
 		*body = c.body
 		te.scrapeFailed(context.Background(), read)
 		got := te.drain()
@@ -116,15 +117,35 @@ func TestChannelFailedAcrossAConfigLoad(t *testing.T) {
 // TestFirstReadCountsFromALoadAfterTheStart: Alertmanager started after
 // motel (setup's start, its socket's at motel's first post), and a
 // failure before motel's first read is told; a load from before motel
-// started is a baseline, which an earlier motel may have told of.
+// started is a baseline, which an earlier motel may have told of. The
+// reload motel's start asked for counts whatever its stamp says (the
+// clock stepped back after the start), and a body without receiver
+// names (no stamp read) stays a baseline.
 func TestFirstReadCountsFromALoadAfterTheStart(t *testing.T) {
-	for stamp, want := range map[float64]int{1_794_000_030: 1, 1_793_999_000: 0} {
+	for _, c := range []struct {
+		stamp    float64
+		reloaded bool
+		names    bool
+		want     int
+	}{
+		{1_794_000_030, false, true, 1},
+		{1_793_999_000, false, true, 0},
+		{1_793_999_000, true, true, 1},
+		{1_794_000_030, true, false, 0},
+	} {
 		te, _, body, read := holdEngine(t, fullBlock)
 		te.fail.started = time.Unix(1_794_000_000, 0)
-		*body = metricsHead + failedLine("webhook", "event-warning-bob", "clientError", 1) + loadedAt(stamp)
+		if c.reloaded {
+			te.noteReload()
+		}
+		receiver := "event-warning-bob"
+		if !c.names {
+			receiver = ""
+		}
+		*body = metricsHead + failedLine("webhook", receiver, "clientError", 1) + loadedAt(c.stamp)
 		te.scrapeFailed(context.Background(), read)
-		if got := te.drain(); len(got) != want {
-			t.Errorf("a load at %v, motel started at %v: posts %+v, want %d", stamp, te.fail.started.Unix(), got, want)
+		if got := te.drain(); len(got) != c.want {
+			t.Errorf("%+v: posts %+v, want %d", c, got, c.want)
 		}
 	}
 }

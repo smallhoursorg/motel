@@ -169,8 +169,8 @@ func channelFailedRules(n *App) vmGroup {
 			// value the scrape before the load read, which increase reads
 			// as none. For the increase's own window after a load the
 			// counter's value is all failures since it, so any is one.
-			Expr: fmt.Sprintf(`(sum(increase(%[1]s[%[3]dm])) > 0) or (sum(%[1]s) > 0 and on () (time() - max(%[2]s)) < %[4]d)`,
-				sel, loadedMetric, int(channelFailedWindow/time.Minute), int(channelFailedWindow/time.Second)),
+			Expr: fmt.Sprintf(`(sum(increase(%[1]s[%[3]ds])) > 0) or (sum(%[1]s) > 0 and on () (time() - max(%[2]s)) < %[3]d)`,
+				sel, loadedMetric, int(channelFailedWindow/time.Second)),
 			Labels: map[string]string{
 				labelChannel: k.channel, "severity": SeverityWarning, "subject": "box",
 				"integration": k.integration, "suspects": k.suspects,

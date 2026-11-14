@@ -29,11 +29,15 @@ const channelFailedLife = 15 * time.Minute
 // reads the counter against.
 type failWatch struct {
 	prev map[string]float64 // integration/receiver/reason → value
-	// loaded is Alertmanager's last config load as the last read gave it
-	// (amMetrics.loaded), and started is when this process began, which
-	// the first read's load is compared with.
+	// loaded is Alertmanager's last config load as the last read that
+	// had one gave it (amMetrics.loaded; a read without one keeps it).
+	// started is when this process began, which the first read's load
+	// is compared with, and reloaded says that Alertmanager answered a
+	// reload this process asked for before that read: a load after the
+	// start, whatever the wall clock did since.
 	loaded   float64
 	started  time.Time
+	reloaded bool
 	operator []string
 	kinds    map[string]string   // channel → integration
 	channels map[string][]string // receiver → channels
@@ -58,15 +62,28 @@ func sampleKey(s failedSample) string { return s.integration + "/" + s.receiver 
 // loadSince reports whether Alertmanager's counters started again from
 // 0 at a config load since the last read, so that all of a count is
 // new. At the first read since this process started, a load after the
-// start says so too (setup's start of Alertmanager, or its socket's at
-// motel's first post), and a failure before that read is told; a load
-// from before the start leaves the first read a baseline, since an
-// earlier motel may have told of what it counts.
+// start says so too, and a failure before that read is told: the reload
+// motel's start asks for (reloaded, which needs no clock), or a stamp
+// after the start (setup's start of Alertmanager, its socket's at
+// motel's first post). A load from before the start leaves the first
+// read a baseline, since an earlier motel may have told of what it
+// counts.
 func (w *failWatch) loadSince(m amMetrics) bool {
 	if w.prev == nil {
-		return !w.started.IsZero() && m.loaded > float64(w.started.UnixMilli())/1e3
+		return m.loaded > 0 && (w.reloaded || !w.started.IsZero() && m.loaded > float64(w.started.UnixMilli())/1e3)
 	}
 	return newLoad(m.loaded, w.loaded)
+}
+
+// noteReload is applyRender's: Alertmanager answered a reload this
+// process asked for. Before the first read, it makes that read count
+// from 0 (loadSince); after, the stamp says it.
+func (e *engine) noteReload() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.fail.prev == nil {
+		e.fail.reloaded = true
+	}
 }
 
 // rises compares a read of the counter with the last and returns the

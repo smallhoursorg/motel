@@ -279,6 +279,22 @@ func TestServeTestAcrossAConfigLoad(t *testing.T) {
 	if !res.Delivered {
 		t.Fatalf("a working channel across a load: %s", w.Body.String())
 	}
+	// A load stamped earlier than the baseline (the clock stepped back)
+	// is a load too.
+	set(amCounts(5, 5, 0, 0) + loadedAt(1_794_000_000))
+	go func() {
+		time.Sleep(300 * time.Millisecond)
+		set(amCounts(2, 2, 1, 0) + loadedAt(1_793_999_000))
+	}()
+	w, err = callAdmin(t, serveTest, http.MethodPost, TestRequest{Channel: "ops"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res = TestResult{}
+	_ = json.Unmarshal(w.Body.Bytes(), &res)
+	if !res.Delivered {
+		t.Fatalf("a working channel across a load stamped earlier: %s", w.Body.String())
+	}
 }
 
 // TestSendAndTestSayWhatTheJournalSays: what was said in the journal
