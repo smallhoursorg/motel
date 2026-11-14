@@ -124,13 +124,14 @@ func metricsSetup(sys system, root string, out io.Writer) (err error) {
 	// Alertmanager takes up its socket in the namespace.
 	retired := false
 	// Asked before the stop: a failure starts the daemons again only if
-	// the store ran, and the line after the start says restarted or
-	// started.
+	// the store ran, and the line after the start says, of each,
+	// restarted or started.
 	var daemons []string
 	running := sys.run("systemctl", "is-active", "--quiet", vmService) == nil
 	if running {
 		daemons = []string{vmService, vmalertUnit}
 	}
+	vmalertRan := sys.run("systemctl", "is-active", "--quiet", vmalertUnit) == nil
 	defer putBackOnFailure(sys, say, rerun, vmService, []string{vmSocket}, daemons, func() error {
 		if !retired {
 			return nil
@@ -255,11 +256,17 @@ func metricsSetup(sys system, root string, out io.Writer) (err error) {
 			return err
 		}
 	}
-	did := "started"
-	if running {
-		did = "restarted"
+	did := func(ran bool) string {
+		if ran {
+			return "restarted"
+		}
+		return "started"
 	}
-	say("%s the store and vmalert: the store listens on %s only, its TCP in the motel-metrics namespace", did, DefaultStoreSocket)
+	both := did(running) + " the store and vmalert"
+	if running != vmalertRan {
+		both = did(running) + " the store and " + did(vmalertRan) + " vmalert"
+	}
+	say("%s: the store listens on %s only, its TCP in the motel-metrics namespace", both, DefaultStoreSocket)
 	if err := sys.run("systemctl", "try-reload-or-restart", "motel.service"); err != nil {
 		return err
 	}

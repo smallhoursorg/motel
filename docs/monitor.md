@@ -150,8 +150,8 @@ its units back as the binary ships them. Of each unit and `scrape.yml`
 it says `wrote …` when it changed the content and `…: content
 unchanged` when it did not. `alertmanager.yml` and `rules.yml`, which
 motel renders, it writes only when they are missing, and otherwise
-leaves with no line. `--metrics` says `restarted the store
-and vmalert` when the store was running. `motel monitor setup` (without
+leaves with no line. `--metrics` says `restarted the store and
+vmalert` when both were running, and `started` for one that was not. `motel monitor setup` (without
 `--metrics`) restarts Alertmanager, which forgets the alerts it holds,
 so run it at a quiet moment. `--metrics` on a box where Alertmanager is
 already set up redoes only the store. The first time, and after an
@@ -313,11 +313,13 @@ before you stop motel or Alertmanager on purpose**, or it will page you.
 To see when the pings went out, or how long a gap was, read the check's
 log at Healthchecks. The box holds no history of them: the store does
 not keep `alertmanager_notifications_total` (below, "PromQL over the
-socket, as root"), and Alertmanager starts each of its
-`alertmanager_notifications_*` counters again from 0 whenever it loads
-its config: when it starts, at every start of motel, and at every
-reload of motel that changes what motel renders for it (a channel's
-URL included). Read live, the counts since the last load are
+socket, as root"), and Alertmanager starts each of its notification
+counters (`alertmanager_notifications_*` and
+`alertmanager_notification_requests_*`) again from 0 whenever it loads
+its config: when it starts, and whenever motel has it reload, which is
+at every start of motel and at every reload of motel that changes what
+motel renders for it (a channel's URL included) or follows one it did
+not answer. Read live, the counts since the last load are
 `curl -s --unix-socket /run/motel-notify/am.sock http://am/metrics | grep 'receiver_name="heartbeat"'`.
 motel and the store's `ChannelFailed` rule read a counter that fell as
 one started again, not as a failure.
@@ -538,8 +540,12 @@ email, say). The journal says why:
 ```
 
 Mend the channel, then `motel monitor test ops`: the pings start again
-within a minute (`monitor: heartbeat resumed`). A reload that takes the
-channel out, or a restart of motel, resumes them too. A second
+within a minute (`monitor: heartbeat resumed`). If mending changed the
+channel's URL, the reload that took it starts Alertmanager's counts
+from 0 (above, "A heartbeat"), and a test within the minute after it
+may not be counted: with no `heartbeat resumed` a minute after the
+test, run it once more. A reload that takes the channel out, or a
+restart of motel, resumes them too. A second
 operator channel that takes warnings is still the better answer: it
 names the failure, where the dead-man check can only say the box is
 down.
