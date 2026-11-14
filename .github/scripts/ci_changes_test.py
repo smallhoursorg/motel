@@ -31,7 +31,7 @@ class Rule(unittest.TestCase):
         for paths in (
             ["README.md"],
             ["docs/first-deploy.md", "liveswap/DESIGN-liveswap.md"],
-            ["usage/runs.csv", "usage/claude/lima16.csv", "docs/footprint.md"],
+            ["usage/runs.csv", "usage/claude/lima16.csv", "usage/factors.json", "docs/footprint.md"],
         ):
             with self.subTest(paths=paths):
                 self.assertEqual(run(paths), "heavy=false\n")
@@ -46,6 +46,8 @@ class Rule(unittest.TestCase):
             ["liveswap/testdata/notes.md"],
             [".github/workflows/ci.yml"],
             ["usage.md.go"],
+            ["usage/broken_test.go"],  # code under usage/ is built by ./...
+            ["usage/runs.csv", "usage/collect.py"],
             [],  # a diff that read nothing is a doubt, not a docs PR
         ):
             with self.subTest(paths=paths):

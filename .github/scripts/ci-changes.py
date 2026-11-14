@@ -7,7 +7,7 @@ commit and its first parent, the base branch), and prints the
 `heavy=true|false` line that job writes to $GITHUB_OUTPUT.
 
 heavy=false only when there are paths and every one is markdown, or a
-usage ledger file, that no job reads: then lint, test, govulncheck, the e2e lanes, package
+usage ledger file (a .csv or .json under usage/), that no job reads: then lint, test, govulncheck, the e2e lanes, package
 and install-test are skipped, and ci-ok accepts them skipped. gitleaks,
 usage-check and dependency-review run on every PR whatever this says,
 so usage/ and docs/footprint.md (which usage-check renders and diffs)
@@ -70,7 +70,10 @@ def heavy(path):
     # its extension.
     if "testdata" in path.split("/"):
         return True
-    return not (path.endswith(".md") or path.startswith("usage/"))
+    # The ledger alone: anything else under usage/, code included, is
+    # built and tested as any other directory is.
+    ledger = path.startswith("usage/") and path.endswith((".csv", ".json"))
+    return not (path.endswith(".md") or ledger)
 
 
 def main():
