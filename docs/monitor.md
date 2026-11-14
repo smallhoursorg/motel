@@ -385,8 +385,11 @@ five to six minutes after the last of them, and each repeat inside that
 starts it again. The message you got does not say it happened again;
 the journal has a `monitor: event` line for every one. A producer that
 wants every occurrence delivered gives each its own `--instance`, such
-as a run id or a timestamp. A numeric run id or a lowercase UUID will
-do; a 40-hex git commit id is refused as secret-shaped. That has a
+as a run id, a UUID or a timestamp. A numeric run id or a lowercase
+UUID will do; a 40-hex git commit id is refused as secret-shaped. A
+timestamp to the second tells apart occurrences at least a second
+apart; a producer that can fire faster uses an id unique to each
+occurrence, such as a UUID. An instance per occurrence has a
 cost: the instance is part of the key, so the limit of four then one
 every 15 minutes counts each instance on its own and no longer holds
 back a storm. Of the recipes below, the daily reboot reminder is not
@@ -416,6 +419,11 @@ below, with its unit's name and the time:
 ```ini
 ExecStart=/bin/sh -c 'exec /usr/bin/motel monitor send --source systemd --name unit_failed --instance "%i-$$(date -u +%%Y%%m%%dT%%H%%M%%SZ)" --summary "%i failed: see journalctl -u %i"'
 ```
+
+A UUID has no `%` to escape: the kernel gives a new lowercase one at
+each read of `/proc/sys/kernel/random/uuid`, so
+`--instance "$(cat /proc/sys/kernel/random/uuid)"` serves a shell and a
+crontab line as it is, and a unit's `/bin/sh -c '…'` with `$$(…)`.
 
 A state outlives a restart of motel (an upgrade of the package restarts
 it): motel keeps what is firing in `/var/lib/motel-notify/external.json`
