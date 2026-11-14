@@ -150,7 +150,10 @@ func (p *pusher) pushOnce(ctx context.Context) {
 	if a == nil {
 		return
 	}
-	err := push(ctx, st, g, log)
+	text, err := gatherText(g, log)
+	if err == nil {
+		err = st.importText(ctx, text)
+	}
 	now := p.now()
 	var evs []Event
 	p.mu.Lock()
@@ -189,16 +192,8 @@ func (p *pusher) pushOnce(ctx context.Context) {
 	}
 }
 
-// push gathers g and imports it into st: the tick's (pushOnce).
-func push(ctx context.Context, st storeAPI, g prometheus.Gatherer, log *zap.Logger) error {
-	text, err := gatherText(g, log)
-	if err != nil {
-		return err
-	}
-	return st.importText(ctx, text)
-}
-
-// gatherText is g gathered, in the text format the store imports.
+// gatherText is g gathered, in the text format the store imports: a
+// tick's push (pushOnce) and the stop's (finalPush).
 func gatherText(g prometheus.Gatherer, log *zap.Logger) ([]byte, error) {
 	mfs, gerr := g.Gather()
 	if gerr != nil {

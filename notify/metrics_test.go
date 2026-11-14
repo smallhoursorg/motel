@@ -553,7 +553,9 @@ func runningPusher(t *testing.T) (*pusher, *fakeStore, *MetricsStore, prometheus
 
 // startPusher runs a pusher's loop over g on a fake store, and returns
 // once the loop's first push has ended (pushedAt set): the test's own
-// changes to its state then come after that push's.
+// changes to the push's state (failingSince, the store's import) then
+// come after that push's. The chain check after it may still run, so a
+// test that changes what it reads must wait for it too.
 func startPusher(t *testing.T, g prometheus.Gatherer) (*pusher, *fakeStore, *MetricsStore, *observer.ObservedLogs) {
 	t.Helper()
 	p := newPusher(func(Event) {})
@@ -603,6 +605,9 @@ func TestPusherReleaseSlowGatherKeepsTheImportsBudget(t *testing.T) {
 	p.release(m)
 	if n := len(st.importsNow()); n != 2 {
 		t.Fatalf("%d imports, want the loop's first and the one at stop", n)
+	}
+	if imports := st.importsNow(); !strings.Contains(imports[1], "motel_test_gauge 0\n") {
+		t.Fatalf("the push at stop carried %q, not the registry", imports[1])
 	}
 	if n := logs.FilterLevelExact(zap.WarnLevel).Len(); n != 0 {
 		t.Fatalf("the push at stop failed after a slow gather: %v", logs.All())
