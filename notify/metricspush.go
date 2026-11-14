@@ -38,6 +38,13 @@ const (
 	sourceMetrics      = "metrics"
 )
 
+// finalPushTimeout bounds the push when the pusher stops (release): a
+// store that does not answer must not hold motel's stop, which the
+// unit gives 5 s in all (packaging/motel.service, TimeoutStopSec)
+// before its SIGKILL. A push over the socket takes milliseconds. A var
+// so that a test need not wait it out.
+var finalPushTimeout = 2 * time.Second
+
 // storeAPI is the store, as the pusher uses it.
 type storeAPI interface {
 	importText(ctx context.Context, text []byte) error
@@ -136,22 +143,7 @@ func (p *pusher) pushOnce(ctx context.Context) {
 	if a == nil {
 		return
 	}
-	mfs, gerr := g.Gather()
-	if gerr != nil {
-		// A pedantic registry still returns what it could gather.
-		log.Debug("monitor metrics: gathering the registry", zap.Error(gerr))
-	}
-	var buf bytes.Buffer
-	enc := expfmt.NewEncoder(&buf, expfmt.NewFormat(expfmt.TypeTextPlain))
-	var err error
-	for _, mf := range mfs {
-		if err = enc.Encode(mf); err != nil {
-			break
-		}
-	}
-	if err == nil {
-		err = st.importText(ctx, buf.Bytes())
-	}
+	err := push(ctx, st, g, log)
 	now := p.now()
 	var evs []Event
 	p.mu.Lock()
@@ -188,6 +180,24 @@ func (p *pusher) pushOnce(ctx context.Context) {
 	for _, ev := range evs {
 		p.report(ev)
 	}
+}
+
+// push gathers g and imports it into st: one push, the tick's
+// (pushOnce) or the stop's (release).
+func push(ctx context.Context, st storeAPI, g prometheus.Gatherer, log *zap.Logger) error {
+	mfs, gerr := g.Gather()
+	if gerr != nil {
+		// A pedantic registry still returns what it could gather.
+		log.Debug("monitor metrics: gathering the registry", zap.Error(gerr))
+	}
+	var buf bytes.Buffer
+	enc := expfmt.NewEncoder(&buf, expfmt.NewFormat(expfmt.TypeTextPlain))
+	for _, mf := range mfs {
+		if err := enc.Encode(mf); err != nil {
+			return err
+		}
+	}
+	return st.importText(ctx, buf.Bytes())
 }
 
 // checkReadOnly asks the store itself whether it is read-only, and
@@ -335,6 +345,28 @@ func (p *pusher) run(ctx context.Context) {
 	}
 }
 
+// finalPush is release's push of what was counted since the last tick.
+// Without it a motel restart lost up to a push of every app's counts,
+// and the store's request_rate read up to a tenth low for the five
+// minutes the restart sat in its window: a `request_rate <` rule fired
+// and recovered on the hotserve-1 deploy of ecb829a. It has its own
+// budget, finalPushTimeout, since the loop's context is cancelled; a
+// failure is a journal line, as a tick's, and is not counted: the
+// counter goes with the process. failing is whether the pushes were
+// failing already, which the first tick's warning said.
+func finalPush(m *MetricsStore, st storeAPI, g prometheus.Gatherer, log *zap.Logger, failing bool) {
+	ctx, cancel := context.WithTimeout(context.Background(), finalPushTimeout)
+	defer cancel()
+	err := push(ctx, st, g, log)
+	switch {
+	case err == nil:
+	case failing:
+		log.Debug("monitor metrics: the push at stop failed", zap.String("store", m.store()), zap.Error(err))
+	default:
+		log.Warn("monitor metrics: the push at stop failed: the counts since the last push are not in the store", zap.String("store", m.store()), zap.Error(err))
+	}
+}
+
 // configure points the pusher at a config and starts its goroutine
 // the first time. Called from MetricsStore.start.
 func (p *pusher) configure(l liveStore) {
@@ -363,8 +395,8 @@ func (p *pusher) setLive(l liveStore) {
 
 // release is the monitor app's Stop: as notify's engine, it goes back to an
 // older config still live (a reload that failed after Start), and with
-// none it stops, reporting the chain keys cleared, since nothing can
-// clear them any more.
+// none it stops, pushes once more (finalPush) and reports the chain
+// keys cleared, since nothing can clear them any more.
 func (p *pusher) release(m *MetricsStore) {
 	p.mu.Lock()
 	p.live = slices.DeleteFunc(p.live, func(x liveStore) bool { return x.m == m })
@@ -382,6 +414,8 @@ func (p *pusher) release(m *MetricsStore) {
 		older.m.applyRules()
 		return
 	}
+	// What the last push is made with, once the loop has stopped.
+	st, g, log, failing := p.store, p.gather, p.logger, !p.failingSince.IsZero()
 	// Nothing of the stopped config is held: its registry holds its
 	// apps, its store client a transport.
 	p.setLive(liveStore{logger: p.logger})
@@ -404,6 +438,7 @@ func (p *pusher) release(m *MetricsStore) {
 	if running {
 		cancel()
 		<-done
+		finalPush(m, st, g, log, failing)
 	}
 	for _, ev := range evs {
 		p.report(ev)

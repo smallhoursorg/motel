@@ -828,8 +828,24 @@ while [ "$(date +%s)" -lt "$end" ]; do
 done
 printf '%s' "$rules" | grep -q '"type":"alerting"' && pass "vmalert loads alerting rules again" || fail "vmalert never loaded the rules again: $(printf '%s' "$rules" | cut -c1-300)"
 cp /tmp/Caddyfile.nostore /etc/motel/Caddyfile
+# The stop pushes what was counted since the last tick: blog's requests
+# served just before it are in the store after it, which nothing else
+# pushes (the config it starts has no metrics line).
+i=1
+while [ "$i" -le 7 ]; do curl -s -o /dev/null --max-time 5 "$PROXY/?fp=$i"; i=$((i + 1)); done
+counted=$(curl -s --max-time 5 --unix-socket /run/motel/admin.sock http://localhost/metrics \
+	| awk '/^motel_app_requests_total\{.*app="blog"/ { s += $NF } END { printf "%d", s }')
 since=$(date '+%Y-%m-%d %H:%M:%S')
 systemctl restart motel && pass "restarted without the metrics line" || fail "the restart without the metrics line failed"
+stored=""
+end=$(( $(date +%s) + RELOAD_WAIT ))
+while [ "$(date +%s)" -lt "$end" ]; do
+	stored=$(val 'sum(last_over_time(motel_app_requests_total{app="blog"}[1m]))')
+	[ "$stored" = "$counted" ] && break
+	sleep 1
+done
+[ "$counted" -gt 0 ] 2>/dev/null && [ "$stored" = "$counted" ] && pass "the stop pushed what it counted since the last push: $stored of blog's requests in the store" \
+	|| fail "the store has $stored of blog's requests after the stop, motel had counted $counted"
 grep -q 'alert:' "$STATE/rules.yml" && fail "restarted with no metrics line, yet rules.yml has alerting rules: $(grep -c 'alert:' "$STATE/rules.yml")" \
 	|| pass "restarted with no metrics line: rules.yml has no alerting rule"
 journalctl -u motel --since "$since" -o cat --no-pager | grep -q 'monitor metrics: the metrics line is gone: vmalert is given no rule' \
