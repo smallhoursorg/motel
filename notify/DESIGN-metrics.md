@@ -539,7 +539,7 @@ parse, a JSON config's at Provision, both by `motel validate`):
 |---|---|---|---|---|
 | `threshold 5xx_share` | `(sum by (app) (inc(motel_app_requests_total{class="5xx"})) / SENT) > v and SENT >= floor and on (app) PUSHED`, SENT the same over `class!="aborted"` | `for` | `app`, `subject="app:<app>"`, `kind="state"`, `severity`, `source="rules"`, `key="rules/app:<app>/<name>"` | the operator and the app's bound channels |
 | `threshold p50`, `p95` | `histogram_quantile(q, sum by (app, le) (hinc(motel_app_response_seconds))) > v and sum by (app) (inc(motel_app_response_seconds_count)) >= floor and on (app) PUSHED`, v in seconds | `for` | as above | as above |
-| `threshold request_rate` | `sum by (app) (inc(motel_app_requests_total)) / SPAN > v and on (app) PUSHED` | `for` | as above | as above |
+| `threshold request_rate` | `sum by (app) (inc(motel_app_requests_total)) / SPAN > v and on () BEFORE and on (app) PUSHED` | `for` | as above | as above |
 | `threshold cache_hit_share` | `(HITS or SPOKE * 0) / SPOKE > v and SPOKE >= floor and on (app) PUSHED`, both `sum by (app) (inc(motel_app_cache_responses_total))`, HITS over `result=~"hit\|stale"` | `for` | as above | as above |
 | `threshold memory_share` | `max by (app) (motel_app_memory_bytes / motel_app_memory_max_bytes) > v` | `for` | as above | as above |
 | `threshold cpu_cores` | `sum by (app) (rate(motel_app_cpu_seconds_total[5m])) > v` | `for` | as above | as above |
@@ -678,12 +678,13 @@ the two read the same. A gap in the pushes over the window's start of
 under five minutes (the store down, or refusing them) is covered too:
 over 300, a 150 s gap's counts read half again high after it. With no
 push before the window (a store younger than it, or a gap of over five
-minutes over its start) `scalar` is NaN and the rule has no value until
+minutes over its start) `scalar` is NaN and the rule has no value, its guard `BEFORE`
+(`pushBefore`, the second term of `SPAN`) saying so, until
 the pushes have run a window: the store's `increase` then drops each
 series' first value, so over 300 the rate read from nothing up for five
 minutes and a `request_rate <` fired after setup on a running box
 (`TestOperatorRulesCountOnAFreshStore`; the restart's two grids, to the
-second, in `TestOperatorRulesRateAcrossARestart`). The `min_requests`
+second, and a 150 s gap, in `TestOperatorRulesRateAcrossARestart`). The `min_requests`
 floors stay counts: they ask whether there are responses enough to
 judge a share or a quantile, and the window holds that many whatever
 span it covers. A share or a quantile divides two counts over the same
@@ -1442,6 +1443,7 @@ on its general scales. metrics' examples:
 | While the store is read-only, each minute's read-only answer resets the rules count to 0 and stamps it, so `metrics_rules_down` lists 0 reads, just read, while an alert raised before the hold still fires | notify/metricspush.go (`checkReadOnly`) | 2 | 3 | 3 | 18; the read-only alert, critical, names the cause, and the firing one is the accepted residual above it |
 | A `request_rate` rule has no value until the store holds a push from before its window: for five minutes after setup, and after a gap in the pushes of over five minutes, a real change of traffic is not judged, so a `>` (or a `<`) over its bound then fires up to five minutes late | notify/operatorrules.go (`windowSpan`) | 2 | 2 | 3 | 12; it needs the traffic to cross the bound in those five minutes, and it ends correct once the window holds the pushes. Over 300 the rate read from nothing up then, and a `<` fired after every setup on a running box; dividing by the span since the store's first push instead reads the counts a series holds from before that push (its first value, counted from zero when it is small) as the window's, up to a division by zero at the first push (size 2, risk 2). Found measuring the divisor |
 | Across a motel restart, an evaluation whose window starts within the milliseconds between one push's samples (the store stamps an import chunk by chunk) at one end and not the other reads that push's counts against the other's span: up to a tenth high or low, at that phase, while the restart sits in the window | notify/operatorrules.go (`windowSpan`) | 2 | 2 | 3 | 12; the phase must fall within those milliseconds of the 30 s cycle (about 1 in 10 000 restarts at a millisecond), and without a restart both ends fall alike. Reading each app's span from its own counters (`max by (app)`) moves the straddle inside an app's series and doubles the term (size 2, risk 2). Found measuring the divisor |
+| `SPAN`'s base is the push within `prevReach` (5 m) before the window, which is the store's own reach for an instant query only while the step is 5 m: vmalert's `-datasource.queryStep` default, which motel-vmalert.service leaves unset. A vmalert whose default changed, or a step passed by hand to the listing's `value_query`, gives the counters a shorter reach than the push's, and after a gap in the pushes over the window's start `request_rate` reads the gap's span against counts without it, low | notify/operatorrules.go (`prevReach`) | 2 | 2 | 3 | 12; it needs a changed default (Debian's 1.112.0 is pinned, and a dist-upgrade's flag check is Owed) and a gap over the window's start, and it ends correct once the window has passed the gap. Writing `-datasource.queryStep=5m` into the unit is a unit change every box takes through setup's re-run (size 1, risk 2, and upgrading.md's order). Measured: a 150 s gap reads flat at 1.112.0's 5 m. /code-review pass 1 on the divisor |
 
 ### Owed
 

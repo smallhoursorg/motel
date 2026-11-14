@@ -717,13 +717,19 @@ const prevReach = 5 * time.Minute
 // 30 s apart. With no push before the window (a store younger than it,
 // or a gap in the pushes of over prevReach over its start) scalar is
 // NaN and the rate is none, so the rule does not judge until the
-// pushes have run a window: the store's increase then drops each
-// series' first value, the counts since motel began, and over win a
-// steady rate read from nothing up, firing a `request_rate <` after
-// setup on a running box.
+// pushes have run a window (pushBefore, its guard, says so): the
+// store's increase then drops each series' first value, the counts
+// since motel began, and over win a steady rate read from nothing up,
+// firing a `request_rate <` after setup on a running box.
 func windowSpan(win time.Duration) string {
-	return "scalar(max(tlast_over_time(" + pushSeries + "[" + promDuration(win) + "]))" +
-		" - max(tlast_over_time(" + pushSeries + "[" + promDuration(prevReach) + "] offset " + promDuration(win) + ")))"
+	return "scalar(max(tlast_over_time(" + pushSeries + "[" + promDuration(win) + "])) - " + pushBefore(win) + ")"
+}
+
+// pushBefore is the push's last sample within prevReach before a
+// window win long, ending at the query's time: windowSpan's base, and
+// none when the store holds no push from then.
+func pushBefore(win time.Duration) string {
+	return "max(tlast_over_time(" + pushSeries + "[" + promDuration(prevReach) + "] offset " + promDuration(win) + "))"
 }
 
 // ruleTerm is a store rule's expression in parts (DESIGN-metrics.md,
@@ -810,7 +816,8 @@ func thresholdTerm(r Rule) ruleTerm {
 		t.guards = append(floor(sum("motel_app_response_seconds_count"), "timed responses"), pushed)
 	case "request_rate":
 		t.value = sum("motel_app_requests_total") + " / " + windowSpan(requestWindow)
-		t.guards = []ruleTerm{pushed}
+		t.guards = []ruleTerm{{match: "on ()", value: pushBefore(requestWindow),
+			meaning: "the store holds a push from the " + promDuration(prevReach) + " before the window: before it, the span its counts cover is not known"}, pushed}
 	case "cache_hit_share":
 		// A hit result's series exists once there is one: an app whose
 		// cache spoke and never hit has a share of 0, not none.

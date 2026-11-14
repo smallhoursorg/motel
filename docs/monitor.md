@@ -783,10 +783,10 @@ alert firing then resolves. That is motel down, or the store refusing
 the pushes: `metrics_store_read_only` says so for a read-only store,
 and `metrics_store_down` once they have failed for five minutes.
 `request_rate` is over the time the store's samples cover, so a motel
-restart in the window does not move it; it has no value until the
-store holds a push from before its five minutes, so a `request_rate`
-rule cannot fire in the first five minutes after setup, or after a
-gap of over five minutes in the pushes. The
+restart in the window barely moves it. It has no value until the
+store holds a push from the five minutes before its window, so a
+`request_rate` rule fires no sooner than five minutes and its `for`
+after setup, or after a gap of over five minutes in the pushes. The
 rule goes to the operator's channels, and to the app's bound channels
 when it is about one app. Every parameter and every refusal is in
 DESIGN-metrics.md's [Operator rules](../notify/DESIGN-metrics.md#operator-rules).
