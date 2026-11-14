@@ -159,13 +159,17 @@ Before you upgrade:
   with the liveswap root the package makes, is refused at every start,
   the install's own included, and serves nothing until someone at the
   console mends it. `systemctl show -p User --value motel` prints
-  `motel` on a packaged box; `root`, `0` or nothing at all means the
-  unit was edited to run as root (a drop-in from `systemctl edit motel`,
-  or a copy of the unit in `/etc/systemd/system/`). Before the install,
-  run `systemctl revert motel`, which drops every local edit of the
-  unit, or set `User=motel` and `Group=motel` in that edit and run
-  `systemctl daemon-reload`. A box that ran motel as root may have left
-  files of root's where motel writes, its certificates among them:
+  `motel` on a packaged box, and anything else means the unit was
+  edited (`root`, `0` or nothing at all: to run as root), by a drop-in
+  from `systemctl edit motel` or a copy of the unit in
+  `/etc/systemd/system/`. Before the install, run
+  `systemctl revert motel`, which drops every local edit of the unit;
+  a copy also hides every later release's changes to the unit, so
+  revert that one. To keep a drop-in's other lines instead, set
+  `User=motel` and `Group=motel` in it and run
+  `systemctl daemon-reload`. A box that ran motel as root may also
+  hold files of root's where motel writes, Caddy's certificates in
+  `/var/lib/motel/caddy` among them: before the install,
   `find /var/lib/motel /var/lib/liveswap -user root` lists them, and
   each one motel wrote wants `chown motel:motel`.
 - **A box with an ECDSA signer rotates it first** (upgrading from
@@ -264,15 +268,18 @@ removed when someone had made or edited it by hand, and a secret
 pasted alone on a line of it (base64 ending in `=`) read as a
 variable's name. If a push ever took over such a file, look through
 the box repository's old apply runs (logs and job summaries) and
-`journalctl -u motel-box-apply` for a name after `removed` that is no
+the applier's journal for a name after `removed` that is no
 variable's, and give any value found that way a new one ([Change a
-value](secrets.md#change-a-value)). The lines you are looking for may
-hold a secret, so count before you read:
-`journalctl -u motel-box-apply -u hotserve-box-apply | grep -c 'secrets_removed":\["'`
-(the applier's name before v0.6.0 too) prints 0 when the journal
-names no removal. Read any lines it counts on the box
-itself, and the old runs only where they are, and never paste them
-into a chat, an issue or a bug report. `make secrets-import` had the same
+value](secrets.md#change-a-value)). What you are looking for may
+hold a secret, so read the old runs only where they are, and never
+paste a line of them or of the journal into a chat, an issue or a bug
+report. The runs name every push's removals; the journal names them
+only for a push whose result could not be written, so count before
+you read it:
+`journalctl -u motel-box-apply -u hotserve-box-apply | grep -c 'secrets_removed": *\["'`
+(`hotserve-box-apply` is the applier's name before v0.6.0) prints 0
+when the journal names no removal, which says nothing of the runs.
+Read any lines it counts on the box itself. `make secrets-import` had the same
 gap: copy this release's `examples/box/bin/secrets` and
 `examples/box/bin/apply` into the box repository's `bin/` (the second
 says a push left a hand-edited file's own variables unnamed), and a
