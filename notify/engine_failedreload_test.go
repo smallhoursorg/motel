@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -33,9 +34,11 @@ func ends(te *testEngine, got []amAlert) map[string]bool {
 // the backup record and the filesystem measured, while each has an alert
 // firing (liveswap's, a producer's, the backup's, the disk's) and blog's
 // deploy is muted. Another app's Start fails after notify's, Caddy stops
-// the candidate, and the old config serves on: nothing was resolved, the
-// table and external.json are as before, and the alerts are re-posted.
-// The reload that then succeeds ends them at the old config's Stop.
+// the candidate, and the old config serves on: nothing it runs was
+// resolved, the table and external.json are as before, and the alerts
+// are re-posted; what was told in the gap for wiki, an app only the
+// candidate runs, is ended. The reload that then succeeds ends the
+// rest at the old config's Stop. A boot settles at configure.
 func TestFailedReloadEndsNothing(t *testing.T) {
 	dir := t.TempDir()
 	useStateDir(t, dir)
@@ -44,6 +47,10 @@ func TestFailedReloadEndsNothing(t *testing.T) {
 	notStarted(te)
 	old := &App{cfg: &resolved{apps: []string{"blog", "shop"}}, diskPaths: []string{"/var/lib/motel"}, logger: te.logger}
 	te.configure(old, te.p, te.known, te.logger)
+	// A boot settles at once: the pollers read the config's sources.
+	if te.backupPath != DefaultBackupRecord || !slices.Equal(te.diskPaths, old.diskPaths) {
+		t.Fatalf("after the boot's configure: backup %q, disks %v", te.backupPath, te.diskPaths)
+	}
 	producer := external(true)
 	producer.App = "blog"
 	for _, ev := range []Event{
@@ -61,14 +68,15 @@ func TestFailedReloadEndsNothing(t *testing.T) {
 	}
 
 	candidate := func() *App {
-		return &App{BackupRecord: "off", cfg: &resolved{apps: []string{"shop"}}, logger: te.logger}
+		return &App{BackupRecord: "off", cfg: &resolved{apps: []string{"shop", "wiki"}}, logger: te.logger}
 	}
+	resolvedLines := 0 // the journal's resolved lines so far
 	same := func(when string) {
 		t.Helper()
 		if got := ends(te, te.drain()); len(got) != 0 {
 			t.Fatalf("%s: ended %v", when, got)
 		}
-		if l := te.logs.FilterMessage("monitor: event").FilterField(zap.String("state", "resolved")).All(); len(l) != 0 {
+		if l := te.logs.FilterMessage("monitor: event").FilterField(zap.String("state", "resolved")).All(); len(l) != resolvedLines {
 			t.Fatalf("%s: journal %+v", when, l)
 		}
 		if len(te.states) != 4 || len(te.mutes) != 1 {
@@ -82,10 +90,19 @@ func TestFailedReloadEndsNothing(t *testing.T) {
 	nu := candidate()
 	te.configure(nu, te.p, te.known, te.logger)
 	same("the candidate's Start")
+	// In the gap, the candidate's liveswap reports for wiki, an app only
+	// the candidate runs: the old config, serving on, can never clear it.
+	wiki := Event{Name: "relaunch_refused", Kind: kindState, Severity: SeverityCritical, App: "wiki", Source: "liveswap", Summary: "x", Firing: true}
+	te.report(wiki)
+	te.drain()
 	te.release(nu) // another app's Start failed
 	if te.active != old {
 		t.Fatal("the engine did not go back to the serving config")
 	}
+	if got := ends(te, te.drain()); len(got) != 1 || !got["relaunch_refused"] || te.states[wiki.key()] != nil {
+		t.Fatalf("the fallback did not end wiki's alert: ended %v, state %v", got, te.states[wiki.key()])
+	}
+	resolvedLines++
 	same("the fallback")
 	te.advance(time.Minute)
 	te.tick()

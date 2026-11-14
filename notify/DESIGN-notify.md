@@ -583,7 +583,8 @@ not fail, read from `alertmanager_notification_requests_total` and
 Alertmanager's own `/metrics` over the socket with the failed counter
 (not from the store). The pings resume at the next delivery through
 the suspect's receivers (`motel monitor test <channel>` makes one), at
-a load whose config no longer has the channel, or at a restart of
+a load whose config no longer has the channel, once it serves
+("Reloads"), or at a restart of
 motel: the hold is in memory, as the counter's baseline is.
 `monitor: heartbeat held: …` (warn) names the suspect, when it failed
 and what resumes it, and `monitor: heartbeat resumed` says through
