@@ -336,18 +336,21 @@ motel nor the rule reads that reason, so a count there after a load is
 no failed channel.
 
 `alertmanager_notifications_total` is no count of messages.
-Alertmanager raises it once for each notification it sets out to
-send, before any attempt: one whose every attempt fails is counted,
-and so, on a receiver that sends no recovery (`heartbeat`, and each
-channel's `event-` receivers and its `ch-` receiver, which
-`motel monitor test` goes to), is an alert's end, though nothing is
-sent. `ch-ops`'s rises by 2 for each `motel monitor test ops` it
-delivers with no config load before the test alert ends: at the
-delivery, and when the alert ends five minutes later (the 2 measured
-on hotserve-1, 2026-11-14; when, from Alertmanager's source). A
-one-shot event counts 2 the same way on each `event-` receiver it
-reaches. A test to a channel that fails counts once a minute until
-its alert ends, and nothing at the end.
+Alertmanager raises it once for each pass at sending a group's
+notification to a receiver, before the pass's first attempt (its
+retries are inside the pass). A pass whose attempts all fail counts,
+and the group tries again at its next flush, which counts again. On a
+receiver that sends no recovery (`heartbeat`, and each channel's
+`event-` receivers and its `ch-` receiver, which `motel monitor test`
+goes to), the pass for an alert's end counts too, though nothing is
+sent; an alert never delivered has no such pass. So a
+`motel monitor test ops` whose first pass delivers counts 2 on
+`ch-ops`, unless a config load between restarts the count: one at the
+delivery, and one when the test alert ends five minutes later (the 2
+measured on hotserve-1, 2026-11-14; when, from Alertmanager's
+source). A one-shot event counts the same way on each `event-`
+receiver, and a repeat of it with the same labels before it ends is
+the same alert to Alertmanager, counted with it.
 `heartbeat`'s rises once with no ping when motel stops posting the
 `Watchdog` alert (the heartbeat held, or motel stopped while
 Alertmanager runs) and the alert ends. The messages that went are
