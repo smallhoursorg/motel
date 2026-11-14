@@ -728,7 +728,13 @@ func (e *engine) configure(a *App, post poster, known []string, logger *zap.Logg
 	defer e.mu.Unlock()
 	e.live = slices.DeleteFunc(e.live, func(l liveConfig) bool { return l.a == a })
 	e.live = append(e.live, liveConfig{a, post, known, logger})
-	e.setConfig(a, post, known, logger)
+	e.point(a, post, known, logger)
+	// A reload's candidate (an older config is live) may yet be stopped
+	// by another app's failed Start while the older one serves on: what
+	// it would end waits until it serves, the older one's Stop (release).
+	if len(e.live) == 1 {
+		e.settle(a)
+	}
 	if e.externalPath == "" && a.cfg != nil {
 		e.restoreExternal(a.cfg.apps)
 	}
@@ -739,18 +745,18 @@ func (e *engine) configure(a *App, post poster, known []string, logger *zap.Logg
 	}
 }
 
-// setConfig is configure's state, with mu held.
+// setConfig is configure's state for a config that serves, with mu
+// held: point, then settle.
 func (e *engine) setConfig(a *App, post poster, known []string, logger *zap.Logger) {
+	e.point(a, post, known, logger)
+	e.settle(a)
+}
+
+// point sends the engine's posts, and reads its failures, through a's
+// Alertmanager, which loaded a's render at its Start. With mu held.
+func (e *engine) point(a *App, post poster, known []string, logger *zap.Logger) {
 	e.active, e.post, e.known, e.logger = a, post, known, logger
 	e.deploySucceeded = a.deploySucceeded()
-	if a.backupRecord() != e.backupPath {
-		e.seen.backups = nil // another record's ages are not this one's
-	}
-	e.backupPath, e.diskPaths = a.backupRecord(), a.diskPaths
-	// A filesystem the new config does not measure is not listed (its
-	// alert is pruned below); the rest keep their reading until the
-	// next poll's.
-	e.seen.disks = slices.DeleteFunc(slices.Clone(e.seen.disks), func(r diskReading) bool { return !slices.Contains(a.diskPaths, r.path) })
 	if c, ok := post.(*amClient); ok {
 		e.metrics = c.metrics
 	}
@@ -761,6 +767,22 @@ func (e *engine) setConfig(a *App, post poster, known []string, logger *zap.Logg
 		for name, ch := range a.cfg.channels {
 			e.fail.kinds[name] = channelKinds[ch.Kind]
 		}
+	}
+}
+
+// settle points the pollers at a's sources and ends what a no longer
+// has (prune, keepUntold), once a serves: what it ends is told, and is
+// not undone if a reload falls back. With mu held.
+func (e *engine) settle(a *App) {
+	if a.backupRecord() != e.backupPath {
+		e.seen.backups = nil // another record's ages are not this one's
+	}
+	e.backupPath, e.diskPaths = a.backupRecord(), a.diskPaths
+	// A filesystem the new config does not measure is not listed (its
+	// alert is pruned below); the rest keep their reading until the
+	// next poll's.
+	e.seen.disks = slices.DeleteFunc(slices.Clone(e.seen.disks), func(r diskReading) bool { return !slices.Contains(a.diskPaths, r.path) })
+	if a.cfg != nil {
 		e.prune(a.cfg.apps)
 		e.keepUntold(a.cfg.channels)
 	}
@@ -809,6 +831,12 @@ func (e *engine) release(a *App) {
 	e.mu.Lock()
 	e.live = slices.DeleteFunc(e.live, func(l liveConfig) bool { return l.a == a })
 	if e.active != a {
+		// A reload that succeeded stops the config before it: the one the
+		// engine serves is now the one Caddy serves, and what its Start
+		// left until then is done.
+		if e.active != nil {
+			e.settle(e.active)
+		}
 		e.mu.Unlock()
 		return
 	}

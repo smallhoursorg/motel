@@ -402,7 +402,8 @@ whichever config serves when it clears.
 - **A config that drops a source** ends what nothing can clear any
   more: the keys of an app it no longer runs (and its mute), the backup
   keys once `backup_record off`, a filesystem's once its path is not
-  measured; each fired key is resolved with a journal line. An
+  measured; each fired key is resolved with a journal line, once the
+  config serves: a reload's at the old config's Stop. An
   unreadable backup record keeps what fired firing beside
   `backup_unreadable`, and a filesystem statfs cannot measure keeps
   what it fired, and fires nothing new: a statfs that fails, or that
@@ -414,7 +415,11 @@ whichever config serves when it clears.
   though the file has not changed. A reload that fails after notify's
   Start stops the new config while the old one serves on; the engine
   goes back to the old one, and puts the old one's render back in the
-  state directory and in Alertmanager. When the last config running
+  state directory and in Alertmanager. What the new one drops (above,
+  and a heartbeat hold on a channel it no longer has) is ended only at
+  the old one's Stop, and the pollers read the old one's sources until
+  then, so a fallback finds it as it was: Caddy has no hook that says
+  a config serves. When the last config running
   notify stops, the engine's table, mutes and buckets are emptied, and
   each post still queued is given up as above (at motel's shutdown
   too): a block added back later starts clean. When that stop is a reload's
