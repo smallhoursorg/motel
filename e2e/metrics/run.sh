@@ -788,13 +788,14 @@ systemctl stop victoria-metrics
 # The count and the backoff's step begin again (4e raised both), so the
 # count 6 s on is the restarts since: the backoff's waits, 1, 2 and 4 s,
 # allow 2, or 3 if one slips; RestartSec= alone allowed 5 or 6, the
-# Wants= 237 to 384.
+# Wants= 237 to 384. At least one: none would be a store never
+# restarted, which the connections below, each a start, would hide.
 systemctl reset-failed victoria-metrics
 systemctl start --no-block victoria-metrics
 sleep 6
 r=$(systemctl show -p NRestarts --value victoria-metrics)
-[ "$r" -le 3 ] && pass "the store failing at its start: $r restarts in 6 s" \
-	|| fail "the store failing at its start: $r restarts in 6 s, where the backoff allows 3: $(systemctl show -p ActiveState,Result victoria-metrics | tr '\n' ' ')"
+[ "$r" -ge 1 ] && [ "$r" -le 3 ] && pass "the store failing at its start: $r restarts in 6 s" \
+	|| fail "the store failing at its start: $r restarts in 6 s, where the backoff makes 1 to 3: $(systemctl show -p ActiveState,Result victoria-metrics | tr '\n' ' ')"
 rm -f "$dropin/99-e2e-fail.conf"
 systemctl daemon-reload
 # The fault gone, a connection starts the store at once (a client's
