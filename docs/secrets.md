@@ -159,8 +159,9 @@ after the `=` and none before it, each without the line's name: a
 base64 secret pasted alone on its line reads that way, the secret as
 the name and its padding, and whatever follows, as the value. Two
 tokens glued (`<secret>=<token>=`) read as a name and a value like any
-other line: when a name the import adds has a lower-case letter, it
-asks you to check the names before you commit.
+other line: when a name the import adds or changes has a lower-case
+letter, it asks you to check the names, and says what to do with one
+an earlier import may have committed.
 For a file that is already on the box, see [Move a hand-made env file
 in](#move-a-hand-made-env-file-in).
 

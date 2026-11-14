@@ -1159,6 +1159,23 @@ func TestBoxSecretsImport(t *testing.T) {
 		t.Fatalf("a glued pair: exit %d\n%s", code, out)
 	}
 	r.mustDecrypt(boxID, "deploy.example.com/secrets/glued/QUOTED.age", "value")
+	// Imported again, staged or committed (an older bin/secrets, which
+	// said nothing, committed such names): the files are there, so the
+	// names read as changed, and the line for a changed name says what
+	// to do with one that may be committed. In capitals alone, nothing.
+	changedNote := "secrets: check the names changed above: a value pasted alone on a line reads as a name, and an earlier import may have committed it; if one of them is a value, git rm -f deploy.example.com/secrets/glued/<that name>.age and commit that, and if it was ever pushed, give the value a new one: the name stays in the history\n"
+	for _, commit := range []bool{false, true} {
+		if commit {
+			r.commit("glued, as an older import committed it")
+		}
+		out, code = r.secrets("", "QUOTED= \"value\"\n"+pasted+"="+second+"=\n", "import", "APP=glued")
+		if code != 0 || !strings.Contains(out, "secrets: deploy.example.com/secrets/glued: changed QUOTED "+pasted+"\n"+changedNote) || strings.Contains(out, note) {
+			t.Fatalf("a glued pair imported again (committed %v): exit %d\n%s", commit, code, out)
+		}
+	}
+	if out, code := r.secrets("", "QUOTED=again\n", "import", "APP=glued"); code != 0 || !strings.Contains(out, "changed QUOTED\n") || strings.Contains(out, "check the names") {
+		t.Errorf("a name in capitals imported again: exit %d\n%s", code, out)
+	}
 	r.git("rm", "-q", "-f", "deploy.example.com/secrets/glued/"+pasted+".age")
 	if r.exists("deploy.example.com/secrets/glued/"+pasted+".age") || strings.Contains(r.git("ls-files", "deploy.example.com/secrets/glued"), pasted) {
 		t.Error("git rm -f left the file named after the value")
