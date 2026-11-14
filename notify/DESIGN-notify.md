@@ -325,9 +325,13 @@ it in `instance`), `instance`. A one-shot also carries `release` and
 a deploy does not change its identity.
 
 A one-shot carries `occurred_at` too: its `startsAt`, in UTC to the
-nanosecond (`2026-11-14T10:03:00.123456789Z`; one in the same clock
-reading as the last is a nanosecond after it), set once when
-`oneShotAlert` builds it. Alertmanager takes an alert whose labels are
+nanosecond (`2026-11-14T10:03:00.123456789Z`), set once when
+`oneShotAlert` builds it. It is the wall clock's reading, unless that
+is no later than the last one-shot's and less than a second before it
+(two in one clock reading, or a step back of under a second): then it
+is a nanosecond after the last one's, so `startsAt` can be up to a
+second ahead of the wall clock. A step back of a second or more is
+taken as the clock reads. Alertmanager takes an alert whose labels are
 those of one it holds as that same alert, and sends nothing for it, so
 without the label a repeat inside the last one's five minutes was held
 back until five to six minutes after the latest ("The route tree", the
@@ -342,11 +346,12 @@ copies so that Alertmanager merges the two (DESIGN-metrics.md,
 and Discord's title and text do not show it; a json or ntfy channel
 gets it in the payload. The filter has nothing in it to mask (no run of
 20 characters it scans). What bounds a burst is motel's limit per key
-("The flapping guard"): each occurrence it lets through is its own
-alert and its own group (`group_by ['...']`) for its five minutes, and
-its own notification-log entry for twice the event route's
-`repeat_interval` (2 h), so a key holds at most five alerts at once and
-about a dozen entries. The keys are bounded by their sources: liveswap
+("The flapping guard"), which lets no more than four through in any
+six minutes, so a key holds at most four alerts at once for their five
+minutes. Each alert has a group (`group_by ['...']`) and a
+notification-log entry for each channel's leaf it reaches, the entry
+kept for twice the event route's `repeat_interval` (2 h): up to twelve
+entries per key and leaf. The keys are bounded by their sources: liveswap
 has a few per app, and a producer's vary with its `--instance`, which
 only root and the motel uid can send.
 

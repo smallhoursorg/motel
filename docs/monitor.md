@@ -406,7 +406,10 @@ failure sent twice, two minutes apart and with the same arguments,
 reaches your channels twice, up to the limit above. Each carries its
 own `occurred_at` label (in a json or ntfy channel's payload), the
 time motel took it. motel does not group or mute repeats; the service
-that receives them is the place for that. `--instance` is for telling
+that receives them is the place for that. Group there on the alert's
+`labels.key` (with `labels.severity`), the same for every occurrence;
+`fingerprint`, `groupKey` and `groupLabels` differ for each, since
+they are made from every label. `--instance` is for telling
 things apart (the unit that failed, the disk, the job): it is part of
 the key, so each instance has a limit of its own, and an instance new
 at every send (a timestamp, a UUID) leaves no limit to hold back a
