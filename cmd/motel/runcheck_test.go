@@ -24,13 +24,40 @@ func liveswapConfig(t *testing.T, root string) string {
 	return file
 }
 
-// `motel run` by a user other than the liveswap root's owner (root
-// trying a file by hand beside motel.service) is refused before the
-// gate writes anything: the service's Alertmanager config is as it was,
-// and the one line said is the refusal, with what to do instead.
-// validate and reload of the same file go on.
-func TestARunByHandIsRefusedBeforeAnythingIsWritten(t *testing.T) {
-	root := t.TempDir()
+// asRoot has the gate run as root, whoever runs the test.
+func asRoot(t *testing.T) {
+	t.Helper()
+	was := euid
+	euid = func() int { return 0 }
+	t.Cleanup(func() { euid = was })
+}
+
+// notRoots is a directory root does not own, as the motel user owns a
+// box's liveswap root: the test's own, given away when the test runs as
+// root.
+func notRoots(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	if os.Geteuid() == 0 {
+		if err := os.Chown(dir, 1, 1); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return dir
+}
+
+// `motel run` by root with a config whose liveswap root is another
+// user's (root trying a file by hand beside motel.service) is refused
+// before the gate writes anything, and the one line said is the
+// refusal, with what to do instead. validate and reload of the same
+// file go on.
+//
+// The state directory is the test's own, and the gate's write after the
+// refusal would show either way: run as root, the gate would give it
+// the config that sends nothing (it is root's); run as another user, it
+// would leave it with a WARNING, a second line.
+func TestARunByHandAsRootIsRefusedBeforeAnythingIsWritten(t *testing.T) {
+	root := notRoots(t)
 	file := liveswapConfig(t, root)
 	state := t.TempDir()
 	wasDir, wasSock, wasMetrics := notifyStateDir, notifySocket, metricsStateDir
@@ -39,7 +66,7 @@ func TestARunByHandIsRefusedBeforeAnythingIsWritten(t *testing.T) {
 	t.Cleanup(func() { notifyStateDir, notifySocket, metricsStateDir = wasDir, wasSock, wasMetrics })
 	rendered := "# Rendered by motel\nreceivers: [ops]\n"
 	write(t, filepath.Join(state, notify.ConfigName), rendered, 0o640)
-	asAnotherUser(t)
+	asRoot(t)
 
 	var stderr bytes.Buffer
 	if !gate([]string{"run", "--config", file}, &stderr) {
@@ -51,7 +78,7 @@ func TestARunByHandIsRefusedBeforeAnythingIsWritten(t *testing.T) {
 	said := stderr.String()
 	for _, want := range []string{
 		"Error: this `motel run` is refused, and nothing was changed: the liveswap root " + root + " is owned by ",
-		", not as its owner. On a box, motel runs as motel.service",
+		", and this process runs as root, not as its owner. On a box, motel runs as motel.service",
 		"`motel validate --config <file>`",
 		"`journalctl -u motel`",
 	} {
@@ -70,11 +97,13 @@ func TestARunByHandIsRefusedBeforeAnythingIsWritten(t *testing.T) {
 	}
 }
 
-// What goes on: the root's owner (motel.service's start), a config with
-// no liveswap block, and a root that is not there yet (a first start).
-// A root left to its default, or read from the environment, is
-// judged where it leads.
-func TestARunByTheRootsOwnerOrWithNoRootGoesOn(t *testing.T) {
+// What goes on: any user but root (the motel user, a service user that
+// writes a root it does not own), and root with a config that has no
+// liveswap block, a root not there yet (a first start), or a root of
+// its own (a container that runs motel as root). A root left to its
+// default, or read from the environment at load, is judged where it
+// leads.
+func TestARunByAnotherUserOrWithNoRootOfAnothersGoesOn(t *testing.T) {
 	wasDir, wasMetrics, wasDefault := notifyStateDir, metricsStateDir, liveswapDefaultRoot
 	notifyStateDir = filepath.Join(t.TempDir(), "motel-notify")
 	metricsStateDir = filepath.Join(t.TempDir(), "motel-metrics")
@@ -85,11 +114,12 @@ func TestARunByTheRootsOwnerOrWithNoRootGoesOn(t *testing.T) {
 		return stop, stderr.String()
 	}
 
+	asAnotherUser(t)
 	if stop, said := run(liveswapConfig(t, t.TempDir())); stop || said != "" {
-		t.Errorf("the root's owner: stop %v, said %q", stop, said)
+		t.Errorf("another user, not the root's owner: stop %v, said %q", stop, said)
 	}
 
-	asAnotherUser(t)
+	asRoot(t)
 	config, _ := dirs(t)
 	write(t, config+"/Caddyfile", "{\n\tadmin off\n}\n", 0o644)
 	if stop, said := run(config + "/Caddyfile"); stop || said != "" {
@@ -98,14 +128,18 @@ func TestARunByTheRootsOwnerOrWithNoRootGoesOn(t *testing.T) {
 	if stop, said := run(liveswapConfig(t, filepath.Join(t.TempDir(), "liveswap"))); stop || said != "" {
 		t.Errorf("a root not there yet: stop %v, said %q", stop, said)
 	}
+	// "/" is root's on every machine.
+	if stop, said := run(liveswapConfig(t, "/")); stop || said != "" {
+		t.Errorf("a root of root's: stop %v, said %q", stop, said)
+	}
 
-	liveswapDefaultRoot = t.TempDir()
+	liveswapDefaultRoot = notRoots(t)
 	if stop, said := run(liveswapConfig(t, "")); !stop || !strings.Contains(said, liveswapDefaultRoot+" is owned by ") {
 		t.Errorf("the default root: stop %v, said %q", stop, said)
 	}
-	env := t.TempDir()
+	env := notRoots(t)
 	t.Setenv("MOTEL_TEST_LIVESWAP_ROOT", env)
-	if stop, said := run(liveswapConfig(t, "{$MOTEL_TEST_LIVESWAP_ROOT}")); !stop || !strings.Contains(said, env+" is owned by ") {
+	if stop, said := run(liveswapConfig(t, "{env.MOTEL_TEST_LIVESWAP_ROOT}")); !stop || !strings.Contains(said, env+" is owned by ") {
 		t.Errorf("a root from the environment: stop %v, said %q", stop, said)
 	}
 }
