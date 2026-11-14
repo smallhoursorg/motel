@@ -160,16 +160,22 @@ func TestServeSendRefusals(t *testing.T) {
 
 // TestRefusalsEchoNoInput: Caddy journals an admin route's refusal, so
 // none repeats the value it refuses. Each value here is the pager
-// channel's URL, or its topic where a grammar admits only a name: what
-// an operator who pastes the URL for a name would put in the journal.
+// channel's URL, or its topic where a grammar admits only a name, or
+// the heartbeat's check UUID where only a UUID passes: what an operator
+// who pastes a URL, or its last segment, for a name would put in the
+// journal. Each refusal is named by a part of its text, so that one
+// added earlier on the path cannot pass for it.
 func TestRefusalsEchoNoInput(t *testing.T) {
-	withEngine(t)
-	url := testSecrets()["NOTIFY_PAGER_URL"]
+	te := withEngine(t)
+	secrets := testSecrets()
+	te.known = knownValues(secrets, te.active.Channels, te.active.HeartbeatSecret)
+	te.active.known = te.known // as Provision sets it
+	url := secrets["NOTIFY_PAGER_URL"]
 	topic := url[strings.LastIndex(url, "/")+1:]
-	refused := func(what string, err error, want int, values ...string) {
+	refused := func(what string, err error, status int, says string, values ...string) {
 		t.Helper()
-		if apiStatus(err) != want {
-			t.Fatalf("%s: %v, want %d", what, err, want)
+		if apiStatus(err) != status || !strings.Contains(err.Error(), says) {
+			t.Fatalf("%s: %v, want %d saying %q", what, err, status, says)
 		}
 		for _, v := range values {
 			if strings.Contains(err.Error(), v) {
@@ -180,25 +186,28 @@ func TestRefusalsEchoNoInput(t *testing.T) {
 
 	// The finding: motel monitor test given the channel's URL.
 	_, err := callAdmin(t, serveTest, http.MethodPost, TestRequest{Channel: url})
-	refused("test's channel", err, http.StatusUnprocessableEntity, url, topic)
-	if !strings.Contains(err.Error(), "its channels are alice, bob, ops, pager") {
-		t.Errorf("test's channel: the refusal %q does not list the block's channels", err)
-	}
+	refused("test's channel", err, http.StatusUnprocessableEntity, "no channel by that name; its channels are alice, bob, ops, pager", url, topic)
 
 	r := goodSend()
 	r.Details = map[string]string{url: "x"}
 	_, err = callAdmin(t, serveSend, http.MethodPost, r)
-	refused("a detail's name", err, http.StatusUnprocessableEntity, url, topic)
+	refused("a detail's name", err, http.StatusUnprocessableEntity, "a detail's name is", url, topic)
 
 	r = goodSend()
 	r.Subject = "app:" + topic
 	_, err = callAdmin(t, serveSend, http.MethodPost, r)
-	refused("the subject's app", err, http.StatusUnprocessableEntity, topic)
+	refused("the subject's app", err, http.StatusUnprocessableEntity, "subject names no app", topic)
 
 	r = goodSend()
 	r.Name = "watchdog_" + strings.ReplaceAll(topic, "-", "_")
 	_, err = callAdmin(t, serveSend, http.MethodPost, r)
-	refused("a watchdog_ name", err, http.StatusUnprocessableEntity, r.Name)
+	refused("a watchdog_ name", err, http.StatusUnprocessableEntity, "one of motel's own events", r.Name)
+
+	// The heartbeat's check UUID is a UUID, as a silence id is.
+	hc := secrets["NOTIFY_HC_URL"]
+	check := hc[strings.LastIndex(hc, "/")+1:]
+	_, err = callAdmin(t, serveExpire, http.MethodPost, ExpireRequest{ID: check, By: "alice"})
+	refused("expire's id", err, http.StatusUnprocessableEntity, "a value the filter masks", check)
 }
 
 func amCounts(notifications, requests, requestsFailed, failed int) string {
