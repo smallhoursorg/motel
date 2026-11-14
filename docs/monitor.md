@@ -378,6 +378,20 @@ producer may resolve whatever it last said). On a box where
 most 200 characters. When a state resolves, the message repeats the
 summary it fired with, not the one you give.
 
+A one-shot sent again with the same `--source`, `--subject`, `--name`,
+`--instance` and `--severity` is the same alert to Alertmanager while
+it still holds the last one, so it reaches your channels once until
+five to six minutes after the last of them, and each repeat inside that
+starts it again. The message you got does not say it happened again;
+the journal has a `monitor: event` line for every one. A producer that
+wants every occurrence delivered gives each its own `--instance`, such
+as a run id or a timestamp (`--instance "$(date -u +%Y%m%dT%H%M%SZ)"`).
+That has a cost: the instance is part of the key, so the limit of four
+then one every 15 minutes counts each instance on its own and no longer
+holds back a storm. Of the recipes below, the daily reboot reminder is
+not affected; the `OnFailure=` unit tells a unit that fails again within
+five or six minutes once.
+
 A state outlives a restart of motel (an upgrade of the package restarts
 it): motel keeps what is firing in `/var/lib/motel-notify/external.json`
 and tells it again when it starts, and the later `--state resolved`
