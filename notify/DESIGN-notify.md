@@ -1015,7 +1015,17 @@ validate` naming `monitor`, and `motel notify setup` exiting 1 with
 `motel monitor setup`; the block taken out by a reload while a state
 fires: the state directory holds the config that sends nothing and no
 URL file, the journal says so, and the alert's end, posted by root at
-once rather than awaited at `resolve_timeout`, reaches no channel; and
+once rather than awaited at `resolve_timeout`, reaches no channel; a
+reload that drops blog, while its refused relaunch and a producer's
+state for it fire, and fails at the http app's Start (a site bound to
+an address the box does not have, which `motel validate` passes),
+tried until notify's Start ran before the failure twice (the
+fallback's journal line; at most twelve tries): after each, the old
+config serves with blog, the journal resolves nothing and
+`external.json` keeps the state; after a minute and a quarter no
+recovery has reached the operator and both alerts are active in
+Alertmanager; then a reload that drops blog and serves resolves both,
+with the journal line, and `external.json` lets the state go; and
 with the failing channel the operator's only one, the heartbeat held
 about six minutes after the failure (`monitor: heartbeat held` naming
 it, `ChannelFailed` told to no channel, no `Watchdog` posted after),
@@ -1038,7 +1048,7 @@ next rollback reaches the operator, and a second `expire --json` exits
 The suite runs as three splits, a box each, at once (`SPLIT` in
 e2e/notify/run.sh, `NOTIFY_SPLITS` in the Makefile): core (notify 3 to
 10a, which count every delivery since their box began, 7a silencing 3's
-failed v3), reload (11 to 14) and heartbeat (15 alone, five minutes of
+failed v3), reload (11 to 14a) and heartbeat (15 alone, five minutes of
 motel's hold and its resume), each after the prelude (notify 0 to 2),
 which keeps the Caddyfile they put back. The boxes share the sink, which keeps
 each delivery with the address it came from and answers a box's
