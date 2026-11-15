@@ -951,6 +951,21 @@ monitor {
   (`ended unfinished` in the journal). A deploy or rollback to another
   release ends it and starts its own.
 
+A `post_deploy` comparison that holds logs nothing at the default
+level, Info: only `post_deploy_regressed` and an `ended unfinished`
+warning are told. Its end is a Debug line of the `monitor` logger,
+`the post-deploy comparison ended with its window`, with the app and
+the release (a window that judged nothing logs it too), and nothing
+else shows that a comparison ran. This global option writes the
+`monitor` logger's lines to the journal from Debug up:
+
+```
+log monitor_debug {
+	level DEBUG
+	include monitor
+}
+```
+
 The request metrics need `observe <app>` in the app's site, and a rule
 on them reads only the apps motel's last push says are observed: an
 app whose `observe` line is taken out drops out at the next push, and
