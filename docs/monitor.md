@@ -952,15 +952,16 @@ monitor {
   release ends it and starts its own.
 
 A `post_deploy` comparison that holds logs nothing at the default
-level, Info: `post_deploy_regressed` goes to the channels only for a
-regression, and a comparison that ends unfinished is a journal
-warning alone (`ended unfinished`). At Debug the `monitor` logger
-says `monitor rules: the post-deploy comparison ended with its
-window`, with the app and the release (a window that judged nothing
-says it too), or `a new deploy ends the post-deploy comparison in
-flight`; a reload that drops the rule ends it with no line. Nothing
-else shows that a comparison ran. This global option writes the
-`monitor` logger's lines to the journal from Debug up:
+level, Info, and no command shows that one ran. A regression's
+`post_deploy_regressed` is sent and journaled (`monitor: event`);
+`ended unfinished` is a journal warning, never sent. At Debug the
+`monitor` logger says `monitor rules: the post-deploy comparison
+ended with its window`, with the app and the release, when the
+window ends (a window that judged nothing says it too), and
+`monitor rules: a new deploy ends the post-deploy comparison in
+flight` when a deploy does; its other ends log no such line. In the
+Caddyfile's global options, this writes the `monitor` logger's lines
+to the journal from Debug up:
 
 ```
 log monitor_debug {

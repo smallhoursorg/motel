@@ -211,9 +211,7 @@ Before you upgrade:
      [Monitor](monitor.md#turn-it-off-and-remove-it)'s steps 1 and 3
      say (on a box set up with `--metrics`, vmalert and Alertmanager's
      socket in the store's namespace with it). The older release
-     neither uses nor stops them. Stopped first, Alertmanager drops
-     what it holds without a message; step 2's reload, which gives it
-     the config that sends nothing, does so only if it answers.
+     neither uses nor stops them.
   2. **Take out the `monitor` block and every `observe` line.** On a box
      that takes pushes, push a commit without them and without
      `secrets/_box/`. It removes `/etc/motel/secrets/_box.env` and takes
