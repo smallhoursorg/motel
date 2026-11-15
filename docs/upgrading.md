@@ -164,16 +164,17 @@ Before you upgrade:
   from `systemctl edit motel` (not `10-user-manager.conf`, the
   package's own: the revert below removes it too, and the install
   writes it back) or a copy of the unit in `/etc/systemd/system/`.
-  Before the install, run `systemctl revert motel`, which drops every
-  local edit of the unit; a copy also hides every later release's
-  changes to the unit, so revert that one. To keep a drop-in's other
-  lines instead, set `User=motel` and `Group=motel` in it and run
-  `systemctl daemon-reload`. Either way, the `show` must then print
-  `motel`: the revert leaves any drop-in in
-  `/etc/systemd/system/service.d/`, which every service reads, and
-  `systemctl show -p DropInPaths motel` lists each one left. A box
-  that ran motel as root may also hold files of root's where motel
-  writes, Caddy's certificates in `/var/lib/motel/caddy` among them: before the install,
+  Just before the install, run `systemctl revert motel`, which drops
+  every local edit of the unit; a copy also hides every later
+  release's changes to the unit, so revert that one. To keep a
+  drop-in's other lines instead, set `User=motel` and `Group=motel` in
+  it and run `systemctl daemon-reload`. Either way, the `show` must
+  then print `motel`, and `systemctl is-enabled motel` `enabled`.
+  `systemctl cat motel` prints each file still in play, among them any
+  drop-in in `/etc/systemd/system/service.d/`, which every service
+  reads and the revert leaves. A box that ran motel as root may also
+  hold files of root's where motel writes, Caddy's certificates in
+  `/var/lib/motel/caddy` among them: before the install,
   `find /var/lib/motel /var/lib/liveswap -user root` lists them, and
   each one motel wrote wants `chown motel:motel`.
 - **A box with an ECDSA signer rotates it first** (upgrading from
@@ -293,7 +294,9 @@ old name stays in the repository's history.
 The box repository's workflow checks config with the latest stable
 release, so it needs nothing after an upgrade — unless its
 `MOTEL_VERSION` repository variable pins a release, which then
-wants the new one.
+wants the new one. One made from the v0.6.0 or v0.6.1 template that
+takes a `monitor` block also wants this release's `examples/box/bin/`
+in its `bin/` ([Monitor](monitor.md)).
 
 There is no APT repository yet, so nothing upgrades motel behind
 your back; the hosted repository on the [roadmap](../README.md#roadmap) is what
@@ -303,7 +306,7 @@ will change that.
 
 A box built from the notify-and-metrics feature branch before motel
 kept the states your producers send (`motel monitor send --state
-firing`; no release up to v0.6 has the monitor block) holds them
+firing`; v0.6.1 and earlier have no monitor block) holds them
 in memory only.
 The install's restart loses them, so about five minutes later
 Alertmanager tells their channels `[RESOLVED]`, although nothing
@@ -314,7 +317,7 @@ more. From then on motel keeps them across a restart
 ## A receiver per channel: one repeat of what fires
 
 A box built from the notify-and-metrics feature branch before each
-channel had its own receivers (no release up to v0.6 has the
+channel had its own receivers (v0.6.1 and earlier have no
 monitor block) gets
 a new Alertmanager config at the first load after the install: every
 alert keeps its channels, under new routes and receiver names. Nothing
