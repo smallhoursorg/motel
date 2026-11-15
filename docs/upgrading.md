@@ -162,15 +162,18 @@ Before you upgrade:
   `motel` on a packaged box, and anything else means the unit was
   edited (`root`, `0` or nothing at all: to run as root), by a drop-in
   from `systemctl edit motel` (not `10-user-manager.conf`, the
-  package's own, which the install writes back) or a copy of the unit
-  in `/etc/systemd/system/`. Before the install, run
-  `systemctl revert motel`, which drops every local edit of the unit;
-  a copy also hides every later release's changes to the unit, so
-  revert that one. To keep a drop-in's other lines instead, set
-  `User=motel` and `Group=motel` in it and run
-  `systemctl daemon-reload`. A box that ran motel as root may also
-  hold files of root's where motel writes, Caddy's certificates in
-  `/var/lib/motel/caddy` among them: before the install,
+  package's own: the revert below removes it too, and the install
+  writes it back) or a copy of the unit in `/etc/systemd/system/`.
+  Before the install, run `systemctl revert motel`, which drops every
+  local edit of the unit; a copy also hides every later release's
+  changes to the unit, so revert that one. To keep a drop-in's other
+  lines instead, set `User=motel` and `Group=motel` in it and run
+  `systemctl daemon-reload`. Either way, the `show` must then print
+  `motel`: the revert leaves any drop-in in
+  `/etc/systemd/system/service.d/`, which every service reads, and
+  `systemctl show -p DropInPaths motel` lists each one left. A box
+  that ran motel as root may also hold files of root's where motel
+  writes, Caddy's certificates in `/var/lib/motel/caddy` among them: before the install,
   `find /var/lib/motel /var/lib/liveswap -user root` lists them, and
   each one motel wrote wants `chown motel:motel`.
 - **A box with an ECDSA signer rotates it first** (upgrading from
@@ -300,7 +303,7 @@ will change that.
 
 A box built from the notify-and-metrics feature branch before motel
 kept the states your producers send (`motel monitor send --state
-firing`; no release before v0.7.0 has the monitor block) holds them
+firing`; no release up to v0.6 has the monitor block) holds them
 in memory only.
 The install's restart loses them, so about five minutes later
 Alertmanager tells their channels `[RESOLVED]`, although nothing
@@ -311,7 +314,7 @@ more. From then on motel keeps them across a restart
 ## A receiver per channel: one repeat of what fires
 
 A box built from the notify-and-metrics feature branch before each
-channel had its own receivers (no release before v0.7.0 has the
+channel had its own receivers (no release up to v0.6 has the
 monitor block) gets
 a new Alertmanager config at the first load after the install: every
 alert keeps its channels, under new routes and receiver names. Nothing

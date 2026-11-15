@@ -103,12 +103,13 @@ The smallest block, with one channel and the numbers:
 }
 ```
 
-The box-repo path needs the `examples/box` tooling of v0.7.0 or later
-in the repository. A repository made from an earlier release's
-template refuses `APP=_box` (`app '_box': lower-case letters, digits
-and - only`). Its `check` job validates with the latest stable release
-unless `MOTEL_VERSION` names another, so while that is a release
-before v0.7.0, which does not know the block, every commit that has it
+The box-repo path needs the `examples/box/bin/` of v0.7.0 or later in
+the repository. Copy it into one made from a v0.6 or earlier template,
+whose `secrets` refuses `APP=_box` (`app '_box': lower-case letters,
+digits and - only`) and whose `check` refuses a block that reads a
+secret. Its `check` job validates with the latest stable release
+unless `MOTEL_VERSION` names another, so while that is a v0.6 release
+or earlier, which does not know the block, every commit that has it
 fails that job with `unrecognized global option: monitor`. The push
 still reaches the box, which checks it with its own motel.
 
