@@ -161,8 +161,9 @@ Before you upgrade:
   console mends it. `systemctl show -p User --value motel` prints
   `motel` on a packaged box, and anything else means the unit was
   edited (`root`, `0` or nothing at all: to run as root), by a drop-in
-  from `systemctl edit motel` or a copy of the unit in
-  `/etc/systemd/system/`. Before the install, run
+  from `systemctl edit motel` (not `10-user-manager.conf`, the
+  package's own, which the install writes back) or a copy of the unit
+  in `/etc/systemd/system/`. Before the install, run
   `systemctl revert motel`, which drops every local edit of the unit;
   a copy also hides every later release's changes to the unit, so
   revert that one. To keep a drop-in's other lines instead, set
@@ -299,7 +300,8 @@ will change that.
 
 A box built from the notify-and-metrics feature branch before motel
 kept the states your producers send (`motel monitor send --state
-firing`; no release has the monitor block) holds them in memory only.
+firing`; no release before v0.7.0 has the monitor block) holds them
+in memory only.
 The install's restart loses them, so about five minutes later
 Alertmanager tells their channels `[RESOLVED]`, although nothing
 recovered. After the install, send each state that still fires once
@@ -309,7 +311,8 @@ more. From then on motel keeps them across a restart
 ## A receiver per channel: one repeat of what fires
 
 A box built from the notify-and-metrics feature branch before each
-channel had its own receivers (no release has the monitor block) gets
+channel had its own receivers (no release before v0.7.0 has the
+monitor block) gets
 a new Alertmanager config at the first load after the install: every
 alert keeps its channels, under new routes and receiver names. Nothing
 is dropped, and nothing to do; but Alertmanager's notification log is
