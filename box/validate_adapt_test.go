@@ -151,7 +151,7 @@ func TestValidateAdapt(t *testing.T) {
 		if msg, _ := c.validate(context.Background(), randomID(t), file, stubHost, nil, nil); msg != "moteld validate: no" {
 			t.Fatalf("msg %q", msg)
 		}
-		args, _ := os.ReadFile(filepath.Join(dir, "motel.args"))
+		args, _ := os.ReadFile(filepath.Join(dir, "moteld.args"))
 		if strings.Count(string(args), "\n") != 1 || !strings.HasPrefix(string(args), "validate ") {
 			t.Fatalf("the program ran more than validate: %q", args)
 		}

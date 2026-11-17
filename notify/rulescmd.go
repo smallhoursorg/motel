@@ -22,7 +22,7 @@ func rulesCommand() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "rules [--json]",
 		Short: "List every alert motel can raise here, and what each fires on (root)",
-		Long: `Asks the running motel over its admin socket (root and the motel user
+		Long: `Asks the running moteld over its admin socket (root and the motel user
 reach it) for every alert it can raise on this config: its source
 (builtin, operator or motel check), severity, scope and kind
 (threshold, guarded or event).

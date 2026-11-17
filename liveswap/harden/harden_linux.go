@@ -22,7 +22,7 @@ package harden
 import "syscall"
 
 // init runs Process before main and before every heavier initializer.
-// It has to be this early: app units outlive motel restarts, so an
+// It has to be this early: app units outlive moteld restarts, so an
 // app of the same UID is already running when a new supervisor process
 // starts, and any later hook (App.Start, Provision) would leave the
 // whole Go initialization window open — and is never reached at all

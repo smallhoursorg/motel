@@ -83,7 +83,7 @@ most container hosts will not give you.
 ```caddyfile
 {
 	# Keep the admin API off TCP: every app can reach localhost. This
-	# is the motel package's path (its unit creates /run/motel and
+	# is the moteld package's path (its unit creates /run/motel and
 	# `systemctl reload` finds the socket here); a self-managed unit
 	# needs RuntimeDirectory=motel, or another dir its user owns —
 	# never one under the liveswap root or the sandbox's base view
@@ -663,8 +663,8 @@ fixing the host does take effect. Restarting the user manager
 re-measures either way.
 
 **The sandbox is an availability dependency.** A host that stops being
-able to deliver it will not start motel until the host is fixed,
-and systemd does not retry a start motel refused — fix the host,
+able to deliver it will not start moteld until the host is fixed,
+and systemd does not retry a start moteld refused — fix the host,
 then `systemctl start moteld`; there is no setting that runs apps
 without one. That is deliberate —
 the alternative is a supervisor that silently runs every app with no
@@ -676,7 +676,7 @@ or reload after motel dials the manager is the measurement and a
 later reload reuses it. On a fresh box that first reload is the proof
 you want, and a reload that cannot activate leaves the running config
 serving where a restart does not. A host changed underneath a running
-motel — a sysctl, an LSM policy load — is not re-measured until the
+moteld — a sysctl, an LSM policy load — is not re-measured until the
 next restart, which is where it can refuse; there is deliberately no
 uncached preflight, because the cache is what keeps a throwaway unit
 off every reload.
@@ -1085,7 +1085,7 @@ holds one copy of each issuer's discovery and keys for every source
 that trusts it — every app's, the global ones, the box's — per
 `allow_insecure_http` setting (the box always fetches over https, so
 with that option set on liveswap an issuer is held twice), and no
-token waits on fetching them. When motel starts or reloads it runs
+token waits on fetching them. When moteld starts or reloads it runs
 each issuer's discovery and fetches its keys again in the background;
 on a reload the keys it already holds stay in use meanwhile, so a
 reload refuses no token it would have accepted before, unless it adds
@@ -1213,7 +1213,7 @@ time is its record's: the latest deploy or rollback of it. One whose
 latest deploy failed (a rollback to it that failed) comes after every
 one whose latest succeeded: it never served from that deploy, and
 takes no place from a version that did. A release with no record —
-deployed by a motel older than records, or its record could not
+deployed by a moteld older than records, or its record could not
 be written — sorts after every recorded one, ordered among those by
 its directory's modification time (which the app running from it can
 change), and `ordered_by_mtime` names it: it is the first release GC
@@ -1230,7 +1230,7 @@ existing on-disk release, so a version you can roll back to can't be
 silently replaced — re-deploying an existing version with other bytes
 is a `422`. Use a new version, or roll back to relaunch an existing
 one. (A deploy that *fails* before cutover is cleaned up, so that
-version stays retriable — one a motel restart cuts short too, at
+version stays retriable — one a moteld restart cuts short too, at
 the next start.) The running version is the one exception,
 relaunched rather than refused when the artifact is the same — see
 [Relaunching the running version](#relaunching-the-running-version).
@@ -1247,7 +1247,7 @@ The response is synchronous:
 | 409 | A deploy is already running for this app (retry) |
 | 413 | Pushed upload exceeded `max_artifact_size`, or a JSON body exceeded 64 KiB |
 | 422 | Bad request — missing/invalid version, the running version asked for again without a matching digest (see [Relaunching the running version](#relaunching-the-running-version)), **version already exists** (versions are immutable — deploy a new version or roll back to relaunch it), a rollback target no longer on disk, a pre-flight refusal (the command or `pre_start` does not resolve inside the sandbox view, or is an executable built for another machine — the body names the box's architecture and the `runs-on` to build on — or a 32-bit one, which names the architecture to build for), or (URL path) an artifact url refused by `artifact_allowlist` (host, path, port, or an undeclared query parameter; the body names exactly what tripped and how the entry would declare it) |
-| 503 with `Retry-After` | motel has just started, or a reload has just added this app, and it is not loaded yet (`motel is starting and has not loaded this app yet; retry after 1 s`): nothing was deployed and nothing failed. The token is good; send the request again after that many seconds, as the templates' `deploy.sh` does once |
+| 503 with `Retry-After` | moteld has just started, or a reload has just added this app, and it is not loaded yet (`motel is starting and has not loaded this app yet; retry after 1 s`): nothing was deployed and nothing failed. The token is good; send the request again after that many seconds, as the templates' `deploy.sh` does once |
 | 5xx | Deploy failed — **the old version, if there was one, is still serving**; body says why. An artifact over `max_artifact_entries` or the decompressed byte cap fails here, before anything is written |
 
 Because the response is synchronous through the whole pipeline, the
@@ -1272,13 +1272,13 @@ then fails as a failed `pre_start`.
 
 A moteld stop or restart (a crash, `systemctl restart moteld`, an
 upgrade) does not stop a running `pre_start` either: the manager runs
-it on, bounded by `deadline` on its unit, and the motel that comes
+it on, bounded by `deadline` on its unit, and the moteld that comes
 back leaves it to finish. Until it has, that app takes no deploy (the
 refusal names the migration) and no relaunch; the running version
-serves on. The deploy itself ends with the motel that ran it (its
+serves on. The deploy itself ends with the moteld that ran it (its
 client sees the connection drop): the next start, or the next deploy,
 removes the release it extracted and records it failed — `the deploy
-was cut short: motel stopped or restarted during it` — so the same
+was cut short: moteld stopped or restarted during it` — so the same
 version can be deployed again. Re-run the job.
 
 **A failed deploy says why, from the app's side.** The 5xx body's
@@ -1410,7 +1410,7 @@ same artifact" is decided by digest, with nothing fetched: a URL
 deploy's `sha256` pin, or the digest of a push's upload, must equal
 the `sha256` in the version's deploy record. A request without a
 digest, a version whose record has none (an unpinned pull, or a push
-made by a motel older than this one, before pushes were hashed), or
+made by a moteld older than this one, before pushes were hashed), or
 a different digest is a `422` saying so and naming the way in — a
 rollback to the running version needs no digest, since it is the same
 release by definition. A URL deploy's `url` still has to pass the
@@ -1450,7 +1450,7 @@ every recorded version's outcome in `deploys`, newest first:
 the deploy was pinned to, and the times. `sha256` is what the
 deployer asserted and the download was checked against, or the digest
 of the bytes a push uploaded; absent for an unpinned pull (and for a
-push made by a motel older than this one). A rollback copies the
+push made by a moteld older than this one). A rollback copies the
 pin from the record it replaces: a version's release cannot be
 replaced while it is on disk, and its record is normally written
 with it. Not always — a version whose release GC pruned can be
@@ -1751,19 +1751,19 @@ its socket (see [Sandbox](#sandbox)).
   to the running instance; it applies at the next launch (a deploy, a
   rollback, a relaunch after a crash, a sustained health failure, or a reboot), which is why status
   reports the `command` the instance is actually running — and
-  neither do **motel restarts and upgrades**:
+  neither do **moteld restarts and upgrades**:
   on start, liveswap reattaches to the unit recorded in `state.json`
   and serves it without relaunching it (what visitors see while
-  motel itself restarts: [Upgrading](../docs/upgrading.md));
+  moteld itself restarts: [Upgrading](../docs/upgrading.md));
   only if that unit is gone (reboot, or it died meanwhile) is the
-  current version relaunched. Stopping motel
-  therefore leaves apps running until the next start, and a motel
+  current version relaunched. Stopping moteld
+  therefore leaves apps running until the next start, and a moteld
   that crashes is started again by systemd a second later and
   reattaches the same way (a start it refuses is not retried); removing
   the package stops them. Removing an app (or the whole `liveswap` block)
   via a **reload** stops its units, once any deploy of it already in
   flight has finished (the reload waits for it); if you instead edit the file and
-  *restart* motel with the whole block gone, nothing is left to
+  *restart* moteld with the whole block gone, nothing is left to
   judge the old units and they keep running — decommission them
   explicitly, as root:
   `runuser -u motel -- env XDG_RUNTIME_DIR=/run/user/$(id -u motel) systemctl --user stop 'motel-*'`. Units are created with `Restart=no` — the
@@ -1808,7 +1808,7 @@ Docker):
 ```sh
 make test              # unit tests, all modules (race + coverage)
 make test-integration  # real Caddy + real systemd units via caddytest (privileged systemd container)
-make e2e               # both module suites against the motel binary
+make e2e               # both module suites against the moteld binary
 make lint vet tidy
 ```
 

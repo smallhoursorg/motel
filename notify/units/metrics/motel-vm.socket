@@ -25,7 +25,7 @@ RemoveOnStop=yes
 # for good under a burst of them during the fault: so no limit. The
 # cost: a connection queued as the proxy exits (5 idle minutes, or
 # stopped with the store) is closed, not started again; motel pushes
-# every 30 s, so the proxy does not idle while motel runs. Measured on
+# every 30 s, so the proxy does not idle while moteld runs. Measured on
 # systemd 257 (notify/DESIGN-metrics.md, "The shape").
 FlushPending=yes
 TriggerLimitIntervalSec=0

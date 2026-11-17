@@ -4,7 +4,7 @@
 #
 # Fail-fast by design: each stage depends on the previous one, so the
 # first broken assertion is the diagnosis. The Makefile dumps the
-# motel journal on any failure.
+# moteld journal on any failure.
 #
 # Stage 2 is the one that earns its keep: a real liveswap deploy under
 # the shipped systemd unit proves that download + extract work in
@@ -104,7 +104,7 @@ cat /tmp/install.out
 # Root runs the package, so the commands it prints name no sudo, which a
 # box may not have (#323). apt runs the scripts on a pty, which ends
 # each line CR LF [measured].
-tr -d '\r' </tmp/install.out | grep -A1 -x 'motel installed. Start it with:' | grep -qx '  systemctl enable --now moteld' \
+tr -d '\r' </tmp/install.out | grep -A1 -x 'moteld installed. Start it with:' | grep -qx '  systemctl enable --now moteld' \
 	|| die "a fresh install did not print the 'systemctl enable --now moteld' hint, with no sudo"
 
 id motel >/dev/null || die "postinstall did not create the motel user"
@@ -170,7 +170,7 @@ echo "all product modules linked"
 # config loaded, so enable --now returning 0 is not the readiness
 # assertion — the curl below is.
 timeout 300 systemctl enable --now moteld || die "systemctl enable --now moteld failed"
-curl -fsS --max-time 5 http://127.0.0.1:80/ | grep -q "motel is running" \
+curl -fsS --max-time 5 http://127.0.0.1:80/ | grep -q "moteld is running" \
 	|| die "starter Caddyfile not serving on :80"
 echo "unit started and starter config answers on :80"
 
@@ -192,14 +192,14 @@ systemctl is-active --quiet moteld || die "service not active after reload"
 curl -s --max-time 2 -o /dev/null http://127.0.0.1:2019/config/ \
 	&& die "admin API answers on TCP :2019 — it must live only on the unix socket" || true
 [ -S /run/motel/admin.sock ] || die "admin unix socket missing from /run/motel"
-curl -fsS --max-time 5 http://127.0.0.1:80/ | grep -q "motel is running" \
+curl -fsS --max-time 5 http://127.0.0.1:80/ | grep -q "moteld is running" \
 	|| die "not serving after reload"
 [ "$(systemctl show -p NRestarts --value moteld)" = "0" ] \
-	|| die "motel restarted itself during install/reload (NRestarts != 0): it came up, died and systemd brought it back — see the journal"
+	|| die "moteld restarted itself during install/reload (NRestarts != 0): it came up, died and systemd brought it back — see the journal"
 # The unit's restart policy, read off the loaded unit: a crashed
-# motel comes back, a start it refused (exit 1) is never retried.
+# moteld comes back, a start it refused (exit 1) is never retried.
 [ "$(systemctl show -p Restart --value moteld)" = "on-failure" ] \
-	|| die "unit Restart is '$(systemctl show -p Restart --value moteld)', want on-failure: a crashed motel would stay down"
+	|| die "unit Restart is '$(systemctl show -p Restart --value moteld)', want on-failure: a crashed moteld would stay down"
 [ "$(systemctl show -p RestartPreventExitStatus --value moteld)" = "1" ] \
 	|| die "unit RestartPreventExitStatus is '$(systemctl show -p RestartPreventExitStatus --value moteld)', want 1: a refused start would loop"
 [ "$(systemctl show -p RestartUSec --value moteld)" = "1s" ] \
@@ -220,7 +220,7 @@ stage "stage 1b: the box applier's units and exchange tree"
 # files to the design; this stage holds the manager's reading of them,
 # what postinstall did with them, and what the service may do inside
 # its sandbox — the one lane that runs the units as the package ships
-# them, first with a stub for the applier, then with `motel box
+# them, first with a stub for the applier, then with `moteld box
 # apply` itself; pushes that apply are the e2e lane's.
 B=/var/lib/motel-box
 [ "$(systemctl is-enabled motel-box-apply.path)" = enabled ] \
@@ -244,7 +244,7 @@ for p in 'systemd (>= 257)' restic sqlite3 ca-certificates; do
 		|| die "the package does not depend on $p: $(printf '%s' "$deps" | tr '\n' ',')"
 done
 [ -s /etc/ssl/certs/ca-certificates.crt ] \
-	|| die "ca-certificates did not come with the package, installed without recommended packages: restic and motel would verify no certificate"
+	|| die "ca-certificates did not come with the package, installed without recommended packages: restic and moteld would verify no certificate"
 # The tree as the shipped tmpfiles.d file says, read back off the disk
 # (the file itself is held to the Paths table by box/units_test.go).
 conf=/usr/lib/tmpfiles.d/motel-box.conf
@@ -322,7 +322,7 @@ and the unit file names
 $want_paths"
 # A path unit's default Before=paths.target, beside After=moteld.service,
 # is an ordering cycle the manager breaks by deleting paths.target's
-# start job at boot and motel's stop job at shutdown.
+# start job at boot and moteld's stop job at shutdown.
 case " $(show motel-box-apply.path Before) " in *" paths.target "*) die "the path unit is Before=paths.target: with After=moteld.service that is an ordering cycle" ;; esac
 cycle=$(systemd-analyze verify default.target 2>&1 | grep -i 'ordering cycle' || true)
 [ -z "$cycle" ] || die "the boot transaction has an ordering cycle: $cycle"
@@ -337,7 +337,7 @@ done
 as_motel "ls $B/work" && die "the motel uid can list $B/work"
 # The units run: the service's ExecStart swapped for a stub by a runtime
 # drop-in, everything else as shipped. In the first run the stub probes
-# the sandbox — reloads motel, verifies a signature as uid 65534
+# the sandbox — reloads moteld, verifies a signature as uid 65534
 # under its PrivateTmp, kills a child of that uid, writes where it may
 # and not elsewhere; in every run it moves whatever is in in/ to work/,
 # empties work/ and removes the record, as the applier does.
@@ -474,12 +474,12 @@ while read -r spec kind; do
 	n=$((n + 1))
 done <<<"$got_paths"
 [ "$n" -eq 9 ] || die "$n rounds, want one for each of the path unit's 9 paths"
-systemctl is-active --quiet moteld || die "motel is not active after the reload inside the applier's unit"
+systemctl is-active --quiet moteld || die "moteld is not active after the reload inside the applier's unit"
 rm -f /run/systemd/system/$svc.d/smoke.conf "$B/smoke-result" /run/motel-box-smoke.sh
 rmdir /run/systemd/system/$svc.d
 systemctl daemon-reload
 wait_path_waiting "the path unit, its stub removed"
-echo "box applier: path unit enabled and waiting; tree as tmpfiles.d says; the unit reloads motel, verifies as 65534, kills its child; every path the unit watches starts a run that clears it"
+echo "box applier: path unit enabled and waiting; tree as tmpfiles.d says; the unit reloads moteld, verifies as 65534, kills its child; every path the unit watches starts a run that clears it"
 # The real applier in the unit as shipped, no stub: what the motel
 # uid drops that is not a bundle — a hidden 000 directory, a sticky
 # directory holding its file, a plain file — is taken and removed with
@@ -922,7 +922,7 @@ journalctl -u moteld --no-pager | grep -q "$TOKEN" \
 	&& die "deploy token leaked into the journal" || true
 echo "journal is free of the deploy token"
 
-stage "stage 2b: a SIGKILLed motel is back within seconds, reattached"
+stage "stage 2b: a SIGKILLed moteld is back within seconds, reattached"
 # Stage 3's upgrade restart is a clean stop and start, which never
 # exercises Restart=; this is the one lane that runs the installed
 # .deb's unit, so the crash path is proven here too. The unit's own
@@ -933,7 +933,7 @@ i=0
 until [ "$(systemctl show -p ActiveState --value moteld)" = "active" ] \
 	&& [ "$(systemctl show -p ExecMainPID --value moteld)" != "$hp0" ]; do
 	i=$((i + 1))
-	[ "$i" -ge 60 ] && die "motel not back within 30s of SIGKILL: $(systemctl show -p ActiveState,SubState,Result,NRestarts moteld | tr '\n' ' ')"
+	[ "$i" -ge 60 ] && die "moteld not back within 30s of SIGKILL: $(systemctl show -p ActiveState,SubState,Result,NRestarts moteld | tr '\n' ' ')"
 	sleep 0.5
 done
 [ "$(systemctl show -p NRestarts --value moteld)" = "1" ] \
@@ -945,9 +945,9 @@ until [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 -H "Authorization
 done
 status=$(curl -s --max-time 5 -H "Authorization: Bearer $TOKEN" "$HOOK")
 [ "$(printf '%s' "$status" | sed -n 's/.*"pid":\([0-9][0-9]*\).*/\1/p')" = "$pid_live" ] \
-	|| die "app pid changed across motel's SIGKILL restart: reattach failed: $status"
-curl -fsS --max-time 5 "$PROXY/" | grep -q "hello smoke" || die "app not served after motel's automatic restart"
-echo "SIGKILL: systemd restarted motel (NRestarts=1); app pid $pid_live reattached"
+	|| die "app pid changed across moteld's SIGKILL restart: reattach failed: $status"
+curl -fsS --max-time 5 "$PROXY/" | grep -q "hello smoke" || die "app not served after moteld's automatic restart"
+echo "SIGKILL: systemd restarted moteld (NRestarts=1); app pid $pid_live reattached"
 
 stage "stage 2c: backups — the guide's 'Set it up' lines, as root, and validate and status as a user with no privilege"
 # What the package set up, before any line of the guide runs: the
@@ -1158,14 +1158,14 @@ cp "$CONFIG" /tmp/Caddyfile.configured
 dpkg -i "$deb" </dev/null >/tmp/reinstall.out 2>/tmp/reinstall.err \
 	|| { cat /tmp/reinstall.out /tmp/reinstall.err; die "reinstall (dpkg -i) failed"; }
 cat /tmp/reinstall.out /tmp/reinstall.err
-# motel is enabled and running: the start hint would be noise, and a
+# moteld is enabled and running: the start hint would be noise, and a
 # restart that went fine must not read as one that failed.
 grep -q 'enable --now' /tmp/reinstall.out /tmp/reinstall.err \
-	&& die "reinstall over an enabled motel printed the 'enable --now' start hint"
+	&& die "reinstall over an enabled moteld printed the 'enable --now' start hint"
 grep -q 'journalctl -u moteld' /tmp/reinstall.err \
 	&& die "reinstall printed the failed-restart hint although the restart succeeded"
-grep -qx 'motel restarted.' /tmp/reinstall.out \
-	|| die "reinstall over a running motel did not say it restarted"
+grep -qx 'moteld restarted.' /tmp/reinstall.out \
+	|| die "reinstall over a running moteld did not say it restarted"
 # Stage 2c ran setup: the credential file is in place, so the backups
 # are set up, and the notice must say so rather than send the operator
 # back to setup (#403).
@@ -1196,9 +1196,9 @@ systemctl enable --now motel-box-apply.path
 systemctl is-active --quiet moteld \
 	|| die "service not active after reinstall — an upgrade must not leave the server down (preremove stop / missing postinstall restart)"
 id motel >/dev/null || die "motel user gone after reinstall (postinstall not idempotent)"
-# postinstall's try-restart swapped motel onto the new binary. The
+# postinstall's try-restart swapped moteld onto the new binary. The
 # deployed app is a unit under the user manager, not a child of
-# motel: it must still be the SAME process, reattached from
+# moteld: it must still be the SAME process, reattached from
 # state.json, and serving throughout.
 i=0
 until [ "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $TOKEN" "$HOOK")" = "200" ]; do
@@ -1212,7 +1212,7 @@ pid_after=$(printf '%s' "$status" | sed -n 's/.*"pid":\([0-9][0-9]*\).*/\1/p')
 	|| die "app pid changed across the upgrade restart ($pid_before -> $pid_after): reattach failed, the app was relaunched (or is gone): $status"
 case "$status" in *'"running":true'*) : ;; *) die "reattached app not running: $status" ;; esac
 curl -fsS --max-time 5 "$PROXY/" | grep -q "hello smoke" || die "reattached app not served"
-echo "reinstall preserved config and user; motel restarted and reattached to the running app (pid $pid_after)"
+echo "reinstall preserved config and user; moteld restarted and reattached to the running app (pid $pid_after)"
 # The table's upgrade rows: as installed, the timers stay enabled and
 # running and the credential file is not touched; disabled by the
 # administrator, an upgrade leaves them disabled (was-enabled is false,
@@ -1256,9 +1256,9 @@ grep -qx '  and the backups are set up; motel-backup status says where they stan
 	|| die "the upgrade over a masked drill timer did not say the backups are set up: $(grep -A1 Backups: /tmp/upgrade-mask.log)"
 # The same box before setup: the line keeps the setup pointer the one
 # enabled timer needs (a review of #404).
-# This stage now restarts motel more times inside ten seconds than
+# This stage now restarts moteld more times inside ten seconds than
 # any box does (each dpkg -i is one), and systemd's default start
-# limit, five in ten seconds, would hold the next one and leave motel
+# limit, five in ten seconds, would hold the next one and leave moteld
 # failed: the counter is reset first, which is the test's doing, not
 # the package's.
 systemctl reset-failed moteld
@@ -1287,7 +1287,7 @@ systemctl unmask motel-backup-drill.timer
 systemctl reset-failed motel-backup-drill.timer 2>/dev/null || true
 systemctl start motel-backup-drill.timer
 expect_backup_state "after an upgrade, one timer stopped and one masked, and the mask taken off" enabled active "$CRED_SHA"
-systemctl is-active --quiet moteld || die "motel not active after the upgrade cycle"
+systemctl is-active --quiet moteld || die "moteld not active after the upgrade cycle"
 # A user directory that does not answer: postinstall's lookups of the
 # accounts are bounded, and one that does not answer is "could not
 # tell" — never "absent", which would make a local account beside the
@@ -1312,7 +1312,7 @@ grep -qx "Backups: the hourly timer and the Sunday restore drill are enabled, an
 grep -q "enabled and set up" /tmp/upgrade-nss.log \
 	&& die "the upgrade with a directory that does not answer called the backups set up" || true
 [ "$(getent passwd motel-backup | wc -l)" = 1 ] || die "a second motel-backup account was made: $(getent passwd | grep motel-backup)"
-dpkg -s moteld | grep -q '^Status: install ok installed$' || die "motel is not configured after the upgrade with a directory that does not answer"
+dpkg -s moteld | grep -q '^Status: install ok installed$' || die "moteld is not configured after the upgrade with a directory that does not answer"
 echo "a directory that does not answer: postinstall said so within ${took}s, made no account, and the configure completed"
 # An account of the name that motel did not make (its comment is not
 # made-by-motel): said on stderr, and the Backups: line sends the
@@ -1447,9 +1447,9 @@ prerm=/var/lib/dpkg/info/moteld.prerm
 main_before=$(systemctl show -P MainPID moteld)
 "$prerm" deconfigure in-favour smoketest-dep 1.0 removing dbus 1.0 \
 	|| die "prerm deconfigure exited non-zero"
-systemctl is-active --quiet moteld || die "prerm deconfigure stopped motel"
-systemctl is-enabled --quiet moteld || die "prerm deconfigure disabled motel"
-[ "$(systemctl show -P MainPID moteld)" = "$main_before" ] || die "prerm deconfigure restarted motel"
+systemctl is-active --quiet moteld || die "prerm deconfigure stopped moteld"
+systemctl is-enabled --quiet moteld || die "prerm deconfigure disabled moteld"
+[ "$(systemctl show -P MainPID moteld)" = "$main_before" ] || die "prerm deconfigure restarted moteld"
 systemctl is-active --quiet "user@$uid.service" || die "prerm deconfigure stopped the user manager (and every app)"
 [ -e /etc/systemd/system/moteld.service.d/10-user-manager.conf ] || die "prerm deconfigure removed the user-manager drop-in"
 [ -e "/etc/systemd/system/user@$uid.service.d/10-motel.conf" ] || die "prerm deconfigure removed the user@ limits drop-in"
@@ -1474,7 +1474,7 @@ cat /tmp/refused.out /tmp/refused.err
 [ "$(dpkg-query -W -f='${Status}' moteld)" = "install ok installed" ] \
 	|| die "package state is '$(dpkg-query -W -f='${Status}' moteld)' after a refused restart, want 'install ok installed'"
 systemctl is-active --quiet moteld \
-	&& die "motel is active after a restart over a refused config; this stage tests nothing"
+	&& die "moteld is active after a restart over a refused config; this stage tests nothing"
 grep -q 'journalctl -u moteld -e' /tmp/refused.err \
 	|| die "a failed upgrade restart printed no journalctl hint on stderr (postinstall swallowed it)"
 grep -q 'systemctl status moteld' /tmp/refused.err \
@@ -1484,10 +1484,10 @@ grep -qx '  then fix it and run: systemctl restart moteld' /tmp/refused.err \
 grep -q 'enable --now' /tmp/refused.out /tmp/refused.err \
 	&& die "a failed upgrade restart printed the 'enable --now' start hint, as if all were well"
 grep -q 'restarted\.' /tmp/refused.out \
-	&& die "a failed upgrade restart claimed motel restarted"
-kill -0 "$pid_after" 2>/dev/null || die "deployed app (pid $pid_after) did not survive motel's refused start"
+	&& die "a failed upgrade restart claimed moteld restarted"
+kill -0 "$pid_after" 2>/dev/null || die "deployed app (pid $pid_after) did not survive moteld's refused start"
 # The box applier's path unit, enabled again after stage 3, is restarted
-# by the upgrade whatever became of motel.
+# by the upgrade whatever became of moteld.
 [ "$(systemctl is-enabled motel-box-apply.path)" = enabled ] && systemctl is-active --quiet motel-box-apply.path \
 	|| die "the box applier's path unit is not enabled and active after an upgrade: $(systemctl show -p ActiveState,Result motel-box-apply.path | tr '\n' ' ')"
 # Fix the config, as the operator would. An upgrade now, over the unit
@@ -1495,22 +1495,22 @@ kill -0 "$pid_after" 2>/dev/null || die "deployed app (pid $pid_after) did not s
 # the config would load, and says how to start it.
 cp /tmp/Caddyfile.good /etc/motel/Caddyfile
 st=$(systemctl show -P ActiveState moteld)
-[ "$st" = failed ] || die "motel is '$st' after the refused restart, not failed: the upgrade below would prove nothing"
-dpkg -i "$deb" </dev/null >/tmp/stopped.out 2>&1 || { cat /tmp/stopped.out; die "dpkg -i over a failed motel exited non-zero"; }
+[ "$st" = failed ] || die "moteld is '$st' after the refused restart, not failed: the upgrade below would prove nothing"
+dpkg -i "$deb" </dev/null >/tmp/stopped.out 2>&1 || { cat /tmp/stopped.out; die "dpkg -i over a failed moteld exited non-zero"; }
 cat /tmp/stopped.out
 st=$(systemctl show -P ActiveState moteld)
-[ "$st" = failed ] || die "an upgrade over a failed motel left it '$st', not failed: it started it, or cleared the failure"
-grep -A1 -x 'motel is enabled but not running. Start it with:' /tmp/stopped.out | grep -qx '  systemctl start moteld' \
-	|| die "an upgrade over a failed motel did not give the start line, with no sudo"
-grep -q -e '^motel restarted\.$' -e 'restarting onto the new version FAILED' /tmp/stopped.out \
-	&& die "an upgrade over a failed motel also said it restarted, or that the restart failed"
+[ "$st" = failed ] || die "an upgrade over a failed moteld left it '$st', not failed: it started it, or cleared the failure"
+grep -A1 -x 'moteld is enabled but not running. Start it with:' /tmp/stopped.out | grep -qx '  systemctl start moteld' \
+	|| die "an upgrade over a failed moteld did not give the start line, with no sudo"
+grep -q -e '^moteld restarted\.$' -e 'restarting onto the new version FAILED' /tmp/stopped.out \
+	&& die "an upgrade over a failed moteld also said it restarted, or that the restart failed"
 # Recover the way the failed restart's hint says, so stage 4 starts
 # from a serving box. reset-failed first: stages 3 to 3c started the
 # unit often enough in a few seconds to reach systemd's start limit
 # (5 in 10 s), which an operator fixing the config by hand would have
 # long outlived.
 systemctl reset-failed moteld
-timeout 300 systemctl restart moteld || die "motel did not start again on the restored config"
+timeout 300 systemctl restart moteld || die "moteld did not start again on the restored config"
 i=0
 until [ "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $TOKEN" "$HOOK")" = "200" ]; do
 	i=$((i + 1))
@@ -1675,7 +1675,7 @@ for u in motel-backup.service motel-backup-drill.service; do
 	echo "reinstalled after remove: $u ran inside the install at its timer's elapse (last trigger $last, ${late}s after it): a scheduled run, not a catch-up"
 done
 echo "reinstalled after remove: the stamps are new, and nothing caught up"
-timeout 300 systemctl enable --now moteld || die "motel did not start after the reinstall"
+timeout 300 systemctl enable --now moteld || die "moteld did not start after the reinstall"
 # A timer firing from here to the run below would put a drill, which
 # holds the run lock (motel-backup-drill.service), or a run of its
 # own in the way of the stage's run: the timers are held while it runs,
@@ -1781,16 +1781,16 @@ done
 echo "purge kept the credential file and said why, removed the package's own state, the cache, the stamps and a killed run's mounts, kept the account"
 # Installed again, so that stage 5b's first case is an upgrade over an
 # installed package: the install writes the starter and its record, and
-# motel stays disabled and stopped, as the purge left it.
+# moteld stays disabled and stopped, as the purge left it.
 apt-get install -y "$deb" >/tmp/after-purge.out 2>&1 || { cat /tmp/after-purge.out; die "install after the purge failed"; }
 
 stage "stage 5b: the starter across upgrades"
 # Upgrades never ask about $CONFIG: postinstall installs the starter
 # where nothing stands, replaces it only while it is byte-identical to
 # the starter it last wrote (the record), and leaves anything else
-# alone. motel is disabled and stopped since stage 5's purge, so no
+# alone. moteld is disabled and stopped since stage 5's purge, so no
 # postinstall here restarts it.
-systemctl is-active --quiet moteld && die "motel is running; stage 5b expects it stopped" || true
+systemctl is-active --quiet moteld && die "moteld is running; stage 5b expects it stopped" || true
 rm -f "$CONFIG"
 dpkg -i "$deb" </dev/null >/tmp/starter.out 2>&1 || { cat /tmp/starter.out; die "reinstall over a missing $CONFIG failed"; }
 cmp -s "$STARTER" "$CONFIG" || die "a missing $CONFIG was not restored from the starter"
@@ -1943,7 +1943,7 @@ apt-get purge -y moteld >/tmp/purge.out 2>&1 || { cat /tmp/purge.out; die "apt-g
 cat /tmp/purge.out
 case "$(dpkg-query -W -f='${Status}' moteld 2>/dev/null)" in
 '' | *not-installed) : ;;
-*) die "motel is still '$(dpkg-query -W -f='${Status}' moteld)' after purge" ;;
+*) die "moteld is still '$(dpkg-query -W -f='${Status}' moteld)' after purge" ;;
 esac
 [ ! -e "$CONFIG" ] && [ ! -L "$CONFIG" ] || die "purge left $CONFIG"
 [ ! -e "${RECORD%/*}" ] || die "purge left ${RECORD%/*}"
@@ -2077,7 +2077,7 @@ userdel motel-backup || die "could not remove the account to stage one that cann
 getent group motel-backup >/dev/null || groupadd --system motel-backup
 apt-get install -y "$deb" >/tmp/install-noaccount.log 2>&1 \
 	|| { cat /tmp/install-noaccount.log; die "the install failed where the motel-backup account could not be made: motel is left half-configured"; }
-dpkg -s moteld | grep -q '^Status: install ok installed$' || die "motel is not configured: $(dpkg -s moteld | grep ^Status)"
+dpkg -s moteld | grep -q '^Status: install ok installed$' || die "moteld is not configured: $(dpkg -s moteld | grep ^Status)"
 getent passwd motel-backup >/dev/null && die "the account was made: the row proves nothing" || true
 grep -q "motel: the motel-backup account could not be made (useradd: group motel-backup exists" /tmp/install-noaccount.log \
 	|| die "postinstall did not say that the account could not be made, and why: $(cat /tmp/install-noaccount.log)"
@@ -2094,7 +2094,7 @@ tr -d '\r' </tmp/install-noaccount.log | grep -qx "  motel-backup setup <reposit
 	&& die "postinstall said the timers run nothing until setup on a box whose runs start and fail on the account" || true
 tr -d '\r' </tmp/install-noaccount.log | grep -qx "Backups: the hourly timer and the Sunday restore drill are enabled, and the credential file is in place; the runs wait on the motel-backup account (above): motel-backup account says when it is right" \
 	|| die "postinstall did not say that the runs wait on the account: $(grep Backups: /tmp/install-noaccount.log || echo 'no Backups: line')"
-timeout 300 systemctl enable --now moteld || die "motel did not start on the box where the account could not be made"
+timeout 300 systemctl enable --now moteld || die "moteld did not start on the box where the account could not be made"
 expect_backup_state "installed where the account cannot be made" enabled active "$CRED_SHA"
 systemctl start motel-backup.service && die "a run with no account exited 0" || true
 journalctl -u motel-backup.service --no-pager | grep -q "the motel-backup account is not there" \

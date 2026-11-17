@@ -78,7 +78,7 @@ func TestARunByHandAsRootIsRefusedBeforeAnythingIsWritten(t *testing.T) {
 	said := stderr.String()
 	for _, want := range []string{
 		"Error: this `moteld run` is refused, and nothing was changed: the liveswap root " + root + " is owned by ",
-		", and this process runs as root, not as its owner. On a box, motel runs as moteld.service",
+		", and this process runs as root, not as its owner. On a box, moteld runs as moteld.service",
 		"`moteld validate --config <file>`",
 		"`journalctl -u moteld`",
 	} {
@@ -100,7 +100,7 @@ func TestARunByHandAsRootIsRefusedBeforeAnythingIsWritten(t *testing.T) {
 // What goes on: any user but root (the motel user, a service user that
 // writes a root it does not own), and root with a config that has no
 // liveswap block, a root not there yet (a first start), or a root of
-// its own (a container that runs motel as root). A root left to its
+// its own (a container that runs moteld as root). A root left to its
 // default, or read from the environment at load, is judged where it
 // leads.
 func TestARunByAnotherUserOrWithNoRootOfAnothersGoesOn(t *testing.T) {

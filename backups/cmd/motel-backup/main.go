@@ -36,7 +36,7 @@
 // sqlite path, in the SQL on `sqlite3`'s argv (dump.execute, RestoreOver).
 // validate's argument is a path this process opens; it starts no unit.)
 //
-// It does not link Caddy, and motel does not run it: the two share a
+// It does not link Caddy, and moteld does not run it: the two share a
 // declaration format (liveswap/backupdecl) and nothing else.
 package main
 

@@ -63,10 +63,10 @@ func sampleKey(s failedSample) string { return s.integration + "/" + s.receiver 
 // 0 at a config load since the last read, so that all of a count is
 // new. At the first read since this process started, a load after the
 // start says so too, and a failure before that read is told: the reload
-// motel's start asks for (reloaded, which needs no clock), or a stamp
+// moteld's start asks for (reloaded, which needs no clock), or a stamp
 // after the start (setup's start of Alertmanager, its socket's at
 // motel's first post). A load from before the start leaves the first
-// read a baseline, since an earlier motel may have told of what it
+// read a baseline, since an earlier moteld may have told of what it
 // counts.
 func (w *failWatch) loadSince(m amMetrics) bool {
 	if w.prev == nil {
@@ -219,7 +219,7 @@ func (e *engine) scrapeFailed(ctx context.Context, read func(context.Context) ([
 // box reports the box down through its own channels. The next delivery
 // through a suspect's receivers (`moteld monitor test` makes one) ends
 // the hold. It is in memory, as the counter's baseline is: a restart
-// of motel ends it.
+// of moteld ends it.
 
 // heartbeatHoldAfter is how long a failure told to no channel stands
 // before the heartbeat is held: a failed notification is not logged,

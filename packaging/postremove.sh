@@ -1,5 +1,5 @@
 #!/bin/sh
-# motel package post-remove. dpkg runs it once the package's files
+# moteld package post-remove. dpkg runs it once the package's files
 # are gone: `postrm remove`, then `postrm purge` when the removal is a
 # purge, and on upgrades (`upgrade`, `failed-upgrade`) and their aborts
 # (`abort-install`, `abort-upgrade`, `disappear`), which do nothing

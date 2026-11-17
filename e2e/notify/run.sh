@@ -115,7 +115,7 @@ done
 echo "=== notify 0: the box ==="
 i=0
 until systemctl is-active -q moteld && [ -S /run/motel/admin.sock ]; do
-	i=$((i + 1)); [ "$i" -ge 120 ] && { echo "FATAL: motel did not come up"; journalctl -u moteld --no-pager -n 50; exit 1; }
+	i=$((i + 1)); [ "$i" -ge 120 ] && { echo "FATAL: moteld did not come up"; journalctl -u moteld --no-pager -n 50; exit 1; }
 	sleep 0.5
 done
 wait_for_token
@@ -441,7 +441,7 @@ done
 case_10() {
 echo "=== notify 10: no channel URL in any journal ==="
 n=$(journalctl -u moteld -u prometheus-alertmanager -o cat --no-pager | grep -c 'e2e-sink' || true)
-[ "$n" -eq 0 ] && pass "no channel URL in motel's or Alertmanager's journal" || fail "$n journal lines hold a channel URL"
+[ "$n" -eq 0 ] && pass "no channel URL in moteld's or Alertmanager's journal" || fail "$n journal lines hold a channel URL"
 
 }
 
@@ -476,7 +476,7 @@ fi
 if systemctl reload moteld 2>/dev/null; then
 	fail "a reload took a channel whose secret is missing"
 else
-	systemctl is-active -q moteld && pass "a reload refuses it, and the running config serves on" || fail "motel is not active after the refused reload"
+	systemctl is-active -q moteld && pass "a reload refuses it, and the running config serves on" || fail "moteld is not active after the refused reload"
 fi
 t_boot=$(date +%s)
 systemctl restart moteld
@@ -484,7 +484,7 @@ i=0
 until systemctl is-active -q moteld && [ -S /run/motel/admin.sock ]; do
 	i=$((i + 1)); [ "$i" -ge 120 ] && break; sleep 0.5
 done
-systemctl is-active -q moteld && pass "motel starts on it: the boot is not refused" || fail "motel did not start: $(journalctl -u moteld -o cat --no-pager -n 5)"
+systemctl is-active -q moteld && pass "moteld starts on it: the boot is not refused" || fail "moteld did not start: $(journalctl -u moteld -o cat --no-pager -n 5)"
 journalctl -u moteld --since "@$t_boot" -o cat --no-pager | grep 'monitor: a channel is dropped from this load' | grep -q 'channel spare: secret NOTIFY_SPARE_URL' \
 	&& pass "journal: the dropped channel, by line and key" || fail "no journal line names the dropped channel"
 out=$(moteld monitor test ops 2>&1) && echo "$out" | grep -q 'delivered to ops' \
@@ -521,7 +521,7 @@ done
 }
 
 case_12() {
-echo "=== notify 12: motel restarted while a state alert fires: it is told again, and still resolves ==="
+echo "=== notify 12: moteld restarted while a state alert fires: it is told again, and still resolves ==="
 # A relaunch refused: blog's command gone from its release, then its
 # process killed. Nothing re-detects that after a restart (recovery's
 # own refusal reports nothing), so without liveswap's alerts.json and
@@ -733,7 +733,7 @@ while [ "$tries" -lt 16 ] && [ "$fellback" -lt 2 ]; do
 done
 [ "$fellback" -ge 2 ] && pass "$fellback of $tries failed reloads ran notify's Start before the failing one, and fell back" \
 	|| fail "$fellback of $tries tries ran notify's Start before the failing one, want 2: the fallback was not exercised twice"
-systemctl is-active -q moteld && pass "the old config serves on, blog in it" || fail "motel is not active after the failed reloads"
+systemctl is-active -q moteld && pass "the old config serves on, blog in it" || fail "moteld is not active after the failed reloads"
 # A recovery the candidate's Start had posted would reach /ops at the
 # group's next flush (group_interval 1m).
 sleep 75

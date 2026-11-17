@@ -249,7 +249,7 @@ const readingKey = "the box's key for secrets (age.pub)"
 // that cannot be read, or is not exactly one X25519 recipient, is
 // journaled and omitted all the same, so a damaged key file never
 // blocks `GET /` and with it a push of the Caddyfile; the workflow
-// reads the omission as "this box has no key", whose remedy, `motel
+// reads the omission as "this box has no key", whose remedy, `moteld
 // box key`, rewrites age.pub from the identity.
 func (h *Handler) recipient() string {
 	b, err := readFile(h.agePub, maxAgePub, false)

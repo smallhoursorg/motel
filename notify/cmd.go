@@ -75,7 +75,7 @@ func movedCommand(name string, moved func(args []string) string) {
 // defaultAdmin is the starter's admin address (packaging/Caddyfile).
 const defaultAdmin = "unix//run/motel/admin.sock"
 
-// adminFlags are how a command finds the running motel's admin API: the
+// adminFlags are how a command finds the running moteld's admin API: the
 // starter's address, another, or a Caddyfile that names one. Not the
 // box's Caddyfile by default: reading it adapts the whole file, which
 // logs, and the admin address is the starter's on every box.
@@ -137,7 +137,7 @@ func sendCommand() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "send --source <name> --name <event> --summary <text> [flags]",
 		Short: "Emit an event from a producer outside motel (cron, smartd, a script)",
-		Long: `Sends one event to the running motel over its admin socket (root and the
+		Long: `Sends one event to the running moteld over its admin socket (root and the
 motel user reach it), which checks it, stamps source external:<name>,
 passes the text through the response filter, applies the flapping guard
 and writes the monitor: event line, as for its own events; then
@@ -256,7 +256,7 @@ gives it motel's config and socket activation, the socket unit
 (/run/motel-notify/am.sock, 0660 root:motel), and
 /var/lib/motel-notify with a config that sends nothing; unmasks it,
 leaves it to start on its socket's first connection, starts the socket
-and reloads motel, which renders the monitor block's channels.
+and reloads moteld, which renders the monitor block's channels.
 
 With --metrics, the store, which posts to Alertmanager: on a
 box where Alertmanager's setup has not run to its end (motel-am.socket
@@ -275,7 +275,7 @@ the drop-in that hands it to Alertmanager, and vmalert's unit, and
 retires the proxy an earlier setup put on that port; unmasks the store;
 restarts Alertmanager once, unless that socket already listens (it
 takes a socket up only when it starts: what it holds in memory goes);
-starts them all and reloads motel, which renders the rules and pushes.
+starts them all and reloads moteld, which renders the rules and pushes.
 
 Run again, each puts its units back as the binary ships them:
 moteld monitor setup Alertmanager's (stopping it for the while: what it

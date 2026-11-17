@@ -44,7 +44,7 @@ curl -fsSLO "$base/$deb" && curl -fsSLO "$base/checksums.txt" &&
 ```
 
 A candidate sorts below the release it leads to, so if `apt` says it
-will downgrade motel, answer `n` and stop here: the box already runs
+will downgrade moteld, answer `n` and stop here: the box already runs
 a version that sorts above the candidate.
 
 The box's repository then needs its Actions variable
@@ -58,16 +58,16 @@ stable release again: `gh variable delete MOTEL_VERSION -R your-org/boxes`.
 
 </details>
 
-The package keeps your `/etc/motel/Caddyfile` and restarts motel
+The package keeps your `/etc/motel/Caddyfile` and restarts moteld
 into the new binary. An upgrade never asks about that file. The
 package installs its starter config there only when nothing is there,
 and replaces it only while it is byte-for-byte the starter the package
-itself last wrote. Any other file — one you edited, or one `motel
+itself last wrote. Any other file — one you edited, or one `moteld
 init` or a push wrote — is never touched, and neither is a symlink.
 The test is the bytes, not who wrote them: a copy of the starter you
 put there yourself counts as the starter. A fresh copy of the starter
 is always at `/usr/share/motel/Caddyfile`. Your apps are not restarted: they run under
-motel's user manager rather than inside motel, so the new process
+motel's user manager rather than inside moteld, so the new process
 finds each one in `state.json` and picks it up as it is — same process,
 no relaunch, no redeploy.
 
@@ -85,7 +85,7 @@ after a crash, a sustained health failure, or a reboot).
 <details>
 <summary><b>What visitors see during the restart</b> — and how to pick a quiet moment</summary>
 
-Deploys are zero-downtime; upgrading motel is not, because the
+Deploys are zero-downtime; upgrading moteld is not, because the
 process listening on 80 and 443 is the one being replaced. On stop it
 closes its listeners at once and lets the requests already in flight
 finish, and the new process cannot listen until the old one has
@@ -120,7 +120,7 @@ says `audience motel`, add `MOTEL_AUDIENCE: <its audience>` to the
 workflow's `env:`.
 A crash has a window of its own: whatever was in flight is cut off,
 systemd waits a second
-(`RestartSec=1s`) and starts motel again, and the apps are picked
+(`RestartSec=1s`) and starts moteld again, and the apps are picked
 back up the same way — a little over a second, plus the start itself.
 How long a planned restart's window lasts:
 
@@ -166,7 +166,7 @@ Before you upgrade:
   release page holds the bare binary, and
   `./moteld validate --config /etc/motel/Caddyfile` runs its
   config check without touching anything that is running. A config it
-  rejects would stop the upgraded motel from starting, and the site
+  rejects would stop the upgraded moteld from starting, and the site
   would stay down until you fixed the config or went back (systemd
   retries a crash, not a refusal). A build with a `.deb` and no
   `.tar.gz`, such as one of a feature branch, has no `checksums.txt`
@@ -199,15 +199,15 @@ Before you upgrade:
   candidate's file has a `.` where that has a `~`:
   `moteld_0.7.1.rc1_<arch>.deb`): keep it in `/var/local/motel`, and the
   bullet on it below puts it back.
-  To see why an upgraded motel will not start, read `journalctl -u moteld`
+  To see why an upgraded moteld will not start, read `journalctl -u moteld`
   and run `moteld validate --config /etc/motel/Caddyfile`; do not run
-  `moteld run` by hand on the box: while motel runs, a second one takes
+  `moteld run` by hand on the box: while moteld runs, a second one takes
   its admin socket and can disturb its apps.
   motel refuses root's run only when the Caddyfile's liveswap root
   exists and is not root's, as on a packaged box (it is motel's);
   otherwise nothing stops it, so do not rely on the refusal.
 - **Check moteld.service runs as the motel user.** That refusal cannot
-  tell root's run by hand from a unit edited to run motel as root, and
+  tell root's run by hand from a unit edited to run moteld as root, and
   the install makes `/var/lib/liveswap` motel's again. So such a box,
   with the liveswap root the package makes, is refused at every start,
   the install's own included, and serves nothing until someone at the
@@ -246,7 +246,7 @@ Before you upgrade:
     `/etc/systemd/system/moteld.service.d/` whose name sorts after that
     one's byte by byte (`zz-user.conf` sorts after any name that starts
     with a digit or a lower-case letter before `z`), holding
-    `[Service]`, `User=motel` and `Group=motel`, wins for motel alone.
+    `[Service]`, `User=motel` and `Group=motel`, wins for moteld alone.
 
   `systemctl revert moteld` does the first two at once, and takes more
   with them: it deletes `moteld.service.d/` and every file in it under
@@ -256,11 +256,11 @@ Before you upgrade:
   packaged unit and `service.d/` stay. After any of these, run
   `systemctl daemon-reload`; the `show` must then print `User=motel`
   and `Group=motel`, and `systemctl is-enabled moteld` `enabled`
-  (`disabled`: `systemctl enable moteld`). A box that ran motel as root
-  may also hold files of root's where motel writes, Caddy's
+  (`disabled`: `systemctl enable moteld`). A box that ran moteld as root
+  may also hold files of root's where moteld writes, Caddy's
   certificates in `/var/lib/motel/caddy` among them: before the install,
   `find /var/lib/motel /var/lib/liveswap -user root` lists them, and
-  each one motel wrote wants `chown motel:motel`.
+  each one moteld wrote wants `chown motel:motel`.
 - **A box with an ECDSA signer rotates it first** (upgrading from
   v0.6.0 or earlier). A `signer` line with an `ecdsa-sha2-nistp256`,
   `-384`, `-521` or `sk-ecdsa-sha2-nistp256@openssh.com` key is refused
@@ -270,7 +270,7 @@ Before you upgrade:
   release: that signer makes an ed25519 key (`ssh-keygen -t ed25519`,
   or `-t ed25519-sk` for a hardware key), `make signer` adds it, one
   push applies, and a second push removes the old line. Upgrading
-  first instead stops the site: the install restarts motel onto the
+  first instead stops the site: the install restarts moteld onto the
   new binary, which refuses to start on a Caddyfile with that line,
   naming it, until root edits the line out of `/etc/motel/Caddyfile`
   at the console and runs `systemctl start moteld` (the next push then
@@ -320,7 +320,7 @@ Before you upgrade:
   means its setup again: step 1 left Alertmanager disabled, so once
   the block and its URLs are back, root runs
   `moteld monitor setup [--metrics]` ("To turn it back on", there). On
-  a box already back whose motel refused to start, root edits
+  a box already back whose moteld refused to start, root edits
   the block and the `observe` lines out of `/etc/motel/Caddyfile` and
   runs `systemctl restart moteld`. On a box that takes pushes, root also
   removes the `"_box"` entry from the `secrets` map in
@@ -337,15 +337,15 @@ Before you upgrade:
   1. **Take out every `person` and `grant` line.** On a box that takes
      pushes, push a commit without them. On a box with no push channel,
      root edits them out of `/etc/motel/Caddyfile` and runs `systemctl
-     reload motel`. People's clients get the flat 401 from then on.
+     reload moteld`. People's clients get the flat 401 from then on.
   2. **Go back** with the `.deb`, as above.
 
   `signer` lines are not affected: they mean what they meant, and the
   box channel works across the downgrade. On a box already back whose
-  motel refused to start, root edits the lines out of
+  moteld refused to start, root edits the lines out of
   `/etc/motel/Caddyfile` and runs `systemctl restart moteld`; the next
   push, without them, applies.
-- **Upgrade motel and the host separately.** motel measures what
+- **Upgrade moteld and the host separately.** moteld measures what
   the host can sandbox at every start and refuses to start on a host
   that cannot deliver it ([liveswap/README.md](../liveswap/README.md#sandbox)),
   so a kernel update or reboot bundled with an upgrade leaves you
@@ -399,7 +399,7 @@ wants the new one. One made from the v0.6.0 or v0.6.1 template that
 takes a `monitor` block also wants this release's `examples/box/bin/`
 in its `bin/` ([Monitor](monitor.md)).
 
-There is no APT repository yet, so nothing upgrades motel behind
+There is no APT repository yet, so nothing upgrades moteld behind
 your back; the hosted repository on the [roadmap](../README.md#roadmap) is what
 will change that.
 
@@ -469,14 +469,14 @@ A box built from the notify-and-metrics feature branch before the
 perhaps a `metrics_store` block. The new binary refuses both, naming
 `monitor`, and the old one refuses `monitor`, so no Caddyfile loads on
 both: upgrading with the old blocks in place stops every site, since
-the install restarts motel onto a binary that refuses to start on the
+the install restarts moteld onto a binary that refuses to start on the
 file. Do it in this order:
 
 1. **Push the Caddyfile without the `notify` and `metrics_store`
    blocks**, and without `secrets/_box/`: the old box channel refuses
    that directory beside a file with no `notify` block, and the push
    removes `/etc/motel/secrets/_box.env` (the encrypted files stay in
-   the repository's history). The old motel validates and reloads it.
+   the repository's history). The old moteld validates and reloads it.
    On a box with no push channel, root edits the blocks out of
    `/etc/motel/Caddyfile` and runs `systemctl reload moteld`. So does a
    box that takes pushes but whose blocks were edited into the file by
@@ -486,7 +486,7 @@ file. Do it in this order:
    (`make secret APP=_box VAR=NOTIFY_<NAME>`): a `_box.env` written by
    hand does not count, and a push of the block without
    `secrets/_box/` is refused, naming the secret.
-2. **Upgrade the package**, as above. The new motel starts on that
+2. **Upgrade the package**, as above. The new moteld starts on that
    Caddyfile, which has nothing for it to refuse.
 3. **Push the Caddyfile with `monitor { … }`**: the notify block's
    lines unchanged under the new name (less any `state_dir` or
@@ -569,7 +569,7 @@ which name the old commands (`systemctl status` shows
 again then renames them and sets the store's clocks. Either way, motel says when it is due:
 from this version, every load (`moteld validate`, `moteld reload`, and
 the restart onto the new binary, in the journal) warns `monitor: the
-units moteld monitor setup wrote differ from this motel's (…)` (for the store's, `monitor: the files moteld monitor setup --metrics wrote differ …`) for as
+units moteld monitor setup wrote differ from this moteld's (…)` (for the store's, `monitor: the files moteld monitor setup --metrics wrote differ …`) for as
 long as a unit differs from the one this binary would write, comments
 aside, and names the setup to run. While the proxy's units are there,
 the store's warning says `the proxy an older setup wrote for
@@ -581,11 +581,11 @@ starts) it once.
 **One run of `moteld monitor setup --metrics` covers every paragraph
 below that fits a box**, however many do, and it is the same run as
 the `--metrics` one above: each run writes all of its units and
-`scrape.yml` as this motel ships them, and restarts the store and
+`scrape.yml` as this moteld ships them, and restarts the store and
 vmalert. The warning each paragraph names is the store's (`the files
 moteld monitor setup --metrics wrote differ …`). None of them needs
 `moteld monitor setup` without `--metrics`, which is due only as the
-paragraph above says, or while a load warns `monitor: the units motel
+paragraph above says, or while a load warns `monitor: the units moteld
 monitor setup wrote differ …`.
 The store is down for part of the run, so a push that comes then
 fails; motel pushes every 30 seconds, and hotserve-1's two re-runs
@@ -651,7 +651,7 @@ Apps run on the box's own `/usr`, so `apt upgrade` reaches an app at
 its next launch — its next deploy or rollback, or a relaunch after a
 crash, a sustained health failure, or a reboot — never the one
 running, which keeps the runtime and libraries it has already loaded.
-Upgrading motel does not relaunch apps either: it picks them up as
+Upgrading moteld does not relaunch apps either: it picks them up as
 they are.
 
 What a patch reaches depends on where the app's runtime came from:

@@ -3,9 +3,9 @@
 #
 # No .apk, and no plan for one. Alpine runs OpenRC, and liveswap runs
 # apps as transient systemd units with no fallback runner (see
-# App.Start), so an Alpine motel would serve — Caddy, cache,
+# App.Start), so an Alpine moteld would serve — Caddy, cache,
 # penaltybox — but refuse any Caddyfile defining an app. An OpenRC
-# package would install a motel missing the feature it exists for.
+# package would install a moteld missing the feature it exists for.
 # The raw-binary tarball is for other systemd hosts, not for Alpine.
 name: moteld
 arch: "${NFPM_ARCH}"
@@ -32,7 +32,7 @@ depends:
   # lets apt refuse an older release (Debian 12 and earlier, Ubuntu
   # 24.04) at install. Without it such a box installs and serves the starter
   # page, which leaves liveswap off. The failure would then come only
-  # when the box's own config first turns liveswap on, as `motel
+  # when the box's own config first turns liveswap on, as `moteld
   # init`'s reload fails. A version is all apt can see. Whether the
   # kernel permits the namespaces (a container, an LXC VPS, an LSM that
   # refuses them) is still for the sandbox probe to measure when
@@ -48,7 +48,7 @@ depends:
   # 2026-10-05). ca-certificates: restic verifies the storage's
   # certificate against /etc/ssl/certs, and Debian's restic does not
   # depend on it; in a bare debian:13 container every request ended
-  # `x509: certificate signed by unknown authority`. motel itself
+  # `x509: certificate signed by unknown authority`. moteld itself
   # reads the same store — ACME to Let's Encrypt, deploy_trust's OIDC
   # discovery and JWKS fetches, a pull over https — and never declared
   # it either; it is the binary's as much as the backups'. The cost: a
@@ -155,7 +155,7 @@ contents:
     file_info:
       mode: 0755
   # Root's alone: a record the motel user could write would let a
-  # compromised motel make root's next upgrade overwrite the box's
+  # compromised moteld make root's next upgrade overwrite the box's
   # config with the starter. Removed whole by `apt purge` (postremove),
   # with /etc/motel/Caddyfile and the box applier's exchange tree.
   - dst: /var/lib/motel-package

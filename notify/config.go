@@ -33,7 +33,7 @@ const (
 	// DefaultSocket is Alertmanager's listener in the host's namespace, a
 	// systemd socket unit (motel-am.socket), 0660 root:motel, in a
 	// runtime directory of its own: /run/motel is moteld.service's
-	// RuntimeDirectory, removed whenever motel stops. Its one other, with
+	// RuntimeDirectory, removed whenever moteld stops. Its one other, with
 	// the store, is inside the metrics namespace (motel-am-metrics.socket).
 	DefaultSocket = "/run/motel-notify/am.sock"
 )

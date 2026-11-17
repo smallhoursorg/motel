@@ -100,7 +100,7 @@ func TestLoadWarningsSayStaleUnits(t *testing.T) {
 		t.Fatal(err)
 	}
 	if w := LoadWarnings("run", both); !slices.ContainsFunc(w, func(s string) bool {
-		return strings.Contains(s, scrape+" could not be compared with this motel's (is a directory)") && strings.Count(s, scrape) == 1
+		return strings.Contains(s, scrape+" could not be compared with this moteld's (is a directory)") && strings.Count(s, scrape) == 1
 	}) {
 		t.Fatalf("an unreadable scrape.yml: %v", w)
 	}
@@ -148,7 +148,7 @@ func TestLoadWarningsSayTheProxyGoes(t *testing.T) {
 		t.Fatalf("the proxy alone:\n%v\nwant\n%s", w, want)
 	}
 	put(metricsUnits()[1].path, []byte("[Service]\nType=oneshot\n"))
-	want = "monitor: the files moteld monitor setup --metrics wrote differ from this motel's (" + metricsUnits()[1].path + "), and the proxy an older setup wrote for Alertmanager (" + sock + ", " + svc + ") is still in place: run moteld monitor setup --metrics as root to put this version's in place; it retires the proxy" + restarts
+	want = "monitor: the files moteld monitor setup --metrics wrote differ from this moteld's (" + metricsUnits()[1].path + "), and the proxy an older setup wrote for Alertmanager (" + sock + ", " + svc + ") is still in place: run moteld monitor setup --metrics as root to put this version's in place; it retires the proxy" + restarts
 	if w := LoadWarnings("run", store); len(w) != 1 || w[0] != want {
 		t.Fatalf("a stale unit and the proxy:\n%v\nwant\n%s", w, want)
 	}

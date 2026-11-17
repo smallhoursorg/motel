@@ -112,7 +112,7 @@ latest stable release unless `MOTEL_VERSION` names another, so while
 that is v0.6.1 or earlier, which does not know the block, every commit
 that has it fails that job with `unrecognized global option:
 monitor`. The push still reaches the box, which checks it with its own
-motel.
+moteld.
 
 On a box with nothing installed yet, setup says:
 
@@ -124,7 +124,7 @@ wrote /etc/systemd/system/prometheus-alertmanager.service.d/10-motel.conf
 wrote /etc/systemd/system/motel-am.socket
 wrote /var/lib/motel-notify/alertmanager.yml, a config that sends nothing, until motel renders the monitor block's channels
 Alertmanager listens on /run/motel-notify/am.sock only, started by its first connection
-reloaded motel, whose config has no monitor block with channels: Alertmanager sends nothing until there is one (docs/monitor.md); add it, then systemctl reload moteld
+reloaded moteld, whose config has no monitor block with channels: Alertmanager sends nothing until there is one (docs/monitor.md); add it, then systemctl reload moteld
 masked victoria-metrics.service, so the install starts nothing
 iproute2 is installed
 installed victoria-metrics
@@ -139,10 +139,10 @@ wrote /var/lib/motel-metrics/scrape.yml
 wrote /var/lib/motel-metrics/rules.yml
 started Alertmanager, once, so that it listens in the namespace (motel-am-metrics.socket) beside its unix socket
 started the store and vmalert: the store listens on /run/motel-metrics/vm.sock only, its TCP in the motel-metrics namespace
-reloaded motel, whose config has no monitor block with a metrics line: nothing is pushed until there is one (docs/monitor.md); add it, then systemctl reload moteld
+reloaded moteld, whose config has no monitor block with a metrics line: nothing is pushed until there is one (docs/monitor.md); add it, then systemctl reload moteld
 ```
 
-The two `reloaded motel` lines say what the loaded config does with
+The two `reloaded moteld` lines say what the loaded config does with
 what setup made: here it has no monitor block yet, so nothing is
 rendered and nothing is pushed until step 4 loads one. With the block
 loaded, they say `which renders the monitor block's channels into …`
@@ -173,7 +173,7 @@ Error: oncall: Alertmanager could not deliver (discord: other); journalctl -u pr
 It exits 1 unless the message was delivered, and it never prints the
 URL, not even one given in place of the channel's name: a name the
 block does not have is refused with the block's channel names, and
-without the name given, since motel's journal keeps the refusal. A
+without the name given, since moteld's journal keeps the refusal. A
 test goes to its channel whatever that channel's `severity`
 floor is.
 
@@ -274,7 +274,7 @@ monitor {
   backups and `cert_failed` for its domains, carry no `app` label and
   go to the operator alone.
 - **`heartbeat`**: without it, every load warns `monitor: no heartbeat
-  in this load: nothing outside the box hears that it, motel or
+  in this load: nothing outside the box hears that it, moteld or
   Alertmanager stopped`.
 
 Every line, and the less common ones (`secrets_file`,
@@ -289,7 +289,7 @@ the ones setup makes.
 Nothing on a box can report that the box itself is down. A dead-man
 check off the box can: it expects a ping on a schedule and alerts you
 when one is missed. motel pings it every five minutes for as long as
-motel and Alertmanager both run. A restart of motel, or a reload that
+moteld and Alertmanager both run. A restart of moteld, or a reload that
 changes Alertmanager's config, starts the five minutes again, so the
 ping after one can come later: 7 minutes 20 seconds after the last was
 measured, and about nine is the most. The Grace below covers it.
@@ -317,9 +317,9 @@ measured, and about nine is the most. The Grace below covers it.
    minute.
 
 The ping is Alertmanager's JSON for an alert named `Watchdog`, POSTed
-to the URL: `"summary":"motel is running and can reach Alertmanager"`.
+to the URL: `"summary":"moteld is running and can reach Alertmanager"`.
 Healthchecks treats any request to the URL as a ping. **Pause the check
-before you stop motel or Alertmanager on purpose**, or it will page you.
+before you stop moteld or Alertmanager on purpose**, or it will page you.
 
 To see when the pings went out, or how long a gap was, read the check's
 log at Healthchecks. The box holds no history of them: the store does
@@ -328,7 +328,7 @@ socket, as root"), and Alertmanager starts each of its notification
 counters (`alertmanager_notifications_*` and
 `alertmanager_notification_requests_*`) again from 0 whenever it loads
 its config: when it starts, and whenever motel has it reload, which is
-at every start of motel and at every reload of motel that changes what
+at every start of moteld and at every reload of moteld that changes what
 motel renders for it (a channel's URL included) or follows one it did
 not answer. Read live, the counts since the last load are
 `curl -s --unix-socket /run/motel-notify/am.sock http://am/metrics | grep 'receiver_name="heartbeat"'`.
@@ -359,7 +359,7 @@ measured on hotserve-1, 2026-11-14; when, from Alertmanager's
 source). A one-shot event counts the same way on each `event-`
 receiver, each time it is sent: each is its own alert.
 `heartbeat`'s rises once with no ping when motel stops posting the
-`Watchdog` alert (the heartbeat held, or motel stopped while
+`Watchdog` alert (the heartbeat held, or moteld stopped while
 Alertmanager runs) and the alert ends. The messages that went are
 `alertmanager_notification_requests_total` less
 `alertmanager_notification_requests_failed_total`, each attempt (a
@@ -373,7 +373,7 @@ behind a green check. If it pages while the box is up, look for
 
 ## Uptime: hear that a site stopped answering
 
-The heartbeat tells you motel runs. It does not tell you that a site
+The heartbeat tells you moteld runs. It does not tell you that a site
 answers its visitors. For that, use an external uptime monitor (a
 keyword check) against each site: it fetches a page and looks for a
 word that only the app's own page contains, so an error page reads as
@@ -424,13 +424,13 @@ at every send (a timestamp, a UUID) leaves no limit to hold back a
 storm. An instance the filter would take for a secret is refused: a
 40-hex git commit id is, a numeric run id or a lowercase UUID is not.
 
-A state outlives a restart of motel (an upgrade of the package restarts
+A state outlives a restart of moteld (an upgrade of the package restarts
 it): motel keeps what is firing in `/var/lib/motel-notify/external.json`
 and tells it again when it starts, and the later `--state resolved`
 ends it. Alertmanager ends an alert five minutes after motel last
 told it, which motel does about every minute: a restart back within
 three minutes sends no second message, and a stop of five minutes or
-more sends your channels `[RESOLVED]` while motel is down, then a new
+more sends your channels `[RESOLVED]` while moteld is down, then a new
 `[FIRING]` when it starts (in between, either can happen).
 A reload that takes the monitor block out, or a start without it,
 forgets the states. A repeat of
@@ -450,7 +450,7 @@ Debian's unattended upgrades leave `/run/reboot-required` when an update
 needs a reboot ([Hardening](hardening.md)), and never reboot by
 themselves. This timer reminds you once a day for as long as the file
 is there. A reboot both clears the file and empties the memory of
-motel and Alertmanager, so the reminder is a one-shot: a state would
+moteld and Alertmanager, so the reminder is a one-shot: a state would
 never get its recovery.
 
 `/etc/systemd/system/motel-reboot-required.service`:
@@ -489,7 +489,7 @@ systemctl start motel-reboot-required.service   # once now: sends only if a rebo
 With no reboot waiting, the run does nothing (`systemctl status` says
 `ConditionPathExists=/run/reboot-required was not met`). With one
 waiting, its journal says `sent external:reboot/box/reboot_required`.
-`Environment=HOME=/root` stops motel from warning that it cannot find
+`Environment=HOME=/root` stops moteld from warning that it cannot find
 its config directory each time.
 
 ### A unit that failed: `OnFailure=`
@@ -536,7 +536,7 @@ at this.
 
 ### In the journal
 
-Every event is written to motel's journal before it is delivered, so the
+Every event is written to moteld's journal before it is delivered, so the
 journal is the record even when a channel is down. These two are from
 a test of `--state firing`, then `--state resolved` (the reboot
 recipe's one-shot says `"state":"oneshot"`):
@@ -570,7 +570,7 @@ you will see
 `monitor: Alertmanager is not set up on this box (run moteld monitor setup as root); events are journal lines only until it is`,
 and `moteld validate` and `moteld reload` say it too, as a `WARNING:`
 line. They also warn when the units a setup wrote (or the store's `scrape.yml`) differ from the ones
-this motel would write (after an upgrade that changed them), and name
+this moteld would write (after an upgrade that changed them), and name
 the setup to run again.
 When Alertmanager cannot deliver, `journalctl -u prometheus-alertmanager`
 gives its reason, with the receiver and the channel's kind but never
@@ -617,7 +617,7 @@ email, say). The journal says why:
 Mend the channel, then `moteld monitor test ops`: the pings start again
 within a minute (`monitor: heartbeat resumed`), whether or not mending
 the URL reloaded Alertmanager. A reload that takes the channel out, or a
-restart of motel, resumes them too. A second
+restart of moteld, resumes them too. A second
 operator channel that takes warnings is still the better answer: it
 names the failure, where the dead-man check can only say the box is
 down.
@@ -670,7 +670,7 @@ Any other range is refused: `{"error":"range must be one of 1h, 24h"}`
 `memory_max_bytes` appears only for an app with a memory cap. A number
 with nothing behind it in the window is left out. When the store does
 not answer the view's queries, `metrics` is `{"error":"the metrics
-store did not answer"}`, and motel's journal has the cause as a
+store did not answer"}`, and moteld's journal has the cause as a
 warning, `monitor metrics: GET /<app> answered without metrics: the
 metrics store did not answer the view's queries`, with the app, the
 range and the error (at most one per app and range every 30 seconds).
@@ -742,7 +742,7 @@ namespace, where Alertmanager itself listens on `127.0.0.1:9093`
 ```
 $ ip netns exec motel-metrics amtool --alertmanager.url=http://127.0.0.1:9093 alert
 Alertname        Starts At                Summary                                                                                                   State
-Watchdog         2026-11-12 17:44:03 UTC  motel is running and can reach Alertmanager                                                               active
+Watchdog         2026-11-12 17:44:03 UTC  moteld is running and can reach Alertmanager                                                              active
 disk_low         2026-11-12 17:44:03 UTC  the filesystem holding /var/lib/liveswap is 88% full                                                      active
 reboot_required  2026-11-12 17:45:17 UTC  a kernel update waits for a reboot                                                                        active
 ```
@@ -826,7 +826,7 @@ silence from them:
   silence `deploy_refused` by `--alert` and `--app`; so too a failed
   deploy with no record: one that failed before it began (`GET
   /<app>?deploy=<version>` answers `404`), one whose record could not
-  be written (motel's journal says `deploy record: not written`), and
+  be written (moteld's journal says `deploy record: not written`), and
   one whose record has been pruned (the newest `keep` versions not on
   disk keep theirs).
 
@@ -851,7 +851,7 @@ sequence), at most 200 characters; anything in it that looks like a
 secret is masked, as in a notification's summary.
 The duration is from `1m` to `24h`, `2h` if you leave it out, from now.
 
-Each silence added or expired is a line in motel's journal
+Each silence added or expired is a line in moteld's journal
 (`monitor: silence added` with its id, alert, app, release, end,
 comment and `created_by`, which is `moteld monitor: <your user>`;
 `monitor: silence expired` with its id and `expired_by`). With
@@ -944,7 +944,7 @@ monitor {
   A deploy or rollback to the release already serving starts no
   comparison; a relaunch of a release whose instance had stopped (a
   rollback to one that crashed) is held to the bound alone, from 40 s
-  after the cutover, and told as a relaunch. A restart of motel inside
+  after the cutover, and told as a relaunch. A restart of moteld inside
   the window ends the comparison, and nothing compares that deploy
   again; so does a reload whose config has no rule for the app, and a
   store that has not answered 10 minutes past the window's end
@@ -974,10 +974,10 @@ The request metrics need `observe <app>` in the app's site, and a rule
 on them reads only the apps motel's last push says are observed: an
 app whose `observe` line is taken out drops out at the next push, and
 every app does while no push reaches the store for over 75 s, so an
-alert firing then resolves. That is motel down, or the store refusing
+alert firing then resolves. That is moteld down, or the store refusing
 the pushes: `metrics_store_read_only` says so for a read-only store,
 and `metrics_store_down` once they have failed for five minutes.
-`request_rate` is over the time the store's samples cover, so a motel
+`request_rate` is over the time the store's samples cover, so a moteld
 restart in the window barely moves it. It has no value until the
 store holds a push from the five minutes before its window, and for an
 app until that push observed it, so a `request_rate` rule fires no
@@ -1080,7 +1080,7 @@ WARNING: /var/lib/motel-metrics/rules.yml, the file vmalert reads, is not this c
 With `--json` it is `rules_file`: `differs`, `missing` (a `metrics`
 line and no file: `moteld monitor setup --metrics` makes it) or
 `unreadable`; absent when the file is this config's, or, without the
-`metrics` line, the empty one this motel's retire leaves, or none. The
+`metrics` line, the empty one this moteld's retire leaves, or none. The
 command still exits 0: test `rules_file` in a script. Once the cause is
 mended, `systemctl reload moteld` writes the file again for a config
 with the `metrics` line; without it a reload writes nothing there, and
@@ -1192,8 +1192,8 @@ the sites: v0.6.1 refuses those too.
 | `moteld monitor silence add` and `expire`, and a one-shot under the silence reaching no channel | motel's notify e2e box (`make e2e-notify`, section 7a), Debian 13, 2026-11-13 | as shown; not tried on a real box |
 | The laptop's unix-socket forward | OpenSSH 10.0p2, ssh to an sshd on localhost in a Debian 13 container, 2026-11-13 | the socket `srw-------`, another user refused, a stale file failing the forward without `StreamLocalBindUnlink=yes`; not tried against a real box |
 | Real Slack, Discord and ntfy servers | not tried. On hotserve-1, an ntfy topic showed the JSON body as the message | owed (DESIGN-notify.md, "Owed") |
-| The heartbeat's pings | the same image at c979404, at the stub receiver | 299 s and 300 s apart undisturbed; 439 s across a restart of motel 140 s after a ping |
-| A `--state firing` across a restart of motel | motel's notify e2e box (`make e2e-notify`, section 12), Debian 13, 2026-11-14 | kept in `external.json`, told again at the start (`"standing":true`), and found by the `--state resolved` after it. Before motel kept it (the metrics box at c979404): `[RESOLVED]` five minutes after the restart, nothing having resolved it |
+| The heartbeat's pings | the same image at c979404, at the stub receiver | 299 s and 300 s apart undisturbed; 439 s across a restart of moteld 140 s after a ping |
+| A `--state firing` across a restart of moteld | motel's notify e2e box (`make e2e-notify`, section 12), Debian 13, 2026-11-14 | kept in `external.json`, told again at the start (`"standing":true`), and found by the `--state resolved` after it. Before motel kept it (the metrics box at c979404): `[RESOLVED]` five minutes after the restart, nothing having resolved it |
 | A reboot after going back to v0.6.1 | the same image, the container restarted | the store and vmalert come back, Alertmanager and both its sockets stay down, nothing is sent |
 | A reboot with monitor set up | hotserve-1 (Debian 13, at 9228935), three cold boots; again at a8038b4, with Alertmanager's own socket in the store's namespace, 2026-11-13 | the store and its sockets come back. At a8038b4 every unit of the stack is up within about a second of `sysinit.target`, Alertmanager starts once, by socket activation, nothing is started by hand and nothing fails; the heartbeat's next ping comes 6 min 50 s after its last before the reboot, the downtime included |
 | Setup's output with Alertmanager's socket in the store's namespace (first run, second run, upgrade from the proxy), and step 2's `--metrics` line | the metrics e2e box, 2026-11-12, with the change that replaced the proxy; the upgrade from the proxy again on hotserve-1 at a8038b4, 2026-11-13 | as shown; after step 2, Alertmanager, both its sockets and vmalert stay down for 70 s while the store scrapes 9093 and motel reads `am.sock`. On hotserve-1 the upgrade took 6 s, with the site answering throughout; its cold boot is the row above |

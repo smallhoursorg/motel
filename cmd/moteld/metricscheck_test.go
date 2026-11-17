@@ -24,7 +24,7 @@ func metricsDir(t *testing.T) string {
 	return dir
 }
 
-// The operator removes the metrics line and restarts motel instead of
+// The operator removes the metrics line and restarts moteld instead of
 // reloading: no MetricsStore is built, so the boot's gate retires the
 // rules, whether the monitor block stays or goes. With the line, or at
 // validate and reload, it writes nothing.

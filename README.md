@@ -31,7 +31,7 @@ A `.deb` for amd64 and arm64 on the
 [Your first deploy](docs/first-deploy.md) installs it and deploys an
 app, in four steps; [Upgrading](docs/upgrading.md) is every release
 after that. The package gives you `/usr/bin/moteld`, a systemd
-service running as the `motel` user, a starter config at
+service, `moteld.service`, running as the `motel` user, a starter config at
 `/etc/motel/Caddyfile`, a systemd instance for the `motel`
 user that stays up without anyone logging in — the thing your apps
 will run under — and, for a box whose config lives in a repository,
@@ -56,7 +56,7 @@ signature with `ssh-keygen`. And on `restic` (23 MB), `sqlite3` and
 `ca-certificates`, for [backups](backups/README.md): a box that uses
 none carries the two programs too, so that one whose image installs no
 recommended package (Hetzner's Debian 13) gets them; the CA store is
-what motel and restic verify every certificate against.
+what moteld and restic verify every certificate against.
 
 It suggests `prometheus-alertmanager` (Debian's, 46 MB installed),
 for [notify](notify/DESIGN-notify.md): not a dependency, because
@@ -91,7 +91,7 @@ pushed from a box repository, the root applier's units
 (`motel-box.tmpfiles`) and the box's key (`moteld box key`, as
 root). The sandbox applies here too, so the host
 needs systemd 257 or newer and has to deliver both namespaces (many
-container and LXC hosts cannot) and seccomp. motel checks both from
+container and LXC hosts cannot) and seccomp. moteld checks both from
 inside a test unit at start and refuses to start rather than run your
 apps without them. One case passes that check: a container host whose
 existing seccomp rules leave the kernel no room for the app units'
@@ -104,7 +104,7 @@ units on your user's systemd manager and there is no fallback runner,
 so this is not a path onto a non-systemd host. motel would still
 serve there — Caddy, the cache, penaltybox — but a Caddyfile defining
 any `app` refuses to start. That is also why there is no `.apk`:
-Alpine runs OpenRC, and an Alpine package would install a motel
+Alpine runs OpenRC, and an Alpine package would install a moteld
 without the feature it exists for.
 
 </details>
@@ -114,13 +114,13 @@ without the feature it exists for.
 **Installing and upgrading need root; everyday administering does
 not.** Checking a config
 (`moteld validate`) needs no privilege, and reading the journal —
-motel's and every app's — needs the `adm` group. The config changes
+moteld's and every app's — needs the `adm` group. The config changes
 only by a signed push from the box's repository
 ([examples/box](examples/box)), and so do the apps' secrets kept there,
 as values encrypted to the box's own key
-([docs/secrets.md](docs/secrets.md)); motel itself runs
+([docs/secrets.md](docs/secrets.md)); moteld itself runs
 unprivileged. One thing reaches wider: `adm` reads the
-whole system journal, not only motel's lines, so it is a trust
+whole system journal, not only moteld's lines, so it is a trust
 grant in its own right. The e2e suite administers its box that way.
 
 ## Getting started
@@ -301,7 +301,7 @@ own so that it links no Caddy: of this repository it takes only the
 wire types (`liveswap/wire`, standard library only), through a local
 `replace`; the tests that run it against the real webhooks are in the
 liveswap and box modules. The root module builds the product binary
-from `cmd/moteld`, and `packaging/` turns `motel` and `motel-backup`
+from `cmd/moteld`, and `packaging/` turns `moteld` and `motel-backup`
 into the `.deb`.
 
 ### Dependency policy
@@ -341,7 +341,7 @@ weekly `pin-watch` workflow:
 ## Dependencies
 
 You're being asked to install this on a production server, so
-here's exactly what's in the two binaries, `motel` and
+here's exactly what's in the two binaries, `moteld` and
 `motel-backup`, and what they drag in. Module counts are the modules
 reachable from each dependency in the root module's `go mod graph`
 (`GOWORK=off`, deduplicated by module path), measured 2026-11-08; the
@@ -352,7 +352,7 @@ entirely. (Counts exclude the `govulncheck` tool dependency — a
 inherited by importers; it exists in go.mod so Dependabot can bump
 the scanner.)
 
-| Dependency | Pulls in (~modules) | motel | liveswap | penaltybox | box | motel-backup | motelctl | Notes |
+| Dependency | Pulls in (~modules) | moteld | liveswap | penaltybox | box | motel-backup | motelctl | Notes |
 |---|---|:-:|:-:|:-:|:-:|:-:|:-:|---|
 | [Caddy](https://github.com/caddyserver/caddy) | ~600 | ✓ | ✓ | ✓ | ✓ | — | — | The foundation — motel *is* a Caddy distribution. Commercially sponsored, strong security track record. Nearly the entire dependency tree is Caddy's. |
 | [Souin](https://github.com/darkweak/souin) (`cache`) | +6 | ✓ | — | — | — | — | — | HTTP cache (RFC 7234). Solo-maintained; the e2e suite exercises it directly so drift is caught in CI. The riskiest dependency here, and still better than an in-house HTTP cache. |
@@ -368,7 +368,7 @@ the scanner.)
 A ✓ in the liveswap, penaltybox and box columns means that module's own
 code requires the dependency. A "—" there is not "absent from that
 module's graph" — the rows marked "already in Caddy's tree" arrive via
-Caddy either way. The motel column is ✓ throughout: the product
+Caddy either way. The moteld column is ✓ throughout: the product
 binary contains every row. The motel-backup column is the other
 binary, and there "—" does mean absent: it links no Caddy, so its
 graph is the one row marked ✓ plus `golang.org/x/sys`. What it needs

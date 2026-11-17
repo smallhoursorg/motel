@@ -392,7 +392,7 @@ func checkBackups(cmd, file, adapter string) (warning string, err error) {
 // Caddy's to refuse.
 // adminRestart ends each refusal of checkAdmin: a new admin line takes
 // effect at a restart, not a reload.
-const adminRestart = "then `systemctl restart moteld` once: a reload asks the admin API where the new file puts it, and the running motel answers where the old one did"
+const adminRestart = "then `systemctl restart moteld` once: a reload asks the admin API where the new file puts it, and the running moteld answers where the old one did"
 
 func checkAdmin(cfg []byte) error {
 	var c struct {

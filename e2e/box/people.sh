@@ -48,13 +48,13 @@ restore() {
 }
 trap 'restore; rm -rf "$work"' EXIT
 
-# motel up, as the notify and metrics suites wait for it: run alone
+# moteld up, as the notify and metrics suites wait for it: run alone
 # straight after `up -d`, the box may still be starting, and moteld init
-# needs a running motel. The unit alone: this e2e config's admin API is
+# needs a running moteld. The unit alone: this e2e config's admin API is
 # on TCP, so there is no admin socket to wait for.
 i=0
 until systemctl is-active -q moteld; do
-	i=$((i + 1)); [ "$i" -ge 120 ] && { echo "FATAL: motel did not come up"; journalctl -u moteld --no-pager -n 50; exit 1; }
+	i=$((i + 1)); [ "$i" -ge 120 ] && { echo "FATAL: moteld did not come up"; journalctl -u moteld --no-pager -n 50; exit 1; }
 	sleep 0.5
 done
 wait_for_token # $TOKEN: the e2e deploy token, audience e2e

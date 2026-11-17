@@ -1,4 +1,4 @@
-// Command motel is the smallhours app server: Caddy with
+// Command moteld is the smallhours app server: Caddy with
 // zero-downtime app deploys (liveswap), rate-limit hint enforcement
 // (penaltybox), the config channel (box, being built: see
 // box/DESIGN-box.md), notify (who motel tells, through Alertmanager:
@@ -33,13 +33,13 @@ import (
 )
 
 // longDescription is `moteld --help`'s text above the commands.
-const longDescription = `motel is the smallhours app server: Caddy with zero-downtime app
+const longDescription = `moteld is the smallhours app server: Caddy with zero-downtime app
 deploys (liveswap), rate-limit hint enforcement (penaltybox), backups,
 the box's config channel, monitor (who motel tells, and the numbers)
 and HTTP caching compiled in. Its commands, Caddyfile and admin API are
-Caddy's, under the name motel.
+Caddy's, under the name moteld.
 
-On a box, motel runs as moteld.service from /etc/motel/Caddyfile, and
+On a box, moteld runs as moteld.service from /etc/motel/Caddyfile, and
 systemctl starts, stops and reloads it. With a box repository, change
 the Caddyfile by a push: the next push replaces an edit made here.
 Without one, after an edit:
@@ -47,7 +47,7 @@ Without one, after an edit:
 	moteld validate --config /etc/motel/Caddyfile
 	systemctl reload moteld
 
-motel's own commands are listed below beside Caddy's; the motel
+moteld's own commands are listed below beside Caddy's; the motel
 repository's README and docs/ describe them. The examples are Caddy's.
 `
 
@@ -68,7 +68,7 @@ func main() {
 	}
 	// The binary's name in every usage line Caddy's CLI prints
 	// (`moteld monitor setup [--metrics]`, not `caddy monitor …`), and
-	// motel's own description at the root's help in place of Caddy's,
+	// moteld's own description at the root's help in place of Caddy's,
 	// which tells the reader to run `caddy run`. The root's examples are
 	// Caddy's, fixed in its command, and still say `caddy`.
 	caddy.CustomBinaryName = "moteld"

@@ -37,7 +37,7 @@
 #
 #   MGR_PID         the user manager's pid, as seen on the host
 #   PROBE_DNS_NAME  a name to resolve, proving DNS works from inside
-#   MOTEL_UID    the uid motel runs as
+#   MOTEL_UID    the uid moteld runs as
 #
 # MOTEL_UID is the one with a defensible default: apps run as the
 # motel user and PrivateUsers= maps that uid to itself, so `id -u`

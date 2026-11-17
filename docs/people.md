@@ -108,7 +108,7 @@ reach more than the box's status, that same site needs
 `liveswap_webhook` too, as the template's has. Edit
 `/etc/motel/Caddyfile` as root,
 `moteld validate --config /etc/motel/Caddyfile`, and `systemctl reload
-motel`. The box reads who it admits from that file at each load; the
+moteld`. The box reads who it admits from that file at each load; the
 journal says `box: people admitted from the Caddyfile this machine
 runs (/etc/motel/Caddyfile)`, or why no one is.
 
@@ -145,7 +145,7 @@ curl -fsS -H "Authorization: Motel $token" "https://$box/_motel/whoami"
 A token lasts at most ten minutes and is good for reads only. Every
 refusal is the same `401`, whatever the cause: a key the box does not
 list, an address outside a `from` list, a clock more than a minute off,
-or a box whose motel is too old for people. An app they may not read
+or a box whose moteld is too old for people. An app they may not read
 is a `403` saying which role it needs, the same whether the app exists
 or not. Too many requests (more than 60 at once, then 2 a second) is a
 `429` with `Retry-After`.

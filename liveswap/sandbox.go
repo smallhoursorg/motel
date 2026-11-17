@@ -213,7 +213,7 @@ type sandboxSpec struct {
 // swap what it points at. No such process exists: every app is
 // sandboxed, and inside its view the app directory is a tmpfs holding
 // mount points it cannot unlink — the symlink would have to be
-// planted from outside every sandbox, by motel itself or by root.
+// planted from outside every sandbox, by moteld itself or by root.
 // That holds only while nothing else runs as the motel uid outside
 // a sandbox. The check is for root's links: an operator's symlink,
 // made to move a directory or by mistake, is what it refuses (above).
@@ -329,7 +329,7 @@ func refusedAsBindSource(p string) error {
 // But a mandatory bind that resolves onto such a path *names* it, and
 // naming is exactly what puts something in the view. Two ways that bit:
 // `/var/lib/motel -> /srv/motel` made the lexical entry miss a
-// planted `shared -> /srv/motel`, and a motel pointed at a
+// planted `shared -> /srv/motel`, and a moteld pointed at a
 // non-default XDG data dir has its keys somewhere no literal mentions
 // at all. Both would hand the supervisor's TLS keys to an app on the
 // strength of one planted symlink.
@@ -449,7 +449,7 @@ func probeSandboxSpec() *sandboxSpec {
 // (MOTEL_IPC_NS: motel's own, which is the manager's while
 // neither moteld.service nor the user manager sets PrivateIPC=).
 // Two signals, since each alone can be made vacuous — the first by a
-// motel running as uid 0, the second by a drop-in on
+// moteld running as uid 0, the second by a drop-in on
 // moteld.service. And /dev/shm must be the unit's own tmpfs: the
 // probe writes probeShmCanary there, which must then not be in
 // motel's /dev/shm, the host's (checkShmCanary) — a write that
@@ -475,7 +475,7 @@ func sandboxProbeCommand(nonce string) []string {
 // next.
 func probeShmCanary(nonce string) string { return "/dev/shm/motel-sandbox-probe-" + nonce }
 
-// ownIPCNamespace is the IPC namespace motel runs in, as the probe
+// ownIPCNamespace is the IPC namespace moteld runs in, as the probe
 // compares it: the manager's, since moteld.service and the motel
 // user's manager both sit in the initial one.
 func ownIPCNamespace() (string, error) {
@@ -584,7 +584,7 @@ func probeSandboxCapability(r runner) error {
 		// One retry, for a timeout only. A probe that fails is a
 		// measurement; one that times out is the absence of one — the
 		// shape a capable host under boot load produces — and this
-		// verdict decides whether motel starts at all. A refused
+		// verdict decides whether moteld starts at all. A refused
 		// start exits 1, which moteld.service deliberately never
 		// retries (RestartPreventExitStatus=1: a refusal is final
 		// until an operator acts), so at boot there is no next start

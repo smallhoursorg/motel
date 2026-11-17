@@ -614,7 +614,7 @@ func TestPusherReleaseSlowGatherKeepsTheImportsBudget(t *testing.T) {
 	}
 }
 
-// motel's stop pushes what was counted since the last tick: without it
+// moteld's stop pushes what was counted since the last tick: without it
 // a restart lost up to a push of every app's counts, and request_rate
 // read a tenth low for five minutes (the hotserve-1 deploy of ecb829a).
 func TestPusherReleasePushesTheCountsSinceTheLastTick(t *testing.T) {
@@ -638,7 +638,7 @@ func TestPusherReleasePushesTheCountsSinceTheLastTick(t *testing.T) {
 	}
 }
 
-// A store that does not answer cannot hold motel's stop past the
+// A store that does not answer cannot hold moteld's stop past the
 // push's own budget, and the journal says what was lost.
 func TestPusherReleaseGivesUpOnAStoreThatDoesNotAnswer(t *testing.T) {
 	was := finalPushTimeout
@@ -713,7 +713,7 @@ func TestPusherGoesBackToTheOlderConfig(t *testing.T) {
 
 // A reload to a config with no metrics line (the monitor block to
 // channels alone, or to none) retires the stopped config's rules;
-// motel's own shutdown keeps them (Copilot round 3 on #423).
+// moteld's own shutdown keeps them (Copilot round 3 on #423).
 func TestReleaseRetiresTheRulesOnAReloadAlone(t *testing.T) {
 	for _, reload := range []bool{true, false} {
 		tp := newTestPusher(t)
@@ -735,7 +735,7 @@ func TestReleaseRetiresTheRulesOnAReloadAlone(t *testing.T) {
 		case reload && (alerting || gone != 1):
 			t.Errorf("a reload took the metrics line away: rules.yml has alerting rules %v, %d journal lines; want none, and one", alerting, gone)
 		case !reload && (!alerting || gone != 0):
-			t.Errorf("motel's shutdown: rules.yml has alerting rules %v, %d journal lines; want them kept, and no line", alerting, gone)
+			t.Errorf("moteld's shutdown: rules.yml has alerting rules %v, %d journal lines; want them kept, and no line", alerting, gone)
 		}
 		if reload {
 			if f := parseRules(t, b); len(f.Groups) != 3 {

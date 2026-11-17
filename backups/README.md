@@ -25,7 +25,7 @@ restore would work without doing one and checks the repository itself,
 `motel-backup status` says whether each app's backup is fresh and
 its restore proven, and
 `motel-backup validate <Caddyfile>` says whether a run could plan
-from a Caddyfile before it goes live. The `motel` package carries
+from a Caddyfile before it goes live. The `moteld` package carries
 the program, an hourly timer for the run and a Sunday one for the
 drill ("On a fresh box", below), and depends on Debian 13's `restic`,
 `sqlite3` and `ca-certificates` (the CA store restic verifies the
@@ -78,7 +78,7 @@ At the edges of those:
 
 - **Where the account cannot be made** — a group named
   `motel-backup` is there without it, and `useradd` refuses — the
-  install says so and completes: motel is installed, and `setup`,
+  install says so and completes: moteld is installed, and `setup`,
   which makes the account, is where backups wait.
 - **At a remove** the timers and the services are stopped as
   `dh_installsystemd` stops them, and then, while the program is still
@@ -1032,7 +1032,7 @@ It needs no privilege.
   (`s3:HTTPS://…`: restic reads it as a host named `HTTPS:` and no
   bucket, and retries without end, `Bucket name cannot be empty`
   [measured, restic 0.18.0]), and a scheme restic does not
-  know; restic, sqlite3 or motel not installed (a run, a restore and
+  know; restic, sqlite3 or moteld not installed (a run, a restore and
   a drill refuse the same, in the same words, before any unit); a
   systemd older than 257; a `motel-backup` account that motel
   did not make — motel makes it with its mark, the comment

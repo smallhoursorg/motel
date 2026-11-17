@@ -19,14 +19,14 @@ const stubHost = "deploy.example.com"
 // box_webhook.
 const reachableAdaptation = `{"apps":{"http":{"servers":{"srv0":{"routes":[{"match":[{"host":["deploy.example.com"]}],"handle":[{"handler":"subroute","routes":[{"handle":[{"handler":"box_webhook"}]}]}],"terminal":true}]}}}}}`
 
-// stubValidator is the real child runner over stub programs: motel
+// stubValidator is the real child runner over stub programs: moteld
 // is the body of a /bin/sh script standing for `moteld validate`,
 // backup, unless "", for `motel-backup`; `moteld adapt` prints
 // reachableAdaptation. Each script records its arguments, one line per
 // run, and the staged file beside itself.
-func stubValidator(t *testing.T, motel, backup string, env ...string) (*childValidator, string) {
+func stubValidator(t *testing.T, moteld, backup string, env ...string) (*childValidator, string) {
 	t.Helper()
-	return stubChildren(t, motel, "printf '%s' '"+reachableAdaptation+"'; exit 0", backup, env...)
+	return stubChildren(t, moteld, "printf '%s' '"+reachableAdaptation+"'; exit 0", backup, env...)
 }
 
 // stubAdapt is stubValidator with `moteld validate` passing and adapt
@@ -42,12 +42,12 @@ func stubChildren(t *testing.T, validate, adapt, backup string, env ...string) (
 	stage := filepath.Join(dir, "stage")
 	must(t, os.Mkdir(stage, 0o700))
 	// One program answers both subcommands, as the real one does.
-	motel := "case \"$1\" in adapt)\n" + adapt + "\n;; esac\n" + validate
+	moteld := "case \"$1\" in adapt)\n" + adapt + "\n;; esac\n" + validate
 	// The box's own deadline: a child a test means to finish must not
 	// race the machine's load (#289). Tests of the deadline set their
 	// own.
 	c := &childValidator{
-		stage: stage, motel: script(t, dir, "motel", motel), backup: filepath.Join(dir, "absent"),
+		stage: stage, moteld: script(t, dir, "moteld", moteld), backup: filepath.Join(dir, "absent"),
 		env: env, timeout: validateTimeout, redactor: liveswap.NewRedactor(secretCandidates(env), nil),
 	}
 	if backup != "" {
@@ -75,12 +75,12 @@ func TestValidateChild(t *testing.T) {
 		if msg != "" || err != nil {
 			t.Fatalf("msg %q err %v", msg, err)
 		}
-		args, _ := os.ReadFile(filepath.Join(dir, "motel.args"))
+		args, _ := os.ReadFile(filepath.Join(dir, "moteld.args"))
 		staged := filepath.Join(c.stage, stagedConfig("0123456789abcdef0123456789abcdef"))
 		if strings.TrimSpace(string(args)) != "validate --adapter caddyfile --config "+staged+"\nadapt --adapter caddyfile --config "+staged {
 			t.Fatalf("args %q", args)
 		}
-		if got, _ := os.ReadFile(filepath.Join(dir, "motel.args.file")); string(got) != string(file) {
+		if got, _ := os.ReadFile(filepath.Join(dir, "moteld.args.file")); string(got) != string(file) {
 			t.Fatalf("the child read %q", got)
 		}
 		if exists(staged) {
@@ -232,7 +232,7 @@ func TestValidateChild(t *testing.T) {
 	})
 	t.Run("a program that cannot start is the box's", func(t *testing.T) {
 		c, _ := stubValidator(t, "exit 0", "")
-		c.motel = filepath.Join(t.TempDir(), "missing")
+		c.moteld = filepath.Join(t.TempDir(), "missing")
 		if msg, err := c.validate(context.Background(), randomID(t), file, stubHost, nil, nil); msg != "" || err == nil {
 			t.Fatalf("msg %q err %v", msg, err)
 		}
@@ -291,7 +291,7 @@ func TestValidateBackup(t *testing.T) {
 		if msg, err := c.validate(context.Background(), randomID(t), file, stubHost, nil, nil); msg != "" || err != nil {
 			t.Fatalf("EACCES: msg %q err %v", msg, err)
 		}
-		c.backup = filepath.Join(dir, "motel.args", "x") // a component that is not a directory
+		c.backup = filepath.Join(dir, "moteld.args", "x") // a component that is not a directory
 		if msg, err := c.validate(context.Background(), randomID(t), file, stubHost, nil, nil); msg != "" || err != nil {
 			t.Fatalf("ENOTDIR: msg %q err %v", msg, err)
 		}

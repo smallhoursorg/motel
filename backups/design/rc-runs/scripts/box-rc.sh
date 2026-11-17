@@ -7,7 +7,7 @@ set -eu
 mount --make-rshared /
 cd /root && cp /rc/moteld_0.3.0.rc1_arm64.deb .
 apt-get update -qq
-apt-get install -y ./moteld_0.3.0.rc1_arm64.deb 2>&1 | grep -E "Setting up (motel|restic|sqlite3)|Backups:|motel-backup setup"
+apt-get install -y ./moteld_0.3.0.rc1_arm64.deb 2>&1 | grep -E "Setting up (moteld|restic|sqlite3)|Backups:|motel-backup setup"
 systemctl enable --now moteld >/dev/null 2>&1
 moteld deploy-keygen --out /etc/motel/deploy.key >/dev/null
 cat >/etc/motel/Caddyfile <<'EOF'

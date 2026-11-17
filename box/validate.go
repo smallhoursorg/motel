@@ -39,7 +39,7 @@ const (
 
 // The programs, by absolute path: the package installs both there.
 const (
-	motelProgram  = "/usr/bin/moteld"
+	moteldProgram = "/usr/bin/moteld"
 	backupProgram = "/usr/bin/motel-backup"
 )
 
@@ -71,10 +71,10 @@ const NotifyPushedSecretsEnv = "MOTEL_NOTIFY_PUSHED_SECRETS" //nolint:gosec // G
 
 // childValidator runs the real children.
 type childValidator struct {
-	stage         string // where the staged copy is written
-	motel, backup string
-	env           []string
-	timeout       time.Duration
+	stage          string // where the staged copy is written
+	moteld, backup string
+	env            []string
+	timeout        time.Duration
 	// redactor is primed with the service's environment: validate's
 	// errors quote expanded values.
 	redactor *liveswap.Redactor
@@ -83,7 +83,7 @@ type childValidator struct {
 func newChildValidator(stage string) *childValidator {
 	env := os.Environ()
 	return &childValidator{
-		stage: stage, motel: motelProgram, backup: backupProgram,
+		stage: stage, moteld: moteldProgram, backup: backupProgram,
 		env: env, timeout: validateTimeout, redactor: liveswap.NewRedactor(secretCandidates(env), nil),
 	}
 }
@@ -131,7 +131,7 @@ func (c *childValidator) validate(ctx context.Context, id string, caddyfile []by
 	// service's own environment is never what validate reads.
 	v := *c
 	v.env = append(slices.Clone(c.env), NotifyPushedSecretsEnv+"="+strings.Join(boxSecrets, ","))
-	if msg, err := v.run(ctx, "moteld validate", loadError, c.motel, "validate", "--adapter", "caddyfile", "--config", staged); msg != "" || err != nil {
+	if msg, err := v.run(ctx, "moteld validate", loadError, c.moteld, "validate", "--adapter", "caddyfile", "--config", staged); msg != "" || err != nil {
 		return msg, err
 	}
 	if msg, err := c.adapt(ctx, staged, host, door); msg != "" || err != nil {
@@ -205,7 +205,7 @@ func loadError(line string) bool {
 // function (a moved door is named, its addresses are not).
 func (c *childValidator) adapt(ctx context.Context, staged, host string, door []string) (string, error) {
 	out := newCappedBuffer(maxAdaptation)
-	exit, timedOut, err := c.exec(ctx, c.motel, out, nil, "adapt", "--adapter", "caddyfile", "--config", staged)
+	exit, timedOut, err := c.exec(ctx, c.moteld, out, nil, "adapt", "--adapter", "caddyfile", "--config", staged)
 	switch {
 	case err != nil:
 		return "", fmt.Errorf("moteld adapt: %w", err)

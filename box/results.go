@@ -39,11 +39,11 @@ func terminal(phase string) bool {
 // The applier's messages, word for word from DESIGN-box.md's Message
 // catalogue. The proof's and the walk's refusals carry their own.
 const (
-	msgNotRunning         = "motel is not running; nothing applied"
-	msgStillStarting      = "motel is still starting after 300 s; nothing applied"
+	msgNotRunning         = "moteld is not running; nothing applied"
+	msgStillStarting      = "moteld is still starting after 300 s; nothing applied"
 	msgNoSigner           = "the Caddyfile this box runs lists no signer; moteld init is the way back"
 	msgInterrupted        = "interrupted before the Caddyfile changed; nothing changed"
-	msgInterruptedStopped = "interrupted; the previous Caddyfile is on disk; motel is not running — systemctl reset-failed moteld, then systemctl start moteld, loads it"
+	msgInterruptedStopped = "interrupted; the previous Caddyfile is on disk; moteld is not running — systemctl reset-failed moteld, then systemctl start moteld, loads it"
 	msgNoRecord           = "the box has no record of this push; push again"
 	msgReloadFailed       = "the reload failed; the previous Caddyfile is back and running — journalctl -u moteld -n 50 on the box says why"
 	// The same, for a set whose Caddyfile is unchanged: the box's own
@@ -71,16 +71,16 @@ const (
 	msgRolledBackInterruptedFiles = "interrupted after the box's files changed; rolled back: the previous files are back"
 	msgEnvChanged                 = "the env file for <app> changed during the transaction; it is left as found"
 	msgEnvDiskFull                = "disk full; the previous env file for <app> could not be restored"
-	// msgInitRemedy follows init's refusal on a motel that is not up
+	// msgInitRemedy follows init's refusal on a moteld that is not up
 	// ("Console commands"); %[1]s is init's argument and %[2]s its
 	// directory, absolute, since the operator may read it after a
-	// one-shot ssh and follow it from another. motel starts on the
+	// one-shot ssh and follow it from another. moteld starts on the
 	// file it has, so init's own swap and rollback still stand between
 	// the change and the box; the old file is never touched by hand. A
 	// restart, not a start: a start joins one already in flight, which
 	// read the old file; reset-failed first, as msgInterruptedStopped
 	// says, since a unit at its start limit refuses a restart.
-	msgInitRemedy = `the Caddyfile is accepted only by a running motel. Start it on the file it has, then run init again:
+	msgInitRemedy = `the Caddyfile is accepted only by a running moteld. Start it on the file it has, then run init again:
   systemctl enable moteld && systemctl reset-failed moteld && systemctl restart moteld
   cd %[2]s && moteld init %[1]s
 If it will not start, journalctl -u moteld says why.`
@@ -141,7 +141,7 @@ type result struct {
 	// Named is the object ids Error names, which an answer holds out of
 	// the response filter as it does Commit.
 	Named []string `json:"named,omitempty"`
-	// Reloaded, on an applied result, says that the push reloaded motel:
+	// Reloaded, on an applied result, says that the push reloaded moteld:
 	// the Caddyfile changed, or the box's own env file did (txn.reloads),
 	// which the names below cannot tell — the same values over other
 	// bytes reload, and a rekey of the same bytes does not.

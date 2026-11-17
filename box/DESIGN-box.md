@@ -52,7 +52,7 @@ and T6.
 | **pending** | A push that blocks admission: a bundle in `in/`, or a marker younger than thirty minutes with no terminal result. See "Admission". (A result poll's answer for a marker with no result yet is `admitted`, whatever the marker's age.) |
 | **id** | 32 lowercase hex the *workflow* chooses at random for each push and sends as `X-Box-Request-Id`, so it knows the id before it asks and a lost response loses nothing. Not a credential: a result poll is authenticated by `deploy_trust` like every request. Not an arrival order: the applier orders by the marker's `posted` time. |
 | **active** | `systemctl is-active moteld` says `active`. `activating` and `reloading` are waited out, within one wait budget per run (Caps); anything else is "not running". A push applies only on `active` (step 16). |
-| **up** | How recovery and `init` classify the same question's answer, after the same wait: `active`, or still `reloading` — motel serves, and a reload queues behind the one in flight. Still `activating`, `inactive`, `failed`: not up. |
+| **up** | How recovery and `init` classify the same question's answer, after the same wait: `active`, or still `reloading` — moteld serves, and a reload queues behind the one in flight. Still `activating`, `inactive`, `failed`: not up. |
 
 ## Why this subsystem exists
 
@@ -266,7 +266,7 @@ A step that fails stops the chain; the installed file is unchanged;
 the result carries the message from the catalogue. Numbers are used as
 cross-references throughout.
 
-**In the motel process (the `box_webhook` handler, uid motel):**
+**In the moteld process (the `box_webhook` handler, uid motel):**
 
 1. **Token.** `Authorization: Bearer <JWT>` is verified against the
    `box` block's `deploy_trust` sources through the one exported
@@ -557,14 +557,14 @@ waiting in a run is that long, plus one is-active question (bounded at
 episode in the same run, once the budget is spent — after recovery
 waited out a boot, say — gets no wait, so its push is refused as still
 starting and the workflow's run fails; a re-run pushes again. After the wait, one classification serves every caller:
-motel is *up* when it is `active` or still `reloading` (a reload
+moteld is *up* when it is `active` or still `reloading` (a reload
 then queues behind the one in flight); `activating` (a start, or a
 restart loop, which reads the file on disk when it gets there) and
 every other word is not running. A push is refused on anything but
 `active`, with the "still starting" text after a wait that timed out.
 `init` asks once, when it begins (after its recovery, whose wait may
 have spent the run's budget), and refuses, writing nothing, on anything
-but up; the residual is a motel that stops after `init` found it up,
+but up; the residual is a moteld that stops after `init` found it up,
 which ends `unknown`, both reloads refused. The installed file failing the
 walk for a reason other than an empty signer list, `applied.json`
 missing or unreadable, `ssh-keygen` unable to answer and `is-active`
@@ -581,7 +581,7 @@ the point. `init` runs "Reading the signed file" on the incoming file
 bare-hostname `box_webhook` site, no `import`, no placeholder at a
 directive position, braces) and no validate: the reload is the check
 (see "`moteld init`"). Under root's lock, after recovery, it asks
-step 16's question once, and on a motel that is up enters the state
+step 16's question once, and on a moteld that is up enters the state
 machine at the buffer comparison with `origin: init`, writing
 `applied.json` from its argument, the path it derives from the host
 ("The box's identity") and the bytes it installed. Its authority is
@@ -604,8 +604,8 @@ would change nothing an app sees.
 
 ### Why 202 and a poll
 
-Root's part of a push (its chain's verification, motel's reload,
-its wait when it finds motel `activating`) can run for minutes at
+Root's part of a push (its chain's verification, moteld's reload,
+its wait when it finds moteld `activating`) can run for minutes at
 worst (Caps), and a request held open that long is one a proxy in
 front of the box may cut. So the handler waits for the first result
 only as long as Caps allows and answers by it (step 8), the applier
@@ -906,7 +906,7 @@ by id.
 | **I1** | For every write the applier or `init` makes: `/etc/motel/Caddyfile` exists at every instant and is a complete file written whole — one that ran, or one whose reload is pending or in progress under a record that says `swapped`; a failed reload puts the previous bytes back, and a crash leaves a record saying which. The console is root and may write anything; the applier detects such a write by digest (step 10, and the re-reads the Transitions table gives) and reports it, and never overwrites it knowingly. A baseline names bytes that stand on disk when it is written: ones the transaction installed, or — for `no_change` — ones already there, which a console may have put there (Accepted residuals). Every env file in the set is likewise, at every instant, either absent or a complete file written whole — its previous bytes or its new ones — and the record says which each should be. |
 | **I2** | Every entry the applier *listed* in `in/` leaves `in/` in that run (a bundle landing after the last listing is the next run's), and `work/` is empty and no record remains on every exit, except a run that stops with work on disk: the full-disk end of the Failure-mode table; a stop with everything left as found (a record that does not read, the installed file unreadable mid-transaction, `is-active` unanswered in recovery); and a filesystem error the run cannot work around (root's lock, a listing of `in/` or `work/`, an entry that can be neither taken nor removed, an entry or the record that cannot be removed). What such a run took stays in `work/`, and it ends with the line `box apply leaves work on disk` and the console's remedy ("The applier unit"). `in/` receives nothing but a complete bundle by one `rename`. |
 | **I3** | Every bundle the applier takes ends in exactly one terminal result, or — only when the result cannot be written — one error-level journal line carrying every field the result would have; an entry that is not a bundle gets the journal line only, and a bundle whose push already settled (step 9) a warning line only — or, if its take fails, the take's error line. |
-| **I4** | The baseline advances only from a transaction — the applier's or `init`'s — whose durable record says `applied` (reload confirmed) or `no_change` (motel found active; for `init`, up), or from `baseline`; each holds root's lock; it never runs ahead of the record. |
+| **I4** | The baseline advances only from a transaction — the applier's or `init`'s — whose durable record says `applied` (reload confirmed) or `no_change` (moteld found active; for `init`, up), or from `baseline`; each holds root's lock; it never runs ahead of the record. |
 | **I5** | Within a transaction: from the first write that changes `/etc/motel` or `applied.json` until the terminal result, the record exists; it is written atomically before that first write and is the last thing removed. Refusals and `verified` precede it and write none. `moteld box baseline` is not a transaction: one atomic write of `applied.json` under the lock, after recovery, with no record — a crash before its rename changed nothing, after it the reset is done; a retry is idempotent. |
 | **I6** | Root installs nothing a listed signer did not sign (every chain commit), nothing that fails the file proof, nothing that does not descend from the baseline, nothing for another host or path. It decrypts nothing whose blob a proved tree does not name, and nothing before every signature on the chain has verified (step 15a). |
 | **I7** | No pending outlives its bound: a marker stops blocking admission at thirty minutes (the file is kept by Retention); a bundle in `in/` blocks admission until root takes it, with no age-out. |
@@ -934,13 +934,13 @@ touched does not stop their write-back.
 | Phase | Meaning | `d` must be | Recovery (crash found this phase) |
 |---|---|---|---|
 | *(no record)* | No transaction in flight. | — | A `work/` entry with a terminal result (on disk, or journaled earlier in this run: step 9): remove the entry. With a `verified` result or none: write `failed` ("interrupted before the Caddyfile changed", or "interrupted before the box's files changed" when the `verified` result names secrets), remove the entry — and if that `failed` cannot be written, remove the `verified`, so Retention settles the push. The applier's own leftover temporaries (Transitions table) are removed. |
-| *(record unreadable)* | `txn.json` does not parse, or is not the shape only root writes (a phase above, ids, digests, `prev` hashing to `prev_sha256`, a `no_change` record's two digests equal, a `path` of safe components, each `secrets` entry's app in the app grammar and its `prev` hashing to its `prev_sha256`). Root writes it whole by rename, so this is a fault no other row reasons about. | — | Write nothing anywhere; error-level journal line; take nothing from `in/`. The path unit re-runs until its trigger limit. The console, in this order: reads the record — the push is the one whose entry is in `work/` (`<id>.tar`). If that push has a terminal result in `out/<id>.json`, only the removal was owed; nothing else proves it ended (a replay of the baseline's own commit starts with `applied.json` already naming it). Otherwise it puts back the bytes that ran before the push, if the installed file is not them: the record's `prev` (base64, possibly their only copy), or, if `prev` does not decode, the last file the box recorded as applied — `applied.json`'s commit's, at its `path`, in the box's repository, signed and run before. It does the same for each env file the record lists: the entry's `prev`, or the file removed where `prev` is absent (where an entry's `prev` does not decode, it leaves that file as it is: old or new, its values are ones a signer committed, and the next push rewrites it). It runs `systemctl reload moteld` if motel is running. Then it removes the record and restarts the path unit ("The applier unit"). The next run ends the push `failed` ("interrupted before the Caddyfile changed"), which the write-back made true; a baseline the push had already advanced is reported as edited out of band by the next push, which applies over it. Exit 0: the one non-zero exit is the full-disk end. |
+| *(record unreadable)* | `txn.json` does not parse, or is not the shape only root writes (a phase above, ids, digests, `prev` hashing to `prev_sha256`, a `no_change` record's two digests equal, a `path` of safe components, each `secrets` entry's app in the app grammar and its `prev` hashing to its `prev_sha256`). Root writes it whole by rename, so this is a fault no other row reasons about. | — | Write nothing anywhere; error-level journal line; take nothing from `in/`. The path unit re-runs until its trigger limit. The console, in this order: reads the record — the push is the one whose entry is in `work/` (`<id>.tar`). If that push has a terminal result in `out/<id>.json`, only the removal was owed; nothing else proves it ended (a replay of the baseline's own commit starts with `applied.json` already naming it). Otherwise it puts back the bytes that ran before the push, if the installed file is not them: the record's `prev` (base64, possibly their only copy), or, if `prev` does not decode, the last file the box recorded as applied — `applied.json`'s commit's, at its `path`, in the box's repository, signed and run before. It does the same for each env file the record lists: the entry's `prev`, or the file removed where `prev` is absent (where an entry's `prev` does not decode, it leaves that file as it is: old or new, its values are ones a signer committed, and the next push rewrites it). It runs `systemctl reload moteld` if moteld is running. Then it removes the record and restarts the path unit ("The applier unit"). The next run ends the push `failed` ("interrupted before the Caddyfile changed"), which the write-back made true; a baseline the push had already advanced is reported as edited out of band by the next push, which applies over it. Exit 0: the one non-zero exit is the full-disk end. |
 | *(any phase, terminal result present)* | The transaction ended; only its removals were owed. | — | Remove the record, then the entry (Failure-mode table, "terminal result"). |
 | `no_change` | Buffers identical; only the baseline advances. | `prev` | Write `applied.json` (idempotent), result `no_change`. |
 | `installing` | Record durable; swap not yet done. | `prev` | `failed` ("interrupted before the Caddyfile changed", or with env files in the set "interrupted before the box's files changed"). If `d == new` or mixed, the crash fell in or after the swap: act as `swapped`. |
 | `swapped` | New files on disk; reload, if the Caddyfile changed, unconfirmed. | `new`, mixed, or `prev` (the bytes are already back: continue as `rolling_back`) | Write the previous bytes back to every file at `new` (an env file that was absent before is removed), phase → `rolling_back`, continue as that row, whatever the origin. |
 | `applied` | Reload confirmed (or none was needed); `applied.json` may not be written yet. | `new` | Write `applied.json` (idempotent), result `applied`. **If `d ≠ new`, a file changed after the reload (a console edit): do not advance the baseline; result `unknown`.** |
-| `rolling_back` | Reload failed (or the record could not follow the swap, or a write after the first one failed); previous bytes going back. | `prev`, `new` or mixed (crash before the write-back: write back each file at `new`) | Reload if the Caddyfile was in the set and motel is up (Glossary) → `rolled_back` with the record's `error`; with env files alone in the set, no reload: `rolled_back` once they are back; reload fails → `unknown`, worded by the record's `error` (Message catalogue: "both" reloads failed only when the first one did); not running (anything else, a restart loop still `activating` included) → `failed` ("the previous Caddyfile is on disk; motel is not running"). A file at neither: the `any` row. A write-back that fails ends as the full-disk end (Failure-mode table). |
+| `rolling_back` | Reload failed (or the record could not follow the swap, or a write after the first one failed); previous bytes going back. | `prev`, `new` or mixed (crash before the write-back: write back each file at `new`) | Reload if the Caddyfile was in the set and moteld is up (Glossary) → `rolled_back` with the record's `error`; with env files alone in the set, no reload: `rolled_back` once they are back; reload fails → `unknown`, worded by the record's `error` (Message catalogue: "both" reloads failed only when the first one did); not running (anything else, a restart loop still `activating` included) → `failed` ("the previous Caddyfile is on disk; moteld is not running"). A file at neither: the `any` row. A write-back that fails ends as the full-disk end (Failure-mode table). |
 | any | A file of the set matches neither its `prev` nor its `new`. | — | A console edit under the transaction: write nothing to `/etc/motel`, result `unknown` ("the Caddyfile changed during the transaction; it is left as found", or "the env file for <app> changed during the transaction; it is left as found"), journal at warning level. |
 
 ### Record and result fields
@@ -958,7 +958,7 @@ touched does not stop their write-back.
 | record | `secrets_tree`, `secrets_installed` | applier | HEAD's secrets tree id (`""` for none) and the `app → sha256` map of every env file the box manages once the push applies: what `applied.json` gets |
 | record, result | `secrets_added`, `secrets_changed`, `secrets_removed` | applier | the secrets the push adds, changes or removes, as `<app>/<VAR>`, sorted; never a value. In the record too, so a result recovery writes carries them. A secret is changed when its value is, so a rekey that keeps the values lists none. Added and changed are HEAD's names; removed ones only an env file at the digest `applied.json` records gives, so a file root did not write names none (I9), and its app is in `secrets_edited_out_of_band` |
 | record, result | `secrets_edited_out_of_band` | applier | the apps whose env file root wrote or removed over bytes it had not installed — a digest differing from `applied.json`'s, a listed file gone or not at the mode and owner it set, or a file it never installed for an app this push installs ("Values and the env file") |
-| result | `reloaded` | applier | on an applied result, `true` when the push reloaded motel: the Caddyfile changed, or the box's own env file's bytes did ("The box's own slot"); absent otherwise. The names above cannot say it: the same values over other bytes reload, and a rekey that renders the same bytes does not. The template's `bin/apply` reads it for its line |
+| result | `reloaded` | applier | on an applied result, `true` when the push reloaded moteld: the Caddyfile changed, or the box's own env file's bytes did ("The box's own slot"); absent otherwise. The names above cannot say it: the same values over other bytes reload, and a rekey that renders the same bytes does not. The template's `bin/apply` reads it for its line |
 | record, result | `diff` | applier | unified diff, redacted (layers 3 and 4), capped per Caps |
 | record, result | `apps` | applier | app names from the incoming file's token walk: the global `liveswap` block's `app` lines whose name is in liveswap's app-name grammar (one outside it fails the load anyway), so a result's size stays under the handler's read cap |
 | record, result | `box_webhook` | applier | the host |
@@ -998,14 +998,14 @@ A result carries what was established before its phase: a refusal at
 step 9 has `id`, `phase` and `error`; one past the bundle's parse adds
 `commit` and `path`; `signer`, `box_webhook`, `apps` and the out-of-band
 flag come once steps 10 to 15 pass, and `diff` and the `secrets_*`
-fields once motel is found active. A transaction with `origin: init` writes no result file at any
+fields once moteld is found active. A transaction with `origin: init` writes no result file at any
 phase — its caller prints the outcome, and recovery journals it.
 
 ```mermaid
 stateDiagram-v2
     [*] --> checking : bundle taken (9)
     checking --> refused : any of 10–15a fails
-    checking --> not_running : motel not active after the wait
+    checking --> not_running : moteld not active after the wait
     checking --> no_change : active, the set empty
     checking --> verified : active, the set not empty
     no_change --> [*] : applied.json, result, record removed
@@ -1031,7 +1031,7 @@ stateDiagram-v2
 | in/ → work/ | step 9 takes an entry | the entry renamed into `work/` → `work/` and `in/` fsynced | I2, I8 |
 | checking → refused | A check in 10–15a fails | result `refused` → entry removed | I2, I6 |
 | checking → failed | the box's own error in 9–16: the bundle unreadable, `applied.json` missing or unreadable, the installed file unreadable or failing the walk for any reason but an empty signer list, `ssh-keygen` unable to answer or the chain deadline passed, `is-active` unanswered; in 15a, the box key missing or unreadable, an installed env file unreadable, `/etc/motel/secrets/` not the setgid `root:motel` directory tmpfiles.d makes | result `failed` ("the install failed before the Caddyfile changed: <error>; nothing changed", the catalogue's; the key and the directory have texts of their own) → entry removed | I2, I3; never `refused` (step 12) |
-| checking → not_running | `origin: applier`: `is-active` is not `active` — `inactive`/`failed` at once, or still `activating` or `reloading` when the run's 300 s wait ends. `origin: init`: not up (step 16) — `inactive`/`failed` at once, or still `activating` when the wait ends; a `reloading` the wait outlasted is up, and `init` goes on (its reload queues behind) | result `refused` — "motel is not running; nothing applied" for `inactive`/`failed`, "motel is still starting after 300 s; nothing applied" after a wait that timed out, the catalogue's two messages → entry removed. `init` writes nothing: it prints the same message with its remedy and exits non-zero ("Console commands") | I2; I4: nothing advances |
+| checking → not_running | `origin: applier`: `is-active` is not `active` — `inactive`/`failed` at once, or still `activating` or `reloading` when the run's 300 s wait ends. `origin: init`: not up (step 16) — `inactive`/`failed` at once, or still `activating` when the wait ends; a `reloading` the wait outlasted is up, and `init` goes on (its reload queues behind) | result `refused` — "moteld is not running; nothing applied" for `inactive`/`failed`, "moteld is still starting after 300 s; nothing applied" after a wait that timed out, the catalogue's two messages → entry removed. `init` writes nothing: it prints the same message with its remedy and exits non-zero ("Console commands") | I2; I4: nothing advances |
 | checking → no_change | active (`origin: init`: up); the set is empty: incoming buffer == installed buffer, and every env file 15a rendered equals the installed one byte for byte, none to be removed | record `no_change` → the installed file's digest re-read, still `prev_sha256`, and each env file's, still what 15a read (a console edit since step 10 or 15a → `unknown`, the catalogue's "changed during the transaction" text for that file, baseline not advanced, record removed, entry removed; unreadable → the stop-as-found of I2) → `applied.json` (HEAD's `secrets_tree` and `secrets`, the fields table's rule) → result `no_change` → record removed → entry removed | I1, I2, I4, I5. Every write of `applied.json` — this one, `swapped → applied`'s, and recovery's — is preceded by that re-read, after any wait before it |
 | checking → verified | active (`origin: init`: up); the set is not empty | result `verified` (if this write fails: result `failed` in its place if that can be written, else any `verified` whose rename landed removed; the `work/` entry removed; nothing else changes) — `init` writes no result, it prints | I3 |
 | verified → installing | — | record `installing` (the previous bytes of every file in the set embedded) | I5, I8, I9 |
@@ -1086,7 +1086,7 @@ failure, and the rule. These are the box's examples for its scales:
 | Axis | 5 | 4 | 3 | 2 | 1 |
 |---|---|---|---|---|---|
 | **Severity** | installs bytes no listed signer signed, or advances the baseline wrongly (I6, I4) | the box wedged until the console | a wrong verdict the workflow trusts (green for a push that did not apply, or the reverse) | a wrong message; red where green was due | logging only |
-| **Occurrence** | normal operation, or any line a signer may commit | one common fault: a crash, a failed reload, motel restarting | one rare fault: `EIO`, a full disk, a clock step | two independent faults | three or more, or root-only state (`txn.json`, `out/`, `applied.json`) corrupted |
+| **Occurrence** | normal operation, or any line a signer may commit | one common fault: a crash, a failed reload, moteld restarting | one rare fault: `EIO`, a full disk, a clock step | two independent faults | three or more, or root-only state (`txn.json`, `out/`, `applied.json`) corrupted |
 | **Detection** | silently | — | a wrong but plausible answer | — | red, with a journal line naming it |
 
 A hostile motel uid (T5) gains nothing, and so scores severity 1,
@@ -1099,8 +1099,8 @@ can do both by other means.
 |---|---|---|---|---|---|
 | A clock stepped back by more than a few minutes makes earlier results count as new: kept past a day, and 32 or more of them crowd out later results | Retention | 2 | 3 | 3 | 18; this run's results are never swept, so every push can be polled at least until the next run |
 | The motel uid dates stranded markers recently and crowds real results out of the 32 | Retention | 1 | — | — | T5 already answers every poll itself |
-| A later `activating` or `reloading` episode in a run whose wait budget is spent is refused as still starting — and so is a reload that outlasts the whole budget, though motel is up | step 16 | 2 | 3 | 1 | 6; the run goes red with the catalogue text and a re-run pushes again |
-| `init` finds motel up, and it stops before the reload: `unknown`, both reloads refused, the previous file on disk | step 16 | 2 | 2 | 1 | 4; red, non-zero and named, at a console where a person reads it |
+| A later `activating` or `reloading` episode in a run whose wait budget is spent is refused as still starting — and so is a reload that outlasts the whole budget, though moteld is up | step 16 | 2 | 3 | 1 | 6; the run goes red with the catalogue text and a re-run pushes again |
+| `init` finds moteld up, and it stops before the reload: `unknown`, both reloads refused, the previous file on disk | step 16 | 2 | 2 | 1 | 4; red, non-zero and named, at a console where a person reads it |
 | A push whose terminal result was only journaled in an earlier run (full disk) may run again if its bundle comes back in `in/` | step 9 | 3 | 1 | 3 | 9; needs an undurable take, a power loss and a full disk |
 | A bundle that reached only `verified` and survived a power loss in `in/` is judged afresh; the same push surviving in `work/` ends `failed` (interrupted) | step 9 | 2 | 1 | 1 | 2; both outcomes are safe and reported |
 | A result in `out/` that does not read, or is not the applier's shape, counts as none: the push may run again on its merits | step 9 | 3 | 1 | 3 | 9; `out/` is root's alone, written whole by rename |
@@ -1111,16 +1111,16 @@ can do both by other means.
 | Recovery checks `d`, then waits on `activating`; a bare console edit during the wait is reloaded or reported as the previous file | States, `rolling_back` | 2 | 2 | 3 | 12; needs a crash and a concurrent bare edit |
 | A push whose marker was never written (a crash, a full disk, `in/` unsynced) and whose bundle root has taken into `work/` is not known to the handler: a retry under the same id is admitted again, and its poll reads 404 until root's result | "Admission" | 2 | 2 | 3 | 12; root settles both by the descent check, and the workflow keeps polling on 404 (catalogue) |
 | A handler refusal (steps 3–6) or a fast-path `no_change` whose response is lost leaves nothing to poll: the workflow polls 404 to its bound and goes red naming the journal, where the refusal line says why | "A lost response loses nothing" | 2 | 3 | 1 | 6; red and named; the handler writes nothing in `out/`, which is root's |
-| A `no_change` reloads nothing, so it records as the baseline bytes the running motel may not have loaded: a console that copied a file in without a reload, then pushes or runs `init` with the same bytes | `moteld init`; Transitions, checking → no_change | 3 | 1 | 3 | 9; two console acts, the copy without its reload first; the next reload loads the recorded bytes |
+| A `no_change` reloads nothing, so it records as the baseline bytes the running moteld may not have loaded: a console that copied a file in without a reload, then pushes or runs `init` with the same bytes | `moteld init`; Transitions, checking → no_change | 3 | 1 | 3 | 9; two console acts, the copy without its reload first; the next reload loads the recorded bytes |
 | A record that does not read, from a transaction past its swap, removed by a console that skips the write-back: the push ends `failed` ("interrupted before the Caddyfile changed") with the new file on disk, and the next push reports an out-of-band edit | States, "(record unreadable)" | 3 | 1 | 3 | 9; root-only state corrupted, then the console skipping the step its journal line names |
-| A crash or shutdown between the swap and the reload's outcome, for a file that validates but does not load: motel starts on it at boot and fails, and recovery puts the previous bytes back on a motel that stays down (`failed`, "motel is not running") | States, `swapped` and `rolling_back` | 4 | 2 | 1 | 8; red, and the result names the commands that start motel on the previous file |
+| A crash or shutdown between the swap and the reload's outcome, for a file that validates but does not load: moteld starts on it at boot and fails, and recovery puts the previous bytes back on a moteld that stays down (`failed`, "moteld is not running") | States, `swapped` and `rolling_back` | 4 | 2 | 1 | 8; red, and the result names the commands that start moteld on the previous file |
 | What a console put at an env file's name that is not root's own is not put back as it was by a rollback: a link reads as no file, so the push replaces it and the rollback removes the push's file; a file at another mode or owner gets its bytes back at 0640 `root:motel` | "Values and the env file" | 2 | 2 | 3 | 12; two independent faults (a console's own entry in root's directory, then a failed push), and the push is red and named |
 | After a push takes over an env file made or edited at the console, the variables only that file had are named nowhere: the push names none read from bytes root did not write (I9), those bytes are gone once it applies, and the app loses the variables at its next launch | "Values and the env file"; examples/box/bin/apply | 2 | 5 | 1 | 10; the out-of-band warning names the app and says any variable only the edit had is gone, unnamed; docs/secrets.md's "Move a hand-made env file in" brings a file in before a push takes it over. Naming them is naming what may be a value |
 | `make secrets-import` of a line holding two tokens glued, `<secret>=<token>=` (or `<secret> = <token>=`), in capitals and digits alone (base32 with one `=` of padding): the secret becomes a file name in the repository, staged, and in its history once committed | examples/box/bin/secrets (`secrets_import`) | 5 | 5 | 3 | 75; **accepted by the owner's decision of 2026-11-14.** Severity 5, which rule 1 would fix; kept because no rule about the line's shape can tell it from `NAME=value`: the line is a well-formed `NAME=<base64 value>`. The import prints the name among those added, and refuses every shape a secret alone on its line takes (empty or `=`-only value, an unquoted one starting with `=` or `#`, unquoted white space after the `=` alone); with a lower-case letter in a name it adds or changes, as base64 almost always has, it asks for a check before the commit (D1). What is left is guessing secrets by entropy, which the import does not do |
 | An app launched (a deploy, a crash's relaunch) while a push's env files stand at `new` — between their swap and the Caddyfile's, or before a rollback puts them back — runs with those values, beside the Caddyfile it had, until its next launch | Transitions, installing → swapped | 2 | 2 | 3 | 12; the values are ones a signer committed, the push is red and named when it rolls back, and the app's next launch reads what is on disk |
 | A push installs an app's first env file, its `applied.json` write fails, and a console edit lands before recovery: `unknown`, and the baseline does not list the file; a later push that drops the app's secrets leaves it on disk, since root removes only listed files | `applied.json`'s `secrets`; Transitions, swapped → applied | 2 | 2 | 5 | 20, kept by rule 4 (the triage skill): a guard is a branch for a two-fault case. The file is where values may live (I9) and nothing names it (an `env_file` there with no secrets is refused); a push that gives the app secrets again lists it. The console removes it |
 | An app's `env_file` outside `/etc/motel/secrets/` that is not on the box: the push applies green, since config load is silent about an absent file (`warnEnvFileModeOf`, liveswap/app.go). A deploy fails at its launch, named, and the old version keeps serving; but a crash's relaunch fails the same way, so the app stays down until the console makes the file | "Which checks run where" | 4 | 4 | 1 | 16; every launch names the missing file. A warning at config load would fire on every CI check, where the file cannot exist; reporting root's own stat in the push's result is a new field (size 3, risk 2) |
-| `make check`'s refusal of a motel that reads no secrets names no release, so the line alone does not say which binary or release failed | examples/box/bin/check | 2 | 5 | 1 | 10; red and named, and the refusal says how the workflow picks its release (the box's `MOTEL_VERSION` file; without one, the latest stable, or the one the `MOTEL_VERSION` variable names), whose install step's line names it; a box with a file is checked with `motel-<version>`, which the box's green line names. `moteld version` on a release that old prints only Caddy's version, and naming the release from `MOTEL_VERSION` is a branch on `GITHUB_ACTIONS` that trusts the workflow's steps (size 2, risk 2) |
+| `make check`'s refusal of a moteld that reads no secrets names no release, so the line alone does not say which binary or release failed | examples/box/bin/check | 2 | 5 | 1 | 10; red and named, and the refusal says how the workflow picks its release (the box's `MOTEL_VERSION` file; without one, the latest stable, or the one the `MOTEL_VERSION` variable names), whose install step's line names it; a box with a file is checked with `moteld-<version>`, which the box's green line names. `moteld version` on a release that old prints only Caddy's version, and naming the release from `MOTEL_VERSION` is a branch on `GITHUB_ACTIONS` that trusts the workflow's steps (size 2, risk 2) |
 | A ^C at `make secret`'s prompt that lands while the shell is still starting the pipeline's second half, which checks and encrypts the value: that half reads an empty value and prints `<VAR> is empty: …` before the script exits 130, with nothing written (1 of 100 runs with the ^C sent the moment the prompt shows, the script pinned to one busy CPU; 0 of 100 unpinned). And one that lands while the shell starts the reading half, before the prompt shows: the prompt shows all the same and waits, what was typed ahead is gone, and the script exits 130 at the next ^C, or after a value and Enter with nothing written and no message | examples/box/bin/secrets (`secret_set`) | 2 | 5 | 3 | 30, and rules 2 and 3 would fix it; accepted by the owner's decision of 2026-11-14. The prompt is printed by the reading half, so a ^C once it shows always reaches a reader that is there (until then a ^C in the gap after the prompt left the reader waiting for good, the CI hang of 2026-11-14). Removing these windows changes how the script handles interrupts: key signals off at the prompt and ^C read as a byte (size 3, risk 2), which needed its own repairs (^C during age, loops of make secret, the trap); the owner chose the one-line change. A narrower fix for the first window, no byte at all from the prompt taken as left (exit 130, no message), is size 1, risk 2 |
 | A box host that a proxy reaches with a client certificate (Cloudflare's Authenticated Origin Pulls), or that a balancer reaches through a `proxy_protocol` falling back to `REQUIRE`, or whose TLS policy sets ciphers or curves: every push is refused, though the workflow's connection would arrive | Reachability, "The connection" | 2 | 5 | 1 | 10; red and named, and each remedy there keeps the box reachable. Admitting the setting needs the door's compare applied to the wrappers and policies, against the configuration the admin API serves, since the loaded server holds them as provisioned modules ("The door"; size 3) |
 | A box server whose TLS policies are in an order no Caddyfile adapts to passes as walked: a list in which no policy is sure to apply to the host (Caddy then refuses the handshake), or, past 30 policies, one matching the host by wildcard or by matcher ahead of one naming it exactly (Caddy looks at that one first) | Reachability, "The connection" | 4 | 1 | 3 | 12; the input is always the adapter's, which ends every list with a catch-all and writes a policy naming a host ahead of any other matching it |
@@ -1152,7 +1152,7 @@ taken before the checks below and released after step 7, so two
 concurrent authenticated pushes cannot both see "nothing pending" and
 both enqueue. Within one process the push slot (Caps) already admits
 one push at a time, across reloads; the lock is the guard across
-processes — two motel processes on one tree, as an overlapping
+processes — two moteld processes on one tree, as an overlapping
 restart could make — and a crash releases it with the descriptor.
 
 | Condition at the lock | Answer | Why |
@@ -1320,7 +1320,7 @@ Every numeric bound, in one place, with its reason.
 | What | Cap | Why |
 |---|---|---|
 | bundle body | 16 MiB | a bundle without secrets is kilobytes. With them it carries their ciphertext too: about the values' length plus some 200 bytes per reader per secret, which does not compress. The secrets caps below would allow more, so this cap is the one that binds, and `moteld box describe` warns when a box's secrets pass 12 MiB (75%) of ciphertext, in the pull request's check run, before a push meets the 413 |
-| pushes in memory | one per motel process, from its body to its drop, shared across reloads; another push is 409 "a push is being admitted; retry in a moment", its body unread | the body is read before the admission lock (step 2), so without this nothing would bound how many authenticated requests hold 16 MiB each; honest runs are one at a time already (the workflow's `concurrency` group) |
+| pushes in memory | one per moteld process, from its body to its drop, shared across reloads; another push is 409 "a push is being admitted; retry in a moment", its body unread | the body is read before the admission lock (step 2), so without this nothing would bound how many authenticated requests hold 16 MiB each; honest runs are one at a time already (the workflow's `concurrency` group) |
 | bundle upload | 120 s, the handler's own bound on the body while the push slot is held: a read past it fails, whatever deadline the connection has by then, and so does a read that ends at a deadline once the bound has passed (the deadline's error, "i/o timeout", is named as the bound), with 400 "could not read the bundle: the upload outlasted 2m0s" and a `box push upload failed` line, and the slot given back before the answer is written (writing it makes net/http drain what is left of the body first). The handler sets the same bound as the connection's read deadline. From Caddy v2.11.8 the server's idle reader (`read_idle_timeout`, a minute by default, plus the rate's credit, capped at `read_timeout` when one is set) re-arms that deadline before every body read but never past the handler's (caddy#8284), and keeps one that expired so it ends the drain too (caddy#8178). So a stall ends the read, frees the slot and is answered at the idle bound (with the connection's own error, as the bound has not passed) or at 120 s, whichever comes first; and a body that keeps arriving a byte at a time is cut at 120 s, the slot freed and the push answered then (measured in the e2e box, "box apply 3b", on v2.11.9: a byte every 20 s, the 400 dated 120 s in and the client gone with its next byte at 140 s). A reader the handler's deadline does not reach — the `timeouts` directive's own, where the server's is off; the server's on v2.11.7 — re-arms past it, so a trickle holds the slot until the read in flight at 120 s returns with its next byte, and is answered once the drain ends, at the idle deadline that read armed — the bound and at most one idle window (measured on v2.11.7: the slot free at 140 s and the push answered at 180 s; before this bound, the slot was held until the trickle's bytes stopped). On v2.11.7 a stall's 400 might never leave: that reader cleared the connection's deadline after its error (caddy#8103), and the drain then had none until the client went | a stalled or trickled upload would otherwise hold the one slot until its connection ends, with every other push 409 meanwhile; a bundle is kilobytes |
 | the box server's `max_header_bytes`, floor | 8 KB (8000 bytes): a positive value under it is refused at step 6 ("The request limits") | a push's headers are the request line, a few short headers and `Authorization: Bearer` with the workflow's OIDC token — an RS256 JWT of some thirty claims, about 2 KiB (estimated from GitHub's documented example and a 2048-bit signature, not measured), so the floor is two to three times what a push sends. 8000 rather than 8192, since Caddy reads `max_header_size` with SI prefixes and `8KB`, the usual hardening spelling, must pass. Caddy's default is 16 KiB; under the floor a push could be answered 431 by Go's server before any route, and the next push too |
 | the box server's `read_header_timeout`, floor | 5 s | Go's `net/http` bounds the TLS handshake by the smallest positive one of `read_header_timeout`, `read_timeout` and `write_timeout` (`Server.tlsHandshakeTimeout`), then reads the headers under it; a runner's handshake and headers take well under a second, and 5 s leaves room for a loaded box. Caddy's default is a minute |
@@ -1363,7 +1363,7 @@ Every numeric bound, in one place, with its reason.
 | the adaptation | 16 MiB of stdout kept, bytes past it counted and dropped (never an error to the pipe: a child blocked on a full pipe would run to its deadline), stderr discarded; past the cap the push is refused `the new Caddyfile's adaptation is larger than 16 MiB`; the JSON reaches nothing but the reachability walk, since it holds every expanded `{$VAR}`; the walk decodes it once (one value, numbers kept as written, so an integer at int64's edge reads as Caddy reads it) and converts it in one pass, then encodes the box server's connection settings again into their shapes: linear in its size however deep its routes nest | a 1 MiB Caddyfile adapts to a few MiB; the bundle's own figure |
 | handler poll interval for the first result | 1 s | how long a result root has written can wait before the handler reads it and answers the POST: `verified`, or a final result if root was that quick ("Why 202 and a poll") |
 | workflow poll | 30 minutes, then red naming the journal | past root's worst case at its own deadlines, with room for the `is-active` calls and recovery: a 10-minute chain, the 300 s `activating` wait, and the 300 s deadline on each of the reload and the rollback reload come to 25 minutes |
-| `activating` / `reloading` wait (step 16, recovery, `init`) | 300 s elapsed, one budget per run from its first sight of either state, never reset | motel's `TimeoutStartSec=240s` plus `RestartSec`; an elapsed bound, since `Restart=on-failure` can keep a unit activating across attempts; one budget, so a motel that flaps cannot hold root's lock for 300 s per bundle |
+| `activating` / `reloading` wait (step 16, recovery, `init`) | 300 s elapsed, one budget per run from its first sight of either state, never reset | moteld's `TimeoutStartSec=240s` plus `RestartSec`; an elapsed bound, since `Restart=on-failure` can keep a unit activating across attempts; one budget, so a moteld that flaps cannot hold root's lock for 300 s per bundle |
 | that wait's poll | 1 s | |
 | one `systemctl is-active` | 30 s | PID 1 answers it from memory; past it the question is unanswered, never a state |
 | reload | moteld.service's own 240 s; the applier's deadline on its `systemctl reload` is 300 s | the applier sets no shorter timeout: its own deadline only ends a `systemctl` that outlives the job it waits for |
@@ -1468,8 +1468,8 @@ top) moves it once.
 Beside the file, the template may keep `<host>/MOTEL_VERSION`: the
 release that box runs, one line, which `make check` checks the box's
 files with (`bin/install-moteld` installs each release the boxes'
-files name as `motel-<version>`, and the default — the
-`MOTEL_VERSION` variable's, else the latest stable — as `motel`;
+files name as `moteld-<version>`, and the default — the
+`MOTEL_VERSION` variable's, else the latest stable — as `moteld`;
 a file that names no release, or a release with no build, is said and
 skipped there and refused by `make check`, never read as the latest).
 It is the repository's alone: the bundle carries `<host>`'s tree, which
@@ -1705,7 +1705,7 @@ Three things differ:
   each launch; `moteld box describe` warns of one in `secrets/<app>/`: the
   prefix is notify's.
 - **notify reads it at a config load**, not an app at a launch, so a set
-  in which `_box.env`'s bytes change reloads motel as a changed
+  in which `_box.env`'s bytes change reloads moteld as a changed
   Caddyfile does (`reloads`, box/txn.go); a reload that refuses the new
   values rolls the set back and reloads the previous file. A rewrite for
   the file's mode alone reloads nothing.
@@ -1834,14 +1834,14 @@ says. The workflow's action is in the last column.
 | 422 | `refused` | `this push changes where the box's server listens (its listen addresses differ from the loaded config's): a push cannot move the address it arrives on; make that change at the console` — fixed words; no address is quoted, since one may hold a value from the service's environment ("The door", in "Reachability") | handler | fail; a deliberate move is made at the console ("At 3am"), after which the push of the same commit is admitted |
 | 422 | `refused` | `the new Caddyfile does not reach box_webhook on /: a listener's protocols include neither h1 nor h2` / `… : the <wrapper> listener wrapper may refuse the connection` / `… : the server's strict_sni_host refuses a request to an IP address, which carries no SNI` / `… : a TLS connection policy for <host> <what>` / `… : a TLS connection policy that may apply to <host> <what> (its <matcher> matcher is decided per connection)` — `<what>` is `requires a client certificate`, `drops the connection`, `offers neither h2 nor http/1.1 by ALPN` or `sets <setting>, which may refuse the handshake` ("The connection", in "Reachability") / `… : the server's max_header_bytes is under 8 KB, the floor for a push's headers and token` / `… : the server's read_header_timeout is under 5s, the floor for a push's handshake and headers` / `… : the server's read_timeout is under 30s, the floor for a push's upload` / `… : the server's read_idle_timeout is under 10s, the floor for a push's upload` / `… : the server's read_min_rate is over 64 KiB/s, the ceiling for a push's upload` / `… : the server's write_timeout is under 5s, the floor for a push's handshake` — fixed words, the value never quoted ("The request limits") | handler | fail; in the file, raise the limit to its floor or above (for `read_min_rate`, lower it to its ceiling or below) |
 | 422 | `refused` | the consistency checks of "Which checks run where", each text as that table gives it | handler | fail |
-| 422 | `refused` | `motel is not running; nothing applied` / `motel is still starting after 300 s; nothing applied` | applier | fail |
+| 422 | `refused` | `moteld is not running; nothing applied` / `moteld is still starting after 300 s; nothing applied` | applier | fail |
 | 422 | `refused` | `<path> is not encrypted to this box's key (<recipient>): put that key first in <host>/secrets/recipients and run make rekey` / `<path> does not decrypt: <reason>` (one of the four reasons in "Values and the env file") / `<app>/<VAR>: the value has a line break` / `<app>/<VAR>: the value has a NUL byte` / `<app>/<VAR>: the value is not UTF-8` / `app <app>'s env file would be <n> bytes; the cap is 65536` (step 15a) | applier | fail |
 | 422 / poll | `failed` | `this box has no key for secrets (/etc/motel/age/identity): moteld box key, as root, makes one; then make rekey BOX_KEY=<the key it prints> in the repository, and push; nothing changed` / `/etc/motel/secrets is not the setgid root:motel directory tmpfiles.d makes: systemd-tmpfiles --create motel-box.conf, as root, puts it back; nothing changed` / `/etc/motel/secrets/<app>.env is larger than 66560 bytes, which no push writes: move it aside, as root, and push again; nothing changed` / `/etc/motel/secrets/<app>.env is not a regular file, which no push writes: move it aside, as root, and push again; nothing changed` (a directory, a FIFO or a socket, which no rename replaces) (step 15a) | applier | red |
 | 422 | `refused` | `the Caddyfile this box runs lists no signer; moteld init is the way back` | both | fail |
 | 200 / poll | `no_change` | `the box already runs this Caddyfile` | applier | green |
 | 202 | `verified` | `verified; installing` | applier | poll, 30 min bound; then red naming `journalctl -u motel-box-apply` |
 | 200 / poll | `applied` | `loaded; running apps are not restarted` / `secrets updated; the Caddyfile is unchanged, nothing reloaded` (a set of env files alone) | applier | green |
-| 422 / poll | `failed` | `the install failed before the Caddyfile changed: <error>; nothing changed` / `interrupted before the Caddyfile changed; nothing changed` / `the install failed before the box's files changed: <error>; nothing changed` / `interrupted before the box's files changed; nothing changed` (env files in the set) / `interrupted; the previous Caddyfile is on disk; motel is not running — systemctl reset-failed moteld, then systemctl start moteld, loads it` (the reset clears a `start-limit-hit`, which would refuse the start) / `the box has no record of this push; push again` | applier | red |
+| 422 / poll | `failed` | `the install failed before the Caddyfile changed: <error>; nothing changed` / `interrupted before the Caddyfile changed; nothing changed` / `the install failed before the box's files changed: <error>; nothing changed` / `interrupted before the box's files changed; nothing changed` (env files in the set) / `interrupted; the previous Caddyfile is on disk; moteld is not running — systemctl reset-failed moteld, then systemctl start moteld, loads it` (the reset clears a `start-limit-hit`, which would refuse the start) / `the box has no record of this push; push again` | applier | red |
 | 422 / poll | `rolled_back` | `the reload failed; the previous Caddyfile is back and running — journalctl -u moteld -n 50 on the box says why` / `the reload failed on the box's new notify secrets; the previous ones are back and running — journalctl -u moteld -n 50 on the box says why (notify takes a channel URL that is https to a public host)` (the Caddyfile unchanged, `_box.env` reloaded) / `a write after the first file changed failed; rolled back: the previous Caddyfile and env files are back` / `interrupted after the box's files changed; rolled back: the previous files are back` (env files in the set) / `the record could not be updated after a successful reload (disk full); rolled back to keep the file and the record consistent` / `the Caddyfile was swapped, then a write after the swap failed; rolled back: the previous Caddyfile is back and running` (the `swapped` record, or the swap's own `fsync`, failed; nothing was reloaded first) / `interrupted after the Caddyfile changed; rolled back: the previous Caddyfile is back and running` (recovery, after a crash past the swap) | applier | red |
 | 422 / poll | `unknown` | `the reload failed and so did the reload of the previous file; the previous file is on disk; journalctl -u moteld` (the first reload failed) / `rolled back, but the reload of the previous file failed; the previous file is on disk; journalctl -u moteld` (any other rollback) / `the Caddyfile changed during the transaction; it is left as found` / `the env file for <app> changed during the transaction; it is left as found` / `applied but the baseline could not be recorded; moteld box baseline <sha> on the box records it (the next push then reports the file as edited out of band; it was not)` / `unchanged, but the baseline could not be recorded; push again, which records it` (a `no_change`: nothing changed, so the same chain verifies again) | applier | red; `box baseline` on the console, or for `unchanged` a push again |
 | 202 | `admitted` | `{"phase":"admitted"}` | handler | keep polling, 30 min bound; then red naming `journalctl -u motel-box-apply` |
@@ -1869,7 +1869,7 @@ says.
 | 1 | `init` | `no Caddyfile here; run init from inside the box's directory` / `<dir>/Caddyfile: larger than 1048576 bytes` / `<dir>/Caddyfile: not a regular file` (`<dir>` absolute) | `./Caddyfile` |
 | 1 | `init` | `the Caddyfile <reason>`, each reason as the `the new Caddyfile …` row above words it | the walk |
 | 1 | `init` | `this directory is <name>, and the Caddyfile is for <host>: a box's directory is named for its host, so run init from <host>/ in a copy of the repository` | the directory's name is not the host |
-| 1 | `init` | `motel is not running; nothing applied` / `motel is still starting after 300 s; nothing applied`, each followed by the remedy below | motel not up after the wait |
+| 1 | `init` | `moteld is not running; nothing applied` / `moteld is still starting after 300 s; nothing applied`, each followed by the remedy below | moteld not up after the wait |
 | 1 | `init` | `<phase>: <text>`, the phase and the catalogue text above of `failed`, `rolled_back` or `unknown` | the transaction's red ends |
 | 1 | both | `disk full; the previous Caddyfile could not be restored` / `disk full; the previous env file for <app> could not be restored` | the full-disk end, in `init`'s transaction or in the recovery either runs first (the second, for a push's env file, only in recovery) |
 | 1 | both | the box's own error as the system words it (a write of `applied.json` that fails, a state file that does not read) | anything else |
@@ -1889,7 +1889,7 @@ says.
 The remedy, `<sha>` filled in from the argument and `<dir>` with init's directory, absolute (the operator may read it after a one-shot `ssh … "cd … && moteld init …"` and follow it from root's home):
 
 ```
-the Caddyfile is accepted only by a running motel. Start it on the file it has, then run init again:
+the Caddyfile is accepted only by a running moteld. Start it on the file it has, then run init again:
   systemctl enable moteld && systemctl reset-failed moteld && systemctl restart moteld
   cd <dir> && moteld init <sha>
 If it will not start, journalctl -u moteld says why.
@@ -1952,7 +1952,7 @@ step before the transaction a refusal by name that writes nothing
    step 16's question, once. `activating` is waited out within the
    run's budget, so `systemctl enable --now moteld && moteld init <sha>`
    needs no sleep. Anything but up is refused with nothing written: the
-   catalogue's message, then the remedy: motel enabled and restarted
+   catalogue's message, then the remedy: moteld enabled and restarted
    on the file it has, then `init` again.
 8. The state machine with `origin: init` and an id of its own:
    `no_change` when the bytes are the installed bytes, else
@@ -1960,14 +1960,14 @@ step before the transaction a refusal by name that writes nothing
    as the applier's.
 
 `init` runs no validate: **the reload is the check**. `systemctl reload
-motel` runs the unit's `ExecReload=`, `moteld reload`, as the
+moteld` runs the unit's `ExecReload=`, `moteld reload`, as the
 motel user with the unit's own environment (its `Environment=` and
 `EnvironmentFile=` lines, drop-ins included); the running process loads
 the result and keeps the old configuration serving if it fails, and
 the transaction puts the previous bytes back.
 Nothing `init` could run beside the service is as exact, and root never
 runs Caddy's config parsers. It is the applier's rule as well: a file is
-accepted only by a running motel. A stopped box therefore refuses
+accepted only by a running moteld. A stopped box therefore refuses
 `init` rather than take the swap as applied for the next start: with
 `RestartPreventExitStatus=1` a refused start is final, and `init` would
 have printed success and left the box down once the person had logged
@@ -2077,7 +2077,7 @@ table and holds both shipped files to it, line for line, and the
 | `.path` | `[Unit]` | `Documentation=https://github.com/smallhoursorg/motel/blob/main/box/DESIGN-box.md` | |
 | `.path` | `[Unit]` | `DefaultDependencies=no` | a path unit's defaults order it `Before=paths.target`, which `basic.target`, and so `moteld.service`, come after: with the `After=` below, an ordering cycle. Measured on Debian 13: the manager broke it by deleting `paths.target`'s start job at boot and `moteld.service`'s stop job at shutdown. The defaults that matter are the next four lines |
 | `.path` | `[Unit]` | `Requires=sysinit.target` | pulled in with it, as the defaults would; the ordering is the next line's |
-| `.path` | `[Unit]` | `After=sysinit.target moteld.service` | after `sysinit.target`: the local filesystems, `/var/lib` among them, and `systemd-tmpfiles-setup`'s tree; after motel, so recovery at boot meets a motel that has started, or failed to |
+| `.path` | `[Unit]` | `After=sysinit.target moteld.service` | after `sysinit.target`: the local filesystems, `/var/lib` among them, and `systemd-tmpfiles-setup`'s tree; after moteld, so recovery at boot meets a moteld that has started, or failed to |
 | `.path` | `[Unit]` | `Before=shutdown.target` | stopped for shutdown |
 | `.path` | `[Unit]` | `Conflicts=shutdown.target` | stopped for shutdown |
 | `.path` | `[Unit]` | `StartLimitIntervalSec=0` | its own starts are boot's, postinstall's and the console's, and the manager's default limit (5 in 10 s) would refuse an operator retrying the full-disk remedy: measured, quick restarts of the path unit ended `start-limit-hit`. The trigger limit is its bound (Caps) |
@@ -2095,11 +2095,11 @@ table and holds both shipped files to it, line for line, and the
 | `.path` | `[Install]` | `WantedBy=multi-user.target` | enabled by postinstall |
 | `.service` | `[Unit]` | `Description=motel box applier` | |
 | `.service` | `[Unit]` | `Documentation=https://github.com/smallhoursorg/motel/blob/main/box/DESIGN-box.md` | |
-| `.service` | `[Unit]` | `After=moteld.service` | a start queued while motel is starting waits for that start to end; a restart loop's `activating` the applier waits out itself (step 16, Caps) |
+| `.service` | `[Unit]` | `After=moteld.service` | a start queued while moteld is starting waits for that start to end; a restart loop's `activating` the applier waits out itself (step 16, Caps) |
 | `.service` | `[Unit]` | `StartLimitIntervalSec=0` | the path unit's trigger limit is the one bound (Caps) |
 | `.service` | `[Service]` | `Type=oneshot` | one run per start |
 | `.service` | `[Service]` | `ExecStart=/usr/bin/moteld box apply` | steps 9 to 16 |
-| `.service` | `[Service]` | `TimeoutStartSec=infinity` | a run is bounded from inside — each reload by motel's own 240 s, each child by its deadline, the drain loop one bundle at a time — but for root's lock, which it waits for without a bound while the console holds it (`init`, `box baseline`): that wait is what the lock is for |
+| `.service` | `[Service]` | `TimeoutStartSec=infinity` | a run is bounded from inside — each reload by moteld's own 240 s, each child by its deadline, the drain loop one bundle at a time — but for root's lock, which it waits for without a bound while the console holds it (`init`, `box baseline`): that wait is what the lock is for |
 | `.service` | `[Service]` | `CapabilityBoundingSet=CAP_SETUID` | `ssh-keygen` runs as uid 65534 (step 12) |
 | `.service` | `[Service]` | `CapabilityBoundingSet=CAP_SETGID` | the same child's gid and its empty group list |
 | `.service` | `[Service]` | `CapabilityBoundingSet=CAP_KILL` | root stopping a child of another uid: without it a deadline on the verifier is a deadline on nothing. Measured: a 65534 child outlived its deadline, "operation not permitted" |
@@ -2115,7 +2115,7 @@ table and holds both shipped files to it, line for line, and the
 | `.service` | `[Service]` | `RestrictAddressFamilies=AF_UNIX` | the manager's socket (`systemctl reload`, `is-active`); no network. It filters `socket(2)` alone: the table's last two rows close two routes around it, and the third, `socketpair(2)`, gives no socket outside `AF_UNIX` (only `AF_TIPC` implements it besides, and `tipc` loads only by root's hand, which docs/hardening.md step 5 refuses where taken) but still loads any aliased family's module, as in app units, where it is an accepted residual (liveswap/DESIGN-sandbox.md, "Module-backed protocols"; #315). `AF_UNIX` admits no protocol module |
 | `.service` | `[Service]` | `SystemCallFilter=@system-service` | |
 | `.service` | `[Service]` | `SystemCallFilter=~io_uring_setup` | less `io_uring_setup`, which `@system-service` admits through `@aio`: a ring's `IORING_OP_SOCKET` (kernel 5.19+) opens a socket of any family without `socket(2)`, the one call `RestrictAddressFamilies=` filters. A deny line after the allow list takes the name out of it. Nothing the applier runs sets up a ring |
-| `.service` | `[Service]` | `SystemCallArchitectures=native` | on amd64 the x86-32 ABI reaches `socket(2)` through `socketcall()`, and systemd does not apply `RestrictAddressFamilies=` to that ABI. Nothing the applier runs is 32-bit: motel, and Debian's own `ssh-keygen` and `systemctl` |
+| `.service` | `[Service]` | `SystemCallArchitectures=native` | on amd64 the x86-32 ABI reaches `socket(2)` through `socketcall()`, and systemd does not apply `RestrictAddressFamilies=` to that ABI. Nothing the applier runs is 32-bit: moteld, and Debian's own `ssh-keygen` and `systemctl` |
 
 Not in them, on purpose: `User=` (root writes root's file and asks the
 manager for the reload); `Restart=` (the path unit starts it again
@@ -2138,7 +2138,7 @@ write to the wrong place — stay inside what the unit may write: its two
 trees, its own `/tmp`, and the rest of `/sys` where that stays
 writable (the `ProtectSystem=` row). It is not a
 boundary against an applier that has been compromised. The applier
-reloads motel through the manager's socket, so it must reach that
+reloads moteld through the manager's socket, so it must reach that
 socket, and root on it may start any unit, sandboxed or not —
 measured: from inside this unit, every line above in force,
 `systemd-run` started a unit that read `/etc/shadow`.
@@ -2164,7 +2164,7 @@ ten seconds, a restart with work still on disk meets the limit again.
 A stop is a crash. `moteld box apply` installs no signal handler, and
 Caddy's `caddycmd.Main` installs none before it runs a subcommand (only
 the commands that serve trap signals), so the manager's SIGTERM — `systemctl stop`, or a shutdown, which stops the
-applier before motel (the reverse of `After=moteld.service`) — ends
+applier before moteld (the reverse of `After=moteld.service`) — ends
 it where it stands, by the signal's default action, and the manager
 signals its children with it (`KillMode=` is left at its default,
 `control-group`). Measured, the binary in a transient oneshot unit,
@@ -2215,7 +2215,7 @@ The happy push:
 ```mermaid
 sequenceDiagram
     participant W as workflow
-    participant H as handler (motel)
+    participant H as handler (moteld)
     participant I as in/
     participant A as applier (root)
     participant S as systemd
@@ -2304,7 +2304,7 @@ Alice commits `c6` (signed) changing a Deno flag and pushes.
 3. Path unit fires. Applier: no record, `in/` has one entry → `work/`.
    Installed file read; signers = {alice}; out-of-band flag false (digest
    matches `applied.json`). Identity, signature, proof, chain (`c6`
-   alone; its first parent is the baseline), guards all pass. motel active.
+   alone; its first parent is the baseline), guards all pass. moteld active.
    Buffers differ. Result `verified` written.
 4. Handler's next poll (within a second) sees `verified` → 202
    `{id, commit: c6, phase: verified}`. The run prints
@@ -2355,7 +2355,7 @@ the reload is the check, and the baseline is the commit, so the
 workflow's run of it ends `no_change` — or edit
 `/etc/motel/Caddyfile` and `systemctl reload moteld`, after which
 the push of that commit arrives through the new door, matches it, and
-applies, reporting the edit as out of band. Neither needs `motel box
+applies, reporting the edit as out of band. Neither needs `moteld box
 baseline`, which is for a rewritten history. If the forward is wrong,
 nothing arrives, and the way back is the console again, as for any
 console edit.
@@ -2421,8 +2421,8 @@ computer (Open question 6).
 | Write-then-reload via `systemctl reload`, with rollback | Load through the admin socket from root, then write | Root would consume the serving process's word (backups' D10); reaching the socket needs `CAP_DAC_OVERRIDE`. |
 | Validate in the handler, never in root | Validate in the root applier | `caddy validate` provisions every module (network, JWKS) and the adapter expands `{$VAR}` from the caller's environment and runs module parsers on the input. |
 | Root re-verifies from bytes; the token binding stays handler-side | Put the token in the bundle for root to verify | Offline OIDC verification needs the issuer's keys: a network client in a root unit, or trusting the handler's cache. Stated instead as T5's reach. |
-| `box_webhook` inside the motel process | A separate unprivileged daemon behind a `reverse_proxy` | Would collapse T5's reach to a five-minute token replay, at the price of a fourth process, a third uid, and validate losing the service environment. Deferred; the handler module is already a separable boundary (see Open questions). |
-| `box_webhook` inside the motel process | A root-owned webhook | HTTP, gzip, tar and OIDC parsing as root. No. |
+| `box_webhook` inside the moteld process | A separate unprivileged daemon behind a `reverse_proxy` | Would collapse T5's reach to a five-minute token replay, at the price of a fourth process, a third uid, and validate losing the service environment. Deferred; the handler module is already a separable boundary (see Open questions). |
+| `box_webhook` inside the moteld process | A root-owned webhook | HTTP, gzip, tar and OIDC parsing as root. No. |
 | One atomic `txn.json` with a `phase` | `Caddyfile.prev` beside the file; a two-file marker; digests as state | `.prev` is `bin/push`'s name and a trigger on it would race legacy pushes; two files have partial states; digests cannot tell "before the swap" from "re-run after a console edit". |
 | A client-chosen random id per push; a result poll authenticated by `deploy_trust`, the workflow minting a fresh token for each | A per-push poll secret (its digest sent with the push, the secret to poll); a box-issued id in the response | The poll secret let a push that removed its own workflow from `deploy_trust` read its result, at the price of a second credential, its own header scheme, and a marker that authenticates — and with it a question no answer suited: what a poll gets when that marker cannot be read. A fresh token per poll outlives a slow apply; the rare self-locking push reads 401 and the catalogue names the journal. A box-issued id: a lost POST response left the run with nothing to poll. |
 | The body read and parsed, and the fast path answered, before the admission lock | The lock before the body | A slow upload would hold the lock, and a replay of the applied `HEAD` sent while a push is pending would be refused instead of answered `no_change`. The cost: a body of up to 16 MiB read before a 409 for a pending push; memory is bounded by the one push slot (Caps), so a replay sent while another push is in memory is told to retry. |
@@ -2433,7 +2433,7 @@ computer (Open question 6).
 | Bundle rename before marker | Marker before bundle | A crash between them would answer 409 to every push until the marker aged out. |
 | 202 and a poll | Hold the POST until the apply finishes | Root's part can take minutes, longer than a proxy in front of the box may hold a request, and an answer the workflow did not get needs the poll anyway ("Why 202 and a poll"). |
 | `required_signatures` recommended, not relied on | A "landing act" (signed tag or trailer) to close the fast-forward residual | Doubles every push's ritual to defend against an attacker who already holds a GitHub credential; the README rule is cheaper. |
-| Secrets as age files in the box repository, decrypted by root | GitHub Actions secrets sent with a push; a hosted secrets manager or cloud KMS the box reaches at apply time; a laptop command with its own token | Plaintext in CI breaks "no stored secret in CI"; a service is one more thing to host, pay for and reach at 3am; the laptop has no motel binary. The repository is already the box's one channel, and the root applier is already the one writer. |
+| Secrets as age files in the box repository, decrypted by root | GitHub Actions secrets sent with a push; a hosted secrets manager or cloud KMS the box reaches at apply time; a laptop command with its own token | Plaintext in CI breaks "no stored secret in CI"; a service is one more thing to host, pay for and reach at 3am; the laptop has no moteld binary. The repository is already the box's one channel, and the root applier is already the one writer. |
 | age, through `filippo.io/age` | SOPS's Go library; SOPS's file format read by code of our own | Measured 2026-10-12 against `./cmd/moteld`'s 176 modules: age adds 2 (`filippo.io/age` v1.3.2, `filippo.io/hpke` v0.4.0; `x/crypto` and `x/sys` are already linked), 16 packages. SOPS's library adds 80 (the AWS SDK's twenty, Vault, Google Cloud and Azure KMS, a Postgres and a MongoDB driver, PGP) to a binary root runs; its narrowest decrypt path, 79. A reader of SOPS's format of our own keeps the graph small but is a format we would track and do not control, and Debian 13 packages `age` (1.2.1), not `sops`. |
 | One age file per variable, names in the clear | One age file per app, names hidden | A pull request shows which variable was added, changed or removed; CI checks names and sizes before merge with no key; the template takes one value at a prompt that does not echo and pipes it to age, so plaintext never touches the laptop's disk, where a whole file would be edited as a plaintext temporary. Two branches that change different variables merge. The cost: names and lengths are the repository's to read. |
 | A classic X25519 box key | A post-quantum hybrid key (ML-KEM-768 + X25519, age v1.3's `age1pq`) | age refuses to mix a post-quantum recipient with SSH-key recipients in one file, and the readers are the signers' SSH keys. Open question 6. |
@@ -2615,7 +2615,7 @@ Dated one-liners; the full text of each is in git.
   line of "The applier unit" and added, each measured in a Debian 13
   systemd container: the path unit's default dependencies off (with
   them, `After=moteld.service` is an ordering cycle that cost
-  `paths.target` its boot start and motel its shutdown stop); no
+  `paths.target` its boot start and moteld its shutdown stop); no
   start limit on either unit (the service's default ended a failing
   loop before the trigger limit the full-disk row names; the path
   unit's refused an operator's quick restarts); no timer (a second
@@ -2627,7 +2627,7 @@ Dated one-liners; the full text of each is in git.
   sandbox stated as a guard against the applier's mistakes, not a
   boundary against a compromised one. The unit list became a table the test reads;
   `init/` and `lock` are born group motel in the setgid base;
-  `preremove.sh` stops the path unit, after motel, without disabling
+  `preremove.sh` stops the path unit, after moteld, without disabling
   it. Merged after 3a: the no-loop argument names 3a's stops that leave
   work on disk, and the console's remedy for an unreadable record
   restarts the path unit.
@@ -2721,7 +2721,7 @@ Dated one-liners; the full text of each is in git.
 - 2026-10-16 — A release per box: `<host>/MOTEL_VERSION`, optional,
   pins the release `make check` checks that box with;
   `bin/install-moteld` installs each release the files name as
-  `motel-<version>`, the default as `motel`. Read by the template
+  `moteld-<version>`, the default as `moteld`. Read by the template
   alone, never sent (#223).
 - 2026-10-16 — Step 6 asks the box server's connection settings
   before its routes: its listeners' protocols, its listener wrappers,
@@ -2784,7 +2784,7 @@ Dated one-liners; the full text of each is in git.
   (r, n−s), which a signer writes half the time, has no spelling to
   hold it to, so the owner dropped the ECDSA key types (size 1, risk 2;
   one-way and wide: a box whose installed list still carries one does
-  not start after the upgrade, since the install restarts motel onto a
+  not start after the upgrade, since the install restarts moteld onto a
   binary that refuses the line by name, so docs/upgrading.md says to
   rotate the signer before upgrading). The fixture set's second signer,
   bob, is RSA from here. A self-review measured the rest of the
@@ -2799,7 +2799,7 @@ Dated one-liners; the full text of each is in git.
 - 2026-11-10 — The box's own slot, `secrets/_box/` into
   `/etc/motel/secrets/_box.env` for notify's channel URLs (#418),
   reversing Open question 5's lean against a reserved slot for this one
-  use; a set that changes `_box.env` reloads motel, and the handler's
+  use; a set that changes `_box.env` reloads moteld, and the handler's
   validate is told the names the push carries.
 - 2026-11-10 — A push whose notify block names a secret `secrets/_box/`
   does not hold is refused at the door: notify drops such a channel at

@@ -20,7 +20,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 
-	// The Caddyfile adapter and the liveswap option, as the motel
+	// The Caddyfile adapter and the liveswap option, as the moteld
 	// binary links them.
 	_ "github.com/caddyserver/caddy/v2/caddyconfig/httpcaddyfile"
 	_ "github.com/smallhoursorg/motel/liveswap"

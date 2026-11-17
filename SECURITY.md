@@ -35,7 +35,7 @@ private advisory.
 
 Pre-1.0: only the latest release receives security fixes. Upgrading is
 a package install and a service restart: deployed apps keep running
-through it, but new visitors get errors while motel restarts, about
+through it, but new visitors get errors while moteld restarts, about
 a tenth of a second, or up to about 5 seconds while a slow request
 finishes ([docs/upgrading.md](docs/upgrading.md)). So a fix costs a
 quiet moment, and little more.

@@ -273,7 +273,7 @@ build:
 
 # Builds .deb for both arches into dist/. .deb only, and no .apk
 # planned: liveswap runs apps as transient systemd units with no
-# fallback runner, so an Alpine/OpenRC package would install a motel
+# fallback runner, so an Alpine/OpenRC package would install a moteld
 # that serves but refuses any Caddyfile defining an app — see
 # packaging/nfpm.yaml. The packages carry the systemd unit, the starter
 # config (in /usr/share/motel) and the data dirs, and motel-backup
@@ -336,7 +336,7 @@ install-test:
 
 # The main suites run via the e2e-runner entrypoint. Then the systemd
 # suite runs INSIDE the motel container (it needs systemctl,
-# journalctl and the process tree): restart survival, motel's own
+# journalctl and the process tree): restart survival, moteld's own
 # crashes (SIGKILL, exit 2, OOM) undone by the unit + reattach, a
 # refused start staying down, cgroup teardown of a worker tree, crash
 # cleanup, journal output. The recovery suite is the runner's view
@@ -353,7 +353,7 @@ e2e:
 	$(COMPOSE) run --rm e2e-runner || status=1; \
 	echo "════ systemd suite: restart survival, reattach, cgroup teardown ════"; \
 	$(COMPOSE) exec -T e2e-motel /bin/sh /suite-systemd.sh || status=1; \
-	echo "════ recovery suite: the runner's view after motel's unclean death ════"; \
+	echo "════ recovery suite: the runner's view after moteld's unclean death ════"; \
 	$(COMPOSE) run --rm --entrypoint "/bin/sh /suite-recovery.sh" e2e-runner || status=1; \
 	echo "════ box apply suite: signed pushes through box_webhook to the root applier ════"; \
 	$(COMPOSE) exec -T e2e-motel /bin/sh /suite-box.sh || status=1; \
@@ -515,7 +515,7 @@ e2e-backup:
 # SOAK_RELOADS, SOAK_CLIENTS, SOAK_REQS. Runs per merge to main and
 # weekly in CI (soak.yml); never in the PR path.
 #
-# On failure: motel runs under systemd inside e2e-motel, so that
+# On failure: moteld runs under systemd inside e2e-motel, so that
 # container's console carries nothing from it and the journal is the
 # evidence — same as the e2e target above, tail-bounded here because a
 # soak pushes 15-20 minutes of churn through the stub servers.

@@ -73,7 +73,7 @@
 	#
 	# 		# There is no setting that turns the sandbox off or widens
 	# 		# it. On a host that cannot deliver it — a container, an
-	# 		# LXC VPS, a kernel without user namespaces — motel does
+	# 		# LXC VPS, a kernel without user namespaces — moteld does
 	# 		# NOT start, and says what is missing. That is deliberate:
 	# 		# the alternative is an app running with no isolation, which
 	# 		# on a shared uid means every other app's data and
@@ -102,7 +102,7 @@
 # ── Replace with your domain once DNS points here — motel then
 #    provisions TLS automatically. ──
 :80 {
-	respond "motel is running. To serve your apps: moteld init from your box's repository, or edit /etc/motel/Caddyfile."
+	respond "moteld is running. To serve your apps: moteld init from your box's repository, or edit /etc/motel/Caddyfile."
 }
 
 # ── Example: the sites for the app above ──

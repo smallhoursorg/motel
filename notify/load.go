@@ -23,12 +23,12 @@ import (
 // one the push replaces, is not checked.
 const PushedSecretsEnv = "MOTEL_NOTIFY_PUSHED_SECRETS" //nolint:gosec // G101: a variable's name, not a credential
 
-// command is the motel command this process runs, as SetCommand was
+// command is the moteld command this process runs, as SetCommand was
 // told; "" when nothing told it (a test, another program linking the
 // module), which is held to every refusal.
 var command atomic.Value
 
-// SetCommand tells notify the motel command this process runs: cmd/moteld
+// SetCommand tells notify the moteld command this process runs: cmd/moteld
 // calls it with its first argument before Caddy's own command runs.
 func SetCommand(cmd string) { command.Store(cmd) }
 
@@ -37,7 +37,7 @@ func runningCommand() string {
 	return s
 }
 
-// pushedSecrets are the names PushedSecretsEnv lists, read in `motel
+// pushedSecrets are the names PushedSecretsEnv lists, read in `moteld
 // validate` alone: in any other command the variable is no word of the
 // box's, and a load reads the secrets file as it is.
 func pushedSecrets() map[string]bool {

@@ -243,7 +243,7 @@ func TestInitCmdRecoversFirst(t *testing.T) {
 }
 
 // Every refusal is by name, and writes nothing: refusals before the lock
-// print nothing either; a motel that is not up refuses after the
+// print nothing either; a moteld that is not up refuses after the
 // summary, with the remedy filled in (DESIGN-box.md, "Console
 // commands").
 func TestInitCmdRefusals(t *testing.T) {
@@ -333,9 +333,9 @@ func TestInitCmdRefusals(t *testing.T) {
 		{name: "no host", file: edit("deploy.example.com {", ":443 {"), want: "the Caddyfile has a box_webhook site whose address is not one bare hostname (:443)"},
 		{name: "an import in the box block", file: edit("\t\t# signers\n", "\t\timport signers\n"), want: "the Caddyfile imports signers; inline the snippet"},
 		{name: "an import in the site", file: edit("\tbox_webhook\n", "\tbox_webhook\n\timport extra\n"), want: "the Caddyfile imports extra; inline the snippet"},
-		{name: "motel inactive", file: whole, states: []string{"inactive"}, want: msgNotRunning, remedy: true},
-		{name: "motel failed", file: whole, states: []string{"failed"}, want: msgNotRunning, remedy: true},
-		{name: "motel still activating after the wait", file: whole, states: []string{"activating"}, want: msgStillStarting, remedy: true},
+		{name: "moteld inactive", file: whole, states: []string{"inactive"}, want: msgNotRunning, remedy: true},
+		{name: "moteld failed", file: whole, states: []string{"failed"}, want: msgNotRunning, remedy: true},
+		{name: "moteld still activating after the wait", file: whole, states: []string{"activating"}, want: msgStillStarting, remedy: true},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			b := newTestBox(t)

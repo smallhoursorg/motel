@@ -14,7 +14,7 @@ import (
 	"github.com/smallhoursorg/motel/box/proof"
 )
 
-// runInitCmd is `moteld init <sha>` (DESIGN-box.md, "`motel
+// runInitCmd is `moteld init <sha>` (DESIGN-box.md, "`moteld
 // init`"), run as root inside the box's directory, dir: the Caddyfile
 // there read once, walked, its path derived from its host, then the
 // transaction with origin init, whose reload is the only check of the

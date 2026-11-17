@@ -834,7 +834,7 @@ func (a *App) Start() error {
 	names := slices.Sorted(maps.Keys(a.managed))
 	a.logger.Info("liveswap started", zap.Int("apps", len(names)), zap.Strings("app_names", names))
 	// Units of apps no loaded config names have no managedApp to sweep
-	// them (removed or renamed while motel was down): settle them
+	// them (removed or renamed while moteld was down): settle them
 	// against the manager's own listing. Background, like recovery;
 	// the sweep judges each app against the pool right before acting,
 	// so neither a reload racing it nor a candidate config that later

@@ -41,7 +41,7 @@ func TestFailWatchRises(t *testing.T) {
 	if got := w.rises([]failedSample{s("a", 1), s("b", 0), s("c", 0)}, true); len(got) != 1 || got[0].receiver != "a" {
 		t.Fatalf("after a load back to the same count: %+v", got)
 	}
-	// The first read, of a load after motel started, is no baseline.
+	// The first read, of a load after moteld started, is no baseline.
 	var fresh failWatch
 	if got := fresh.rises([]failedSample{s("a", 1), s("b", 0)}, true); len(got) != 1 || got[0].receiver != "a" {
 		t.Fatalf("the first read after a load since the start: %+v", got)
@@ -55,17 +55,17 @@ func loadedAt(stamp float64) string {
 
 // TestLoadSince: a stamp other than the last read's is a load since
 // (an earlier one too: the wall clock stepped back between two loads),
-// and the first read's is compared with motel's start; a read without
+// and the first read's is compared with moteld's start; a read without
 // a stamp, or after reads that never had one, is none.
 func TestLoadSince(t *testing.T) {
 	start := time.Unix(1_794_000_000, 0)
 	w := failWatch{started: start}
 	at := func(stamp float64) amMetrics { return amMetrics{loaded: stamp} }
 	if w.loadSince(at(1_793_999_999)) {
-		t.Fatal("a load before motel started is not the first read's")
+		t.Fatal("a load before moteld started is not the first read's")
 	}
 	if !w.loadSince(at(1_794_000_001)) {
-		t.Fatal("a load after motel started counts from 0 at the first read")
+		t.Fatal("a load after moteld started counts from 0 at the first read")
 	}
 	if (&failWatch{}).loadSince(at(1_794_000_001)) {
 		t.Fatal("a watch with no start reads a baseline first")
@@ -115,10 +115,10 @@ func TestChannelFailedAcrossAConfigLoad(t *testing.T) {
 }
 
 // TestFirstReadCountsFromALoadAfterTheStart: Alertmanager started after
-// motel (setup's start, its socket's at motel's first post), and a
-// failure before motel's first read is told; a load from before motel
-// started is a baseline, which an earlier motel may have told of. The
-// reload motel's start asked for counts whatever its stamp says (the
+// moteld (setup's start, its socket's at motel's first post), and a
+// failure before motel's first read is told; a load from before moteld
+// started is a baseline, which an earlier moteld may have told of. The
+// reload moteld's start asked for counts whatever its stamp says (the
 // clock stepped back after the start), and a body without receiver
 // names (no stamp read) stays a baseline.
 func TestFirstReadCountsFromALoadAfterTheStart(t *testing.T) {

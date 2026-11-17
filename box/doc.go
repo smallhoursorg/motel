@@ -19,6 +19,6 @@
 // recovery (txn.go, durable.go), results (results.go), Retention
 // (retention.go), the service manager (systemd.go) and the diff a
 // result carries (diff.go). The console's commands share its
-// transaction and lock: `moteld init` (init_cmd.go) and `motel box
+// transaction and lock: `moteld init` (init_cmd.go) and `moteld box
 // baseline` (baseline_cmd.go).
 package box

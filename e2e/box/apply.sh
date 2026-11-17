@@ -13,7 +13,7 @@
 # imports inlined (a signed file has none), a `box` block, and a
 # box_webhook site on a bare hostname (served with an internal-CA
 # certificate on 8443: the address rules allow no scheme or port), at
-# <host>/Caddyfile in the repository. Its baseline is set by `motel
+# <host>/Caddyfile in the repository. Its baseline is set by `moteld
 # init`, run inside that directory as the operator runs it.
 #
 # Runs last in `make e2e` (`docker compose exec`); puts the e2e config
@@ -233,7 +233,7 @@ C0=$(git -C "$repo" rev-parse HEAD)
 
 # install_baseline <sha>: `moteld init <sha>`, as root inside the
 # box's directory copied from the commit (git archive, as init's help
-# copies it), on a box where motel runs; its output in $work/init.out.
+# copies it), on a box where moteld runs; its output in $work/init.out.
 install_baseline() {
 	rm -rf "$work/init" && mkdir -p "$work/init" \
 		&& git -C "$repo" archive "$1" "$HOST" | tar -xf - -C "$work/init" \
@@ -415,7 +415,7 @@ BK=$(commit alice "$work/fbackup")
 push "$BK"
 refused "a backup path outside the app's shared dir" "moteld validate:"
 # A root from the environment is one a backup run, which reads the
-# Caddyfile without motel's environment, cannot know: motel
+# Caddyfile without moteld's environment, cannot know: motel
 # accepts it, and step 6's motel-backup validate refuses it, naming
 # the variable. (Box apply 9b makes the same change to the box's file on
 # a box where motel-backup is not installed.)
@@ -566,8 +566,8 @@ PHASE=$(phase)
 cmp -s "$LIVE" "$work/f1" && pass "the live file is the commit's again" || fail "the console edit survived"
 settled "out-of-band"
 
-echo "=== box apply 6: with motel stopped, the applier refuses and changes nothing ==="
-# Nothing can POST with motel down, so the bundle is dropped as the
+echo "=== box apply 6: with moteld stopped, the applier refuses and changes nothing ==="
+# Nothing can POST with moteld down, so the bundle is dropped as the
 # handler drops it: assembled in stage/ by the motel uid, renamed
 # into in/.
 AT=$C1
@@ -582,12 +582,12 @@ while [ ! -s "$BOX/out/$ID.json" ] && [ "$i" -lt 60 ]; do
 	i=$((i + 1))
 	sleep 0.5
 done
-[ "$(json_str "$(cat "$BOX/out/$ID.json" 2>/dev/null)" phase)" = refused ] && grep -qF "motel is not running; nothing applied" "$BOX/out/$ID.json" \
-	&& pass "the applier refuses while motel is stopped" || fail "with motel stopped: $(cat "$BOX/out/$ID.json" 2>/dev/null)"
-cmp -s "$LIVE" "$work/f1" && pass "the live file is unchanged" || fail "the live file changed with motel stopped"
+[ "$(json_str "$(cat "$BOX/out/$ID.json" 2>/dev/null)" phase)" = refused ] && grep -qF "moteld is not running; nothing applied" "$BOX/out/$ID.json" \
+	&& pass "the applier refuses while moteld is stopped" || fail "with moteld stopped: $(cat "$BOX/out/$ID.json" 2>/dev/null)"
+cmp -s "$LIVE" "$work/f1" && pass "the live file is unchanged" || fail "the live file changed with moteld stopped"
 settled "stopped"
 systemctl start moteld
-ready && pass "motel is back" || fail "motel did not come back: $CODE"
+ready && pass "moteld is back" || fail "moteld did not come back: $CODE"
 
 echo "=== box apply 7: the template's bin/apply, unchanged, against this box ==="
 # examples/box/bin/apply is what a box repository's workflow runs. It
@@ -683,7 +683,7 @@ else
 fi
 [ "$(stat -c '%a %U %G' "$ENV" 2>/dev/null)" = "640 root motel" ] && pass "the env file is 0640 root:motel" || fail "the env file: $(stat -c '%a %U %G' "$ENV" 2>&1)"
 grep -qxF "SECRET=\"$V1\"" "$ENV" && pass "the env file holds the value, as motel reads it" || fail "the env file holds: $(cat "$ENV" 2>&1)"
-[ "$(reloads_since "$t0")" -ge 1 ] && pass "a push that changed the Caddyfile reloaded motel" || fail "no reload in the journal: the reload check below proves nothing"
+[ "$(reloads_since "$t0")" -ge 1 ] && pass "a push that changed the Caddyfile reloaded moteld" || fail "no reload in the journal: the reload check below proves nothing"
 [ "$(baseline)" = "$S1" ] && pass "the baseline is the commit with the secret" || fail "the baseline is $(baseline), not $S1"
 settled "secret added"
 
@@ -712,7 +712,7 @@ else
 	fail "a rotation: $(cat "$work/tout")"
 fi
 grep -qxF "SECRET=\"$V2\"" "$ENV" && pass "the env file holds the new value" || fail "after the rotation: $(cat "$ENV" 2>&1)"
-[ "$(reloads_since "$t0")" = 0 ] && pass "a push of secrets alone did not reload motel" || fail "motel was reloaded for secrets alone"
+[ "$(reloads_since "$t0")" = 0 ] && pass "a push of secrets alone did not reload moteld" || fail "moteld was reloaded for secrets alone"
 settled "secret rotated"
 template_apply "$S2" && grep -qF "the box already runs this Caddyfile" "$work/tout" \
 	&& pass "the same commit again is no_change" || fail "a replay: $(cat "$work/tout")"
@@ -826,7 +826,7 @@ settled "secrets removed"
 echo "=== box apply 8b: the box's own secrets, a notify channel's URL ==="
 # secrets/_box/ into /etc/motel/secrets/_box.env, which notify reads at a
 # config load: validate is told the name the push carries (the value is
-# not on the box yet), and a push of it alone reloads motel. No
+# not on the box yet), and a push of it alone reloads moteld. No
 # Alertmanager on this box: notify says so and serves.
 BOXENV=/etc/motel/secrets/_box.env
 notify_secret() { # <var> <value>: make secret APP=_box; output in $work/sout
@@ -874,7 +874,7 @@ else
 	fail "a notify rotation: $(cat "$work/tout")"
 fi
 [ "$(reloads_since "$t0")" -ge 1 ] && grep -qxF 'NOTIFY_OPS_URL="https://ntfy.sh/e2e-box-ops-2"' "$BOXENV" \
-	&& pass "the box's own secrets alone reloaded motel" || fail "after the rotation: $(reloads_since "$t0") reloads; $(cat "$BOXENV" 2>&1)"
+	&& pass "the box's own secrets alone reloaded moteld" || fail "after the rotation: $(reloads_since "$t0") reloads; $(cat "$BOXENV" 2>&1)"
 settled "box secret rotated"
 git -C "$repo" rm -r -q "$HOST/secrets/_box"
 cp "$work/fnonotify" "$repo/$FILE"
@@ -893,7 +893,7 @@ echo "=== box apply 9: an administrator who is not root reads the logs, and noth
 # As docs/hardening.md makes one: the adm group alone (e2e/Dockerfile).
 # journalctl exits 0 on an empty journal too: look for known lines.
 runuser -u admin -- journalctl -u moteld --no-pager 2>&1 | grep -q '"liveswap started"' \
-	&& pass "adm reads motel's journal without privilege" || fail "admin cannot read motel's journal"
+	&& pass "adm reads moteld's journal without privilege" || fail "admin cannot read moteld's journal"
 runuser -u admin -- journalctl -t motel-demo --no-pager 2>&1 | grep -q 'motel-demo' \
 	&& pass "adm reads an app's journal" || fail "admin cannot read the app's journal"
 for f in /etc/motel/demo.env /etc/motel/age/identity; do

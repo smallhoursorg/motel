@@ -72,13 +72,13 @@ Suggested packages:
 Recommended packages:
   dbus-user-session fuse libjs-jquery libjs-sphinxdoc sphinx-rtd-theme-common
 The following NEW packages will be installed:
-  motel libpam-systemd libreadline8t64 readline-common restic sqlite3
+  moteld libpam-systemd libreadline8t64 readline-common restic sqlite3
 The following packages will be upgraded:
   libsqlite3-0
 1 upgraded, 6 newly installed, 0 to remove and 14 not upgraded.
 Need to get 9016 kB/29.7 MB of archives.
 After this operation, 84.7 MB of additional disk space will be used.
-Get:1 /dist/moteld_0.3.0~rc1_arm64.deb motel arm64 0.3.0~rc1 [20.7 MB]
+Get:1 /dist/moteld_0.3.0~rc1_arm64.deb moteld arm64 0.3.0~rc1 [20.7 MB]
 Get:2 http://deb.debian.org/debian trixie/main arm64 libsqlite3-0 arm64 3.46.1-7+deb13u2 [854 kB]
 Get:3 http://deb.debian.org/debian trixie/main arm64 readline-common all 8.2-6 [69.4 kB]
 Get:4 http://deb.debian.org/debian trixie/main arm64 libpam-systemd arm64 257.13-1~deb13u1 [276 kB]
@@ -110,16 +110,16 @@ Unpacking libreadline8t64:arm64 (8.2-6) ...
 Selecting previously unselected package sqlite3.
 Preparing to unpack .../4-sqlite3_3.46.1-7+deb13u2_arm64.deb ...
 Unpacking sqlite3 (3.46.1-7+deb13u2) ...
-Selecting previously unselected package motel.
+Selecting previously unselected package moteld.
 Preparing to unpack .../5-moteld_0.3.0~rc1_arm64.deb ...
-Unpacking motel (0.3.0~rc1) ...
+Unpacking moteld (0.3.0~rc1) ...
 Setting up restic (0.18.0-1+b4) ...
 Setting up libpam-systemd:arm64 (257.13-1~deb13u1) ...
 Setting up readline-common (8.2-6) ...
 Setting up libreadline8t64:arm64 (8.2-6) ...
 Setting up sqlite3 (3.46.1-7+deb13u2) ...
-Setting up motel (0.3.0~rc1) ...
-motel installed. Start it with:
+Setting up moteld (0.3.0~rc1) ...
+moteld installed. Start it with:
   sudo systemctl enable --now moteld
 Created symlink '/etc/systemd/system/timers.target.wants/motel-backup.timer' → '/usr/lib/systemd/system/motel-backup.timer'.
 Created symlink '/etc/systemd/system/timers.target.wants/motel-backup-drill.timer' → '/usr/lib/systemd/system/motel-backup-drill.timer'.
@@ -210,9 +210,9 @@ the guide's lines ran as written, as the administrator: validate, reload, setup,
 ════ stage 3: reinstall — upgrade path, conffile preservation, app survival ════
 (Reading database ... 7141 files and directories currently installed.)
 Preparing to unpack .../moteld_0.3.0~rc1_arm64.deb ...
-Unpacking motel (0.3.0~rc1) over (0.3.0~rc1) ...
-Setting up motel (0.3.0~rc1) ...
-motel installed. Start it with:
+Unpacking moteld (0.3.0~rc1) over (0.3.0~rc1) ...
+Setting up moteld (0.3.0~rc1) ...
+moteld installed. Start it with:
   sudo systemctl enable --now moteld
 Backups: the hourly timer and the Sunday restore drill are enabled, and run nothing until:
   sudo motel-backup setup <repository>
@@ -251,11 +251,11 @@ The following packages were automatically installed and are no longer required:
   libreadline8t64 readline-common restic sqlite3
 Use 'apt autoremove' to remove them.
 The following packages will be REMOVED:
-  motel
+  moteld
 0 upgraded, 0 newly installed, 1 to remove and 14 not upgraded.
 After this operation, 59.1 MB disk space will be freed.
 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 7141 files and directories currently installed.)
-Removing motel (0.3.0~rc1) ...
+Removing moteld (0.3.0~rc1) ...
 remove took the timers' stamps, and the engine's sweep a killed run's mount and its directory, and nothing of the app's
 removal stopped the service and the apps, kept the conffile
 after remove: timers masked, inactive; credential file 32977b8d3c5b54a556e68b121a68b9bd04fce432f25e9d0407edfcb7baca927c — as the table says
@@ -272,13 +272,13 @@ The following packages were automatically installed and are no longer required:
   libreadline8t64 readline-common restic sqlite3
 Use 'apt autoremove' to remove them.
 The following packages will be REMOVED:
-  motel*
+  moteld*
 0 upgraded, 0 newly installed, 1 to remove and 14 not upgraded.
 After this operation, 59.1 MB disk space will be freed.
 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 7141 files and directories currently installed.)
-Removing motel (0.3.0~rc1) ...
+Removing moteld (0.3.0~rc1) ...
 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 7134 files and directories currently installed.)
-Purging configuration files for motel (0.3.0~rc1) ...
+Purging configuration files for moteld (0.3.0~rc1) ...
 motel: /etc/motel-backup/repository.env is kept: it holds the repository password, the only way to read the backups already made. Remove it yourself once those backups are not needed: sudo rm -r /etc/motel-backup
 dpkg: warning: while removing moteld, directory '/var/lib/liveswap' not empty so not removed
 dpkg: warning: while removing moteld, directory '/var/lib/motel' not empty so not removed
@@ -299,14 +299,14 @@ The following packages were automatically installed and are no longer required:
   libreadline8t64 readline-common restic sqlite3
 Use 'apt autoremove' to remove them.
 The following packages will be REMOVED:
-  motel*
+  moteld*
 0 upgraded, 0 newly installed, 1 to remove and 14 not upgraded.
 After this operation, 59.1 MB disk space will be freed.
 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 7141 files and directories currently installed.)
-Removing motel (0.3.0~rc1) ...
+Removing moteld (0.3.0~rc1) ...
 motel: what a backup command left was not swept, and is left: another backup run is in progress: pid 5614, since 2026-09-27T00:00:00Z
 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 7134 files and directories currently installed.)
-Purging configuration files for motel (0.3.0~rc1) ...
+Purging configuration files for moteld (0.3.0~rc1) ...
 motel: kept /var/lib/motel-backup/staging: not empty — copies of an app's data a backup run or a restore left there; look, then remove them yourself
 motel: kept /var/lib/motel-backup: it holds what this package did not make (notes.txt)
 motel: kept /run/motel-backup: something is mounted at or under it, or what is mounted cannot be read; nothing under it is removed — it is gone at the next boot, and is not to be rm -r'd before
@@ -323,13 +323,13 @@ The following packages were automatically installed and are no longer required:
   libreadline8t64 readline-common restic sqlite3
 Use 'apt autoremove' to remove them.
 The following packages will be REMOVED:
-  motel*
+  moteld*
 0 upgraded, 0 newly installed, 1 to remove and 14 not upgraded.
 After this operation, 59.1 MB disk space will be freed.
 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 7141 files and directories currently installed.)
-Removing motel (0.3.0~rc1) ...
+Removing moteld (0.3.0~rc1) ...
 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 7134 files and directories currently installed.)
-Purging configuration files for motel (0.3.0~rc1) ...
+Purging configuration files for moteld (0.3.0~rc1) ...
 motel: /etc/motel-backup/repository.env is kept: it holds the repository password, the only way to read the backups already made. Remove it yourself once those backups are not needed: sudo rm -r /etc/motel-backup
 dpkg: warning: while removing moteld, directory '/var/lib/liveswap' not empty so not removed
 dpkg: warning: while removing moteld, directory '/var/lib/motel' not empty so not removed

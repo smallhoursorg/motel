@@ -514,12 +514,12 @@ func TestSetupSaysWhatTheLoadedConfigDoes(t *testing.T) {
 		metrics bool
 		want    string
 	}{
-		{channels, nil, false, "reloaded motel, which renders the monitor block's channels into /var/lib/motel-notify/alertmanager.yml"},
+		{channels, nil, false, "reloaded moteld, which renders the monitor block's channels into /var/lib/motel-notify/alertmanager.yml"},
 		{"", nil, false, "whose config has no monitor block with channels: Alertmanager sends nothing until there is one"},
 		{`{"metrics":{}}`, nil, false, "whose config has no monitor block with channels"},
-		{`{"metrics":{}}`, nil, true, "reloaded motel, which renders the store's rules into /var/lib/motel-metrics/rules.yml and pushes"},
+		{`{"metrics":{}}`, nil, true, "reloaded moteld, which renders the store's rules into /var/lib/motel-metrics/rules.yml and pushes"},
 		{channels, nil, true, "whose config has no monitor block with a metrics line: nothing is pushed until there is one"},
-		{"", errors.New("dial unix /run/motel/admin.sock: connect: no such file or directory"), false, "motel did not answer on its admin socket, unix//run/motel/admin.sock (dial unix /run/motel/admin.sock: connect: no such file or directory): it is not running, or its Caddyfile sets another admin address or none"},
+		{"", errors.New("dial unix /run/motel/admin.sock: connect: no such file or directory"), false, "moteld did not answer on its admin socket, unix//run/motel/admin.sock (dial unix /run/motel/admin.sock: connect: no such file or directory): it is not running, or its Caddyfile sets another admin address or none"},
 	} {
 		got := loadedSays(&fakeSystem{monitor: c.monitor, monitorErr: c.err}, c.metrics)
 		if !strings.Contains(got, c.want) {

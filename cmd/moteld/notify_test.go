@@ -61,7 +61,7 @@ func TestTheOldCommandsSayTheNewSpelling(t *testing.T) {
 			t.Errorf("%s is listed in the help", c.name)
 		}
 		if err := cmd.RunE(cmd, c.args); err == nil || !strings.Contains(err.Error(), c.want) {
-			t.Errorf("motel %s %v: %v, want %q", c.name, c.args, err, c.want)
+			t.Errorf("moteld %s %v: %v, want %q", c.name, c.args, err, c.want)
 		}
 	}
 	def, ok := caddycmd.Commands()["monitor"]

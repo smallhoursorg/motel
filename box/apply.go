@@ -54,7 +54,7 @@ type Applier struct {
 	verifier *proof.Verifier
 	logger   *zap.Logger
 	hooks    hooks
-	// waitUntil is the end of the run's one budget for waiting on a motel that is
+	// waitUntil is the end of the run's one budget for waiting on a moteld that is
 	// activating or reloading (running).
 	waitUntil time.Time
 	// lockWait, when set, is called once if lock must wait for another

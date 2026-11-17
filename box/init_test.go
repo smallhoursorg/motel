@@ -15,7 +15,7 @@ import (
 
 // The origin: init rows of the Transitions and States tables, through
 // runInit, the entry `moteld init` calls: no result files, and on a
-// motel that is not up once the wait is over, a refusal that writes
+// moteld that is not up once the wait is over, a refusal that writes
 // nothing (the reload is the check; DESIGN-box.md, "`moteld init`").
 func TestInitOrigin(t *testing.T) {
 	initRec := func(b *testBox, file []byte, sha string) record {

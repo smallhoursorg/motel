@@ -512,7 +512,7 @@ func TestMonitorSetupRunsAlertmanagerOnlyWhereItIsNotSetUp(t *testing.T) {
 		}
 	}
 	if am != 0 || vm <= am || reloads != 2 {
-		t.Fatalf("with --metrics: %v; want Alertmanager's setup, then the store's, each reloading motel", both.cmds)
+		t.Fatalf("with --metrics: %v; want Alertmanager's setup, then the store's, each reloading moteld", both.cmds)
 	}
 
 	// Alertmanager's setup fails: the store's never starts.
@@ -887,7 +887,7 @@ func readJob(r storeRead) (string, error) {
 	if r.job != "" {
 		return r.job, nil
 	}
-	for prefix, job := range map[string]string{"vm_": "victoria-metrics", "vmalert_": "vmalert", "alertmanager_": "alertmanager", "motel_": "motel"} {
+	for prefix, job := range map[string]string{"vm_": "victoria-metrics", "vmalert_": "vmalert", "alertmanager_": "alertmanager", "motel_": "moteld"} {
 		if strings.HasPrefix(r.name, prefix) {
 			return job, nil
 		}
@@ -981,7 +981,7 @@ func keepDiff(kept map[string][]string, reads []storeRead) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		if job == "motel" {
+		if job == "moteld" {
 			continue
 		}
 		if _, ok := kept[job]; !ok {
@@ -1094,9 +1094,9 @@ func TestStoreReads(t *testing.T) {
 		// The request thresholds' guard (#442), as rendered: both series
 		// are motel's push, neither a scraped job's.
 		{"x and on (app) (" + pushedNow(`{app="blog"}`) + ")",
-			[]storeRead{{"x", ""}, {"motel_app_observed", ""}, {"process_start_time_seconds", "motel"}}},
+			[]storeRead{{"x", ""}, {"motel_app_observed", ""}, {"process_start_time_seconds", "moteld"}}},
 		{`scalar(min(tfirst_over_time(process_start_time_seconds{job="moteld"}[7m]))) + 15`,
-			[]storeRead{{"process_start_time_seconds", "motel"}}},
+			[]storeRead{{"process_start_time_seconds", "moteld"}}},
 	} {
 		got, err := storeReads(c.expr)
 		if err != nil || !slices.Equal(got, c.want) {

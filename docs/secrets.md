@@ -176,7 +176,7 @@ make secret APP=_box VAR=NOTIFY_OPS_URL
 ```
 
 The box writes these to `/etc/motel/secrets/_box.env`, which notify
-reads and no app is given, and reloads motel when they change: a
+reads and no app is given, and reloads moteld when they change: a
 channel's new URL is in use once the push is applied. The block reads
 each by name:
 
@@ -331,7 +331,7 @@ push.
 motel reads an app's env file each time the app launches: a
 deploy, a rollback, or a relaunch after a crash or a reboot. A push
 never restarts a running app, and a push of apps' secrets alone reloads
-nothing (the box's own, `_box/`, reload motel: [A notify channel's
+nothing (the box's own, `_box/`, reload moteld: [A notify channel's
 URL](#a-notify-channels-url)). So a value that must change now — a leaked key, say — is
 `make secret`, a push, and then a launch of the app. The quickest is a
 rollback to the version that is running: in the app's repository,
@@ -427,7 +427,7 @@ first line of `recipients`, and stops, with nothing sent, on:
 | Root on the box | Yes | The box's key, and the env files it writes |
 | A reader: each key in `recipients` | Every value encrypted to that key, in all of the repository's history | `make secret-show`, or `age -d` on any clone |
 | A signer | Yes, whatever `recipients` says | One signed commit can add a site that serves any file the `motel` user reads, env files included, so a signer's key is every app's secrets ([box README](../examples/box/README.md#secrets)). The template makes every signer whose key age can use a reader too |
-| The `motel` user, and so a compromised motel | The env files | It reads them at each launch, as it always has; it cannot read the box's key |
+| The `motel` user, and so a compromised moteld | The env files | It reads them at each launch, as it always has; it cannot read the box's key |
 | An app | Its own values, in its environment | motel passes them at launch; `/etc/motel` is in no app's sandbox |
 | GitHub, the workflow, any token or app with read access to the repository, a fork | Never a value | Ciphertext only; see the next section |
 | An administrator in the `adm` group ([Hardening](hardening.md#3-an-administrator-if-you-want-one)) | No, unless an app writes one to its own output | The journal only, which holds every app's output |

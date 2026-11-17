@@ -156,7 +156,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request, _ caddyhttp.
 	if ma != nil {
 		var installed bool
 		if verifiers, installed = ma.trust(); !installed {
-			// No Start has installed the app yet: a start of motel, where
+			// No Start has installed the app yet: a start of moteld, where
 			// Caddy may start the http app before liveswap, or an app a
 			// reload adds. The pooled app holds no sources until then, so
 			// the token is checked against the ones this config built in

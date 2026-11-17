@@ -1,5 +1,5 @@
 #!/bin/sh
-# Runs once before motel inside the e2e-motel container
+# Runs once before moteld inside the e2e-motel container
 # (e2e-token.service). The offline compose network has no CI OIDC
 # provider, so the liveswap deploy path is exercised through the
 # `local` trust source: mint a keypair + a long-lived token into the

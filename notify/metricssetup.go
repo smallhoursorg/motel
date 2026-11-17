@@ -102,7 +102,7 @@ func metricsSetup(sys system, root string, out io.Writer) (err error) {
 	}
 	motelUID, _, err := sys.lookupUser("motel")
 	if err != nil {
-		return fmt.Errorf("the motel user: %w (is motel installed?)", err)
+		return fmt.Errorf("the motel user: %w (is moteld installed?)", err)
 	}
 	// Which packages are there, asked before the mask, so that the mask's
 	// line names its reason: the store's install, or none (a re-run, or

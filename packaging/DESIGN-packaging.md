@@ -21,7 +21,7 @@ the scales:
 | Axis | Examples |
 |---|---|
 | **Severity 5** | the package puts bytes it did not ship where root trusts them, or opens root-only state (the starter's record, the box's key) to another user |
-| **Severity 4** | the box's own `/etc/motel/Caddyfile` replaced by the starter, so no push reaches the box; dpkg left half-configured; motel left down after an install — each until the console |
+| **Severity 4** | the box's own `/etc/motel/Caddyfile` replaced by the starter, so no push reaches the box; dpkg left half-configured; moteld left down after an install — each until the console |
 | **Occurrence 1** | root's own entry in a directory only root can write, where the scripts expect none |
 | **Detection 1** | the install fails, or the script says so on stderr, naming the path |
 

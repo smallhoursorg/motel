@@ -213,9 +213,9 @@ func (a *App) warnAtLoad(heartbeat string) {
 		a.logger.Warn("monitor: allow_insecure_channels is on: channel URLs may be http and private addresses, which Alertmanager reaches from the network namespace every app shares; for test rigs only")
 	}
 	// Without a heartbeat the Watchdog goes to the blackhole: a box,
-	// motel or Alertmanager that stops is told by no one (requirement 6).
+	// moteld or Alertmanager that stops is told by no one (requirement 6).
 	if heartbeat == "" {
-		a.logger.Warn("monitor: no heartbeat in this load: nothing outside the box hears that it, motel or Alertmanager stopped; add heartbeat {secret.NOTIFY_<NAME>} with a dead-man check's ping URL, or mend its secret (notify/DESIGN-notify.md, \"Dead-man and uptime\")")
+		a.logger.Warn("monitor: no heartbeat in this load: nothing outside the box hears that it, moteld or Alertmanager stopped; add heartbeat {secret.NOTIFY_<NAME>} with a dead-man check's ping URL, or mend its secret (notify/DESIGN-notify.md, \"Dead-man and uptime\")")
 	}
 }
 
@@ -327,7 +327,7 @@ func (a *App) startNotify() {
 	// filter, whatever line names it.
 	theEngine.configure(a, am, a.known, a.logger)
 	// What liveswap's watchdogs reported and has not ended, again: after
-	// a motel restart the table is empty, and nothing else would report
+	// a moteld restart the table is empty, and nothing else would report
 	// a loop already under way or a refused relaunch (DESIGN-notify.md,
 	// "Behaviour"). Pulled here, once the engine serves this config,
 	// whichever app Caddy starts first.

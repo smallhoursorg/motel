@@ -1,4 +1,4 @@
-# Builds the exact artifact an operator ships: the motel binary from
+# Builds the exact artifact an operator ships: the moteld binary from
 # cmd/moteld (caddy standard + liveswap + penaltybox + Souin + Otter).
 # The e2e-motel container then plays the production VPS: systemd as
 # PID 1 running the packaged moteld.service as the motel user,

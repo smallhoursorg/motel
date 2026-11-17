@@ -120,8 +120,8 @@ upgrade is on the box already; `/tmp` would not survive a reboot.
 `enable --now` prints only `Created symlink …`; that is success.)
 
 On a release older than Debian 13, `apt install` stops with
-`motel : Depends: systemd (>= 257)`, and the `systemctl` line after
-it finds no motel unit. Each app's sandbox is built on systemd 257,
+`moteld : Depends: systemd (>= 257)`, and the `systemctl` line after
+it finds no moteld unit. Each app's sandbox is built on systemd 257,
 so the fix is a Debian 13 image, not a setting. That is the first half
 of the step 1 check.
 
@@ -129,7 +129,7 @@ Check it:
 
 ```sh
 systemctl status moteld          # active (running); press q to exit
-curl -s localhost                  # "motel is running. To serve your apps: moteld init …"
+curl -s localhost                  # "moteld is running. To serve your apps: moteld init …"
 systemd-detect-virt --container    # none
 ```
 
@@ -360,7 +360,7 @@ It refuses, writing nothing, a file with no `box` block, no signer or
 no site carrying `box_webhook` — any of them would leave the box
 unreachable by its own channel — and a directory not named for that
 site. Otherwise it installs the file over the starter config and
-reloads motel. A file that does not load is put back, the starter
+reloads moteld. A file that does not load is put back, the starter
 keeps serving, and `init` says so; `journalctl -u moteld -n 50
 --no-pager` on the box says why. Fix it, commit, and run the four
 lines again. The reload is also liveswap's first start, which tries the

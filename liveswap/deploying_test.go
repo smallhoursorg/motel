@@ -134,7 +134,7 @@ func TestRecoveryRemovesTheReleaseOfADeployNoMotelFinished(t *testing.T) {
 		t.Fatal("a settled marker must be removed")
 	}
 	rec := recordOfV2(t, rig)
-	if rec.Status != "failed" || !strings.Contains(rec.Error, "motel") || !rec.StartedAt.Equal(interruptedAt) {
+	if rec.Status != "failed" || !strings.Contains(rec.Error, "moteld") || !rec.StartedAt.Equal(interruptedAt) {
 		t.Fatalf("the cut-short deploy must be recorded failed, naming why, at its own start: %+v", rec)
 	}
 	if last := rig.ma.status().LastDeploy; last == nil || last.Version != "v2" || last.Status != "failed" {
@@ -149,7 +149,7 @@ func TestRecoveryRemovesTheReleaseOfADeployNoMotelFinished(t *testing.T) {
 }
 
 func TestAMarkerForTheServingVersionIsOnlyCleared(t *testing.T) {
-	// A deploy that reached the cutover before motel stopped: its
+	// A deploy that reached the cutover before moteld stopped: its
 	// version is the one serving, and is never removed.
 	rig := newTestRig(t)
 	rig.store.state = appState{CurrentVersion: "v2", Nonce: recordedNonce, Handle: handleState{PID: 1}}

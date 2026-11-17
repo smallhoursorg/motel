@@ -159,22 +159,22 @@ see during the restart, and how to pick a quiet moment for it.
   signer, a secret — by a signed push to the box's repository (steps 1
   and 2). The run's output is what changed.
 - **Logs:** `journalctl -t motel-example` for the app's own output,
-  `journalctl -u moteld` for motel's, `journalctl -u
+  `journalctl -u moteld` for moteld's, `journalctl -u
   motel-box-apply` for what the box did with a push — as root, or as
   the administrator, if there is one
   ([Hardening](hardening.md#3-an-administrator-if-you-want-one)),
   without sudo.
-- **If motel crashes** — a SIGKILL, out of memory, a bug — systemd
+- **If moteld crashes** — a SIGKILL, out of memory, a bug — systemd
   starts it again a second later and it picks the running apps back up.
   A plain `kill` (SIGTERM) is a clean stop, like `systemctl stop`, and
   stays stopped; so does a start it *refuses*: `journalctl -u moteld
   -n 50 --no-pager` says why. Fix it, then, as root, `systemctl start
-  motel` (after "start request repeated too quickly", `systemctl
-  reset-failed motel` first). A stopped box takes no pushes, so a fix to the
+  moteld` (after "start request repeated too quickly", `systemctl
+  reset-failed moteld` first). A stopped box takes no pushes, so a fix to the
   config is made on the box too ([At 3am](#at-3am)). A restart loads
   `/etc/motel/Caddyfile` as it stands: a pushed file that did not
   load was put back, but a hand edit that was not reloaded goes live
-  then — or, if it does not load, keeps motel down.
+  then — or, if it does not load, keeps moteld down.
 - **A second app:** another `app` block and site in the box's
   Caddyfile, pushed; another copy of the example, with its own
   `MOTEL_URL`. The Caddyfile, and the app's secrets if it has any

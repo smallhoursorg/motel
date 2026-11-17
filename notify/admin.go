@@ -264,7 +264,7 @@ func serveTest(w http.ResponseWriter, r *http.Request) error {
 	if _, ok := active.cfg.channels[req.Channel]; !ok {
 		if slices.ContainsFunc(active.Channels, func(c Channel) bool { return c.Name == req.Channel }) {
 			// A boot drops a channel whose secret it cannot use, and serves.
-			return unprocessable(fmt.Errorf("channel %s was dropped from this load: its secret could not be used, and motel's journal says why (monitor: a channel is dropped from this load); mend the box's secrets file (%s), then systemctl reload moteld", req.Channel, active.secretsFile()))
+			return unprocessable(fmt.Errorf("channel %s was dropped from this load: its secret could not be used, and moteld's journal says why (monitor: a channel is dropped from this load); mend the box's secrets file (%s), then systemctl reload moteld", req.Channel, active.secretsFile()))
 		}
 		names := strings.Join(active.cfg.order, ", ")
 		if names == "" {

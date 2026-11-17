@@ -864,7 +864,7 @@ func pushedSeries(pushes []int, value func(at int) int) string {
 	return strings.TrimSpace(b.String())
 }
 
-// A steady 2 a second across a motel restart, on the store's own
+// A steady 2 a second across a moteld restart, on the store's own
 // arithmetic (pushes placed to the second): the old process pushes
 // every 30 s, its stop pushes what it counted since (stop - gp after
 // its last tick), and the new one pushes from zero a second after the

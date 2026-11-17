@@ -37,7 +37,7 @@
 #                      fresh one is minted for each request
 #   MOTEL_AUDIENCE  the audience the box block's deploy_trust expects
 #                      (default: motel)
-#   MOTEL           the motel command (default: motel); `motel
+#   MOTELD          the moteld command (default: moteld); `moteld
 #                      box webhook` names the address as the box reads the file
 #
 # In GitHub Actions the output is also dressed for the job page: each
@@ -47,7 +47,7 @@
 # others are still sent.
 set -eu
 cd "$(dirname "$0")/.."
-MOTEL=${MOTEL:-motel}
+MOTELD=${MOTELD:-moteld}
 audience=${MOTEL_AUDIENCE:-motel}
 actions=${GITHUB_ACTIONS:-}
 # A request's bound. A push's (post) is 600 s: before the box waits up
@@ -427,7 +427,7 @@ send() {
 	*) red "$path is not a file: a box's file is a regular file"; return 0 ;;
 	esac
 	git cat-file blob "$head:$path" >"$tmpd/Caddyfile" || { red "$path is not in HEAD"; return 0; }
-	url=$("$MOTEL" box webhook "$tmpd/Caddyfile" 2>"$tmpd/err") || { red "$path: $(cat "$tmpd/err")"; return 0; }
+	url=$("$MOTELD" box webhook "$tmpd/Caddyfile" 2>"$tmpd/err") || { red "$path: $(cat "$tmpd/err")"; return 0; }
 
 	req "$url"
 	case $code in

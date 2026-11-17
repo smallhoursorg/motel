@@ -26,7 +26,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Install motel (each release the boxes need, bare binaries)
+      - name: Install moteld (each release the boxes need, bare binaries)
         run: bin/install-moteld
       - run: make check
 
@@ -54,6 +54,6 @@ jobs:
       # Caddyfile, which any release with `box` reads alike: the default
       # alone, so that one box's MOTEL_VERSION file cannot hold the
       # others' pushes back.
-      - name: Install motel (the release's bare binary)
+      - name: Install moteld (the release's bare binary)
         run: bin/install-moteld default
       - run: bin/apply

@@ -32,7 +32,7 @@ type viewCase struct {
 //   - gapped: 10 responses a push throughout, a 20-minute gap in the
 //     pushes over the window's start: increase's 990, the first push
 //     after the gap dropped (increase_pure: 4990, every count since
-//     motel began).
+//     moteld began).
 //   - old: the metrics line first loaded on a box whose observer had
 //     counted 7200, then 10 a push: 600, at the day 12000 (increase_pure:
 //     7800, 19200).

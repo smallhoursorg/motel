@@ -1,4 +1,4 @@
-# motel-box-apply.service — the box applier: one run of `motel
+# motel-box-apply.service — the box applier: one run of `moteld
 # box apply`, as root, started by motel-box-apply.path and never
 # enabled on its own. Every line here, and why it is here, is a row of
 # the table in box/DESIGN-box.md, "The applier unit", and what is left

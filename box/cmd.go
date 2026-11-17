@@ -167,9 +167,9 @@ rather than the working tree's:
 
 It reads ./Caddyfile the way the box reads every push, records its
 path in the repository (<host>/Caddyfile, from its box_webhook host),
-installs it as /etc/motel/Caddyfile and reloads motel. The reload
+installs it as /etc/motel/Caddyfile and reloads moteld. The reload
 is the check: a file motel will not load is rolled back, the old
-configuration serving throughout, and init exits non-zero. motel
+configuration serving throughout, and init exits non-zero. moteld
 must be running (on a new box: systemctl enable --now moteld); if it
 is not, init refuses and says how to start it and run init again. From then on the box applies only signed commits that descend
 from <sha>. Running it again re-seeds the box: a new host (its

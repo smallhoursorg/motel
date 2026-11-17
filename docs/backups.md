@@ -445,7 +445,7 @@ the app ([A rebuilt box](secrets.md#a-rebuilt-box)). A `deploy_trust
 local` public key is a file the Caddyfile names, not a commit, and
 `moteld init` refuses a Caddyfile whose key file is missing: in
 step 1, after the install and before `moteld init`, put the `.pub`
-back from where the pair is kept. Or make a new pair with `motel
+back from where the pair is kept. Or make a new pair with `moteld
 deploy-keygen`: its private key then replaces the old one wherever
 tokens are minted — the CI secret, or your own machine — and only the
 `.pub` goes to the box. Until the private key is replaced, a deploy

@@ -16,7 +16,7 @@ func silenceCommand() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "silence <command>",
 		Short: "Silence alerts in Alertmanager for a while, and end a silence (root)",
-		Long: `Writes silences through the running motel's admin socket (root and the
+		Long: `Writes silences through the running moteld's admin socket (root and the
 motel user reach it), which checks each one, writes it to Alertmanager
 and leaves a monitor: silence line in the journal. To list silences,
 ask Alertmanager itself (docs/monitor.md, "Silence an alert").`,
