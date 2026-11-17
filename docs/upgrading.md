@@ -3,8 +3,9 @@
 This page is for a box that already runs the `moteld` package.
 Releases up to v0.7.0 were a package named `motel`, and the move from
 one to the other is a remove and an install, which the first `moteld`
-release's notes describe. The checks and the ways back below name
-`moteld` throughout, and none of them reaches across that move.
+release's notes describe. The ways back below go to `moteld` releases
+only: going back across that move is not possible. What this page says
+of a release up to v0.7.0 applies to a box once it has made the move.
 
 A release is a new `.deb`; installing it over the old one is the
 upgrade. Everything on this page runs as root on the box

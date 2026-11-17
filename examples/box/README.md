@@ -348,7 +348,7 @@ them, named, with nothing changed. A file beside the box's Caddyfile
 pins that box to its own release:
 
 ```
-deploy.example.com/MOTEL_VERSION     one line: 0.3.1-rc1, or v0.3.1-rc1
+deploy.example.com/MOTEL_VERSION     one line, of the form 0.3.1-rc1 or v0.3.1-rc1
 ```
 
 `bin/install-moteld` then installs that release too, as
