@@ -364,7 +364,7 @@ read-only at `/w` and writes nothing into:
 ```sh
 docker run --rm -v "$PWD:/w:ro" -w /tmp debian:13-slim sh -c '
   apt-get -qq update && apt-get -qq install -y curl ca-certificates >/dev/null &&
-  v=0.3.1 && arch=$(dpkg --print-architecture) &&
+  v=X.Y.Z && arch=$(dpkg --print-architecture) &&
   curl -fsSLO https://github.com/smallhoursorg/motel/releases/download/v$v/moteld_${v}_linux_$arch.tar.gz &&
   curl -fsSLO https://github.com/smallhoursorg/motel/releases/download/v$v/checksums.txt &&
   sha256sum -c --ignore-missing checksums.txt >/dev/null &&
