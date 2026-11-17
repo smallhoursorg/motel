@@ -38,14 +38,14 @@ vmalert reads, is not this config's (a write at a load that failed),
 the table ends with a line that says so, and --json has rules_file.
 docs/monitor.md, "How close is each alert", has an example.
 
-    motel monitor rules
-    motel monitor rules --json`,
+    moteld monitor rules
+    moteld monitor rules --json`,
 		Args: cobra.NoArgs,
 		RunE: func(c *cobra.Command, _ []string) error {
 			return printAnswer(c, asJSON, func() (RulesListing, error) {
 				out, err := adminRequest(c, http.MethodGet, "/notify/rules", nil, rulesLimit)
 				if err != nil {
-					return RulesListing{}, notAdmitted(c, err, "motel monitor rules")
+					return RulesListing{}, notAdmitted(c, err, "moteld monitor rules")
 				}
 				var l RulesListing
 				if json.Unmarshal(out, &l) != nil || l.Alerts == nil {

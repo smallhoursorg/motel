@@ -1,5 +1,5 @@
 docker compose run --rm -e CGO_ENABLED=0 dev sh -c '\
-		go build -trimpath -o build/e2e-backup/motel ./cmd/motel & p1=$!; \
+		go build -trimpath -o build/e2e-backup/moteld ./cmd/moteld & p1=$!; \
 		(cd backups && go build -trimpath -tags e2e -o ../build/e2e-backup/motel-backup ./cmd/motel-backup) & p2=$!; \
 		wait $p1 || exit 1; wait $p2 || exit 1; \
 		chmod -R a+rwX build'
@@ -352,7 +352,7 @@ Oct 05 18:26:23 95c04638b565 systemd[1]: Starting motel_backup_open_775529222fad
 Oct 05 18:26:24 95c04638b565 systemd[1]: motel_backup_open_775529222fad.service: Main process exited, code=exited, status=12/n/a
 Oct 05 18:26:24 95c04638b565 systemd[1]: motel_backup_open_775529222fad.service: Failed with result 'exit-code'.
 Oct 05 18:26:24 95c04638b565 systemd[1]: Failed to start motel_backup_open_775529222fad.service - motel backup: open the repository.
-Oct 05 18:26:24 95c04638b565 systemd[1]: Started readonly-storage.service - [systemd-run] /usr/bin/motel run --config /root/readonly.Caddyfile --adapter caddyfile.
+Oct 05 18:26:24 95c04638b565 systemd[1]: Started readonly-storage.service - [systemd-run] /usr/bin/moteld run --config /root/readonly.Caddyfile --adapter caddyfile.
 Oct 05 18:26:24 95c04638b565 motel[2345]: {"level":"warn","ts":1791224784.5061498,"msg":"unable to determine directory for user configuration; falling back to current directory","error":"neither $XDG_CONFIG_HOME nor $HOME are defined"}
 Oct 05 18:26:24 95c04638b565 motel[2345]: {"level":"info","ts":1791224784.5070064,"msg":"using config from file","file":"/root/readonly.Caddyfile"}
 Oct 05 18:26:24 95c04638b565 motel[2345]: {"level":"info","ts":1791224784.5075324,"msg":"adapted config to JSON","adapter":"caddyfile"}
@@ -386,11 +386,11 @@ Oct 05 18:26:25 95c04638b565 motel[2345]: {"level":"info","ts":1791224785.869752
 Oct 05 18:26:25 95c04638b565 motel[2345]: {"level":"warn","ts":1791224785.8698003,"msg":"exiting; byeee!! 👋","signal":"SIGTERM"}
 Oct 05 18:26:25 95c04638b565 motel[2345]: {"level":"info","ts":1791224785.8698142,"logger":"http","msg":"servers shutting down with eternal grace period"}
 Oct 05 18:26:25 95c04638b565 motel[2345]: {"level":"info","ts":1791224785.8700147,"logger":"tls.cache.maintenance","msg":"stopped background certificate maintenance","cache":"0x1220a091dc00"}
-Oct 05 18:26:25 95c04638b565 systemd[1]: Stopping readonly-storage.service - [systemd-run] /usr/bin/motel run --config /root/readonly.Caddyfile --adapter caddyfile...
+Oct 05 18:26:25 95c04638b565 systemd[1]: Stopping readonly-storage.service - [systemd-run] /usr/bin/moteld run --config /root/readonly.Caddyfile --adapter caddyfile...
 Oct 05 18:26:25 95c04638b565 motel[2345]: {"level":"info","ts":1791224785.8707087,"msg":"shutdown complete","signal":"SIGTERM","exit_code":0}
 Oct 05 18:26:25 95c04638b565 systemd[1]: readonly-storage.service: Deactivated successfully.
-Oct 05 18:26:25 95c04638b565 systemd[1]: Stopped readonly-storage.service - [systemd-run] /usr/bin/motel run --config /root/readonly.Caddyfile --adapter caddyfile.
-Oct 05 18:26:25 95c04638b565 systemd[1]: Started readonly-storage.service - [systemd-run] /usr/bin/motel run --config /root/readonly.Caddyfile --adapter caddyfile.
+Oct 05 18:26:25 95c04638b565 systemd[1]: Stopped readonly-storage.service - [systemd-run] /usr/bin/moteld run --config /root/readonly.Caddyfile --adapter caddyfile.
+Oct 05 18:26:25 95c04638b565 systemd[1]: Started readonly-storage.service - [systemd-run] /usr/bin/moteld run --config /root/readonly.Caddyfile --adapter caddyfile.
 Oct 05 18:26:25 95c04638b565 motel[2462]: {"level":"warn","ts":1791224785.9120483,"msg":"unable to determine directory for user configuration; falling back to current directory","error":"neither $XDG_CONFIG_HOME nor $HOME are defined"}
 Oct 05 18:26:25 95c04638b565 motel[2462]: {"level":"info","ts":1791224785.913696,"msg":"using config from file","file":"/root/readonly.Caddyfile"}
 Oct 05 18:26:25 95c04638b565 motel[2462]: {"level":"info","ts":1791224785.9142704,"msg":"adapted config to JSON","adapter":"caddyfile"}
@@ -420,14 +420,14 @@ Oct 05 18:26:26 95c04638b565 systemd[1]: Failed to start motel_backup_probe_92af
 Oct 05 18:26:26 95c04638b565 systemd[1]: Starting motel_backup_open_92af28df3699.service - motel backup: open the repository...
 Oct 05 18:26:27 95c04638b565 systemd[1]: motel_backup_open_92af28df3699.service: Deactivated successfully.
 Oct 05 18:26:27 95c04638b565 systemd[1]: Finished motel_backup_open_92af28df3699.service - motel backup: open the repository.
-Oct 05 18:26:27 95c04638b565 systemd[1]: Stopping readonly-storage.service - [systemd-run] /usr/bin/motel run --config /root/readonly.Caddyfile --adapter caddyfile...
+Oct 05 18:26:27 95c04638b565 systemd[1]: Stopping readonly-storage.service - [systemd-run] /usr/bin/moteld run --config /root/readonly.Caddyfile --adapter caddyfile...
 Oct 05 18:26:27 95c04638b565 motel[2462]: {"level":"info","ts":1791224787.3399498,"msg":"shutting down apps, then terminating","signal":"SIGTERM"}
 Oct 05 18:26:27 95c04638b565 motel[2462]: {"level":"warn","ts":1791224787.3400633,"msg":"exiting; byeee!! 👋","signal":"SIGTERM"}
 Oct 05 18:26:27 95c04638b565 motel[2462]: {"level":"info","ts":1791224787.3400745,"logger":"http","msg":"servers shutting down with eternal grace period"}
 Oct 05 18:26:27 95c04638b565 motel[2462]: {"level":"info","ts":1791224787.340227,"logger":"tls.cache.maintenance","msg":"stopped background certificate maintenance","cache":"0x69ad92205580"}
 Oct 05 18:26:27 95c04638b565 motel[2462]: {"level":"info","ts":1791224787.3402636,"msg":"shutdown complete","signal":"SIGTERM","exit_code":0}
 Oct 05 18:26:27 95c04638b565 systemd[1]: readonly-storage.service: Deactivated successfully.
-Oct 05 18:26:27 95c04638b565 systemd[1]: Stopped readonly-storage.service - [systemd-run] /usr/bin/motel run --config /root/readonly.Caddyfile --adapter caddyfile.
+Oct 05 18:26:27 95c04638b565 systemd[1]: Stopped readonly-storage.service - [systemd-run] /usr/bin/moteld run --config /root/readonly.Caddyfile --adapter caddyfile.
 e2e-s3-1  | 2026/10/05 18:25:13 NOTICE: Config file "/.config/rclone/rclone.conf" not found - using defaults
 e2e-s3-1  | 2026/10/05 18:25:13 NOTICE: Local file system at /data: Starting s3 server on [http://[::]:9000/]
  Container motel-backups-v2-e2e-backup-box-1 Stopping 

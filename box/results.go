@@ -41,14 +41,14 @@ func terminal(phase string) bool {
 const (
 	msgNotRunning         = "motel is not running; nothing applied"
 	msgStillStarting      = "motel is still starting after 300 s; nothing applied"
-	msgNoSigner           = "the Caddyfile this box runs lists no signer; motel init is the way back"
+	msgNoSigner           = "the Caddyfile this box runs lists no signer; moteld init is the way back"
 	msgInterrupted        = "interrupted before the Caddyfile changed; nothing changed"
-	msgInterruptedStopped = "interrupted; the previous Caddyfile is on disk; motel is not running — systemctl reset-failed motel, then systemctl start motel, loads it"
+	msgInterruptedStopped = "interrupted; the previous Caddyfile is on disk; motel is not running — systemctl reset-failed moteld, then systemctl start moteld, loads it"
 	msgNoRecord           = "the box has no record of this push; push again"
-	msgReloadFailed       = "the reload failed; the previous Caddyfile is back and running — journalctl -u motel -n 50 on the box says why"
+	msgReloadFailed       = "the reload failed; the previous Caddyfile is back and running — journalctl -u moteld -n 50 on the box says why"
 	// The same, for a set whose Caddyfile is unchanged: the box's own
 	// env file (_box.env) was what reloaded, and notify refused it.
-	msgReloadFailedBox   = "the reload failed on the box's new notify secrets; the previous ones are back and running — journalctl -u motel -n 50 on the box says why (notify takes a channel URL that is https to a public host)"
+	msgReloadFailedBox   = "the reload failed on the box's new notify secrets; the previous ones are back and running — journalctl -u moteld -n 50 on the box says why (notify takes a channel URL that is https to a public host)"
 	msgRecordAfterReload = "the record could not be updated after a successful reload (disk full); rolled back to keep the file and the record consistent"
 	// The swap landed, then the `swapped` record or the swap's own fsync
 	// failed: nothing was reloaded before the rollback.
@@ -56,10 +56,10 @@ const (
 	// A crash fell after the swap: recovery rolled back, the reload's
 	// outcome unknown.
 	msgRolledBackInterrupted = "interrupted after the Caddyfile changed; rolled back: the previous Caddyfile is back and running"
-	msgBothReloads           = "the reload failed and so did the reload of the previous file; the previous file is on disk; journalctl -u motel"
+	msgBothReloads           = "the reload failed and so did the reload of the previous file; the previous file is on disk; journalctl -u moteld"
 	// The reload of the previous file failed in a rollback whose first
 	// reload did not (bothFailed).
-	msgPrevReloadFailed = "rolled back, but the reload of the previous file failed; the previous file is on disk; journalctl -u motel"
+	msgPrevReloadFailed = "rolled back, but the reload of the previous file failed; the previous file is on disk; journalctl -u moteld"
 	msgChanged          = "the Caddyfile changed during the transaction; it is left as found"
 	msgDiskFull         = "disk full; the previous Caddyfile could not be restored"
 	// The texts for a set with env files in it, where the catalogue
@@ -81,9 +81,9 @@ const (
 	// read the old file; reset-failed first, as msgInterruptedStopped
 	// says, since a unit at its start limit refuses a restart.
 	msgInitRemedy = `the Caddyfile is accepted only by a running motel. Start it on the file it has, then run init again:
-  systemctl enable motel && systemctl reset-failed motel && systemctl restart motel
-  cd %[2]s && motel init %[1]s
-If it will not start, journalctl -u motel says why.`
+  systemctl enable moteld && systemctl reset-failed moteld && systemctl restart moteld
+  cd %[2]s && moteld init %[1]s
+If it will not start, journalctl -u moteld says why.`
 )
 
 // installFailed is `failed` for an install that stopped before the
@@ -108,7 +108,7 @@ func baselineUnrecorded(o origin, phase, commit string) string {
 	}
 	switch {
 	case o == originInit:
-		return what + " the baseline could not be recorded; motel init " + commit + " again, which ends no_change and records it"
+		return what + " the baseline could not be recorded; moteld init " + commit + " again, which ends no_change and records it"
 	case phase == phaseNoChange:
 		// The file did not change, so a push of the same chain is
 		// verified as this one was.
@@ -118,7 +118,7 @@ func baselineUnrecorded(o origin, phase, commit string) string {
 	// is verified again against the file now installed, and refused.
 	// applied.json keeps the previous digest (D1), so step 10 flags the
 	// file the next push finds.
-	return what + " the baseline could not be recorded; motel box baseline " + commit + " on the box records it (the next push then reports the file as edited out of band; it was not)"
+	return what + " the baseline could not be recorded; moteld box baseline " + commit + " on the box records it (the next push then reports the file as edited out of band; it was not)"
 }
 
 // result is out/<id>.json (DESIGN-box.md, "Record and result fields"):

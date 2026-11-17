@@ -40,7 +40,7 @@ const (
 
 // finalPushTimeout bounds the import of the push when the pusher stops
 // (release): a store that does not answer must not hold motel's stop,
-// which the unit gives 5 s in all (packaging/motel.service,
+// which the unit gives 5 s in all (packaging/moteld.service,
 // TimeoutStopSec) before its SIGKILL. A push over the socket takes
 // milliseconds. The gather before it has its own bound, diskStatWait,
 // and is outside this one, so a hung disk does not cost the import its
@@ -82,7 +82,7 @@ type pusher struct {
 	rulesBad     int
 	rulesDown    bool
 	// pushedAt and rulesReadAt are when the last push ended and the
-	// last read of vmalert's up was answered: `motel monitor rules`
+	// last read of vmalert's up was answered: `moteld monitor rules`
 	// lists failingSince and rulesBad as of them.
 	pushedAt    time.Time
 	rulesReadAt time.Time

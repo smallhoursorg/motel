@@ -1,6 +1,6 @@
 package box
 
-// `motel box apply`: the root applier (DESIGN-box.md, "The trust
+// `moteld box apply`: the root applier (DESIGN-box.md, "The trust
 // chain" steps 9–16, "The install transaction", "Retention"). One shot,
 // started by motel-box-apply.path when in/ or work/ is not empty or
 // txn.json exists.
@@ -78,7 +78,7 @@ const nobody = 65534
 func newApplier(logger *zap.Logger) *Applier {
 	return &Applier{
 		root:     "/",
-		systemd:  systemctl{unit: "motel"},
+		systemd:  systemctl{unit: "moteld"},
 		clock:    realClock{},
 		verifier: &proof.Verifier{RunAs: nobody},
 		logger:   logger,

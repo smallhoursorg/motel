@@ -18,7 +18,7 @@ problem in a public issue or discussion — a public report on a deploy
 server puts every operator at risk before a fix exists.
 
 What helps: the config that reproduces it (redact your secrets), the
-version (`motel version`; up to v0.3.1 it names only the Caddy it
+version (`moteld version`; up to v0.3.1 it names only the Caddy it
 was built with, so name your motel release too), and what an
 attacker gains. Proof-of-concept payloads are welcome inside the
 private advisory.

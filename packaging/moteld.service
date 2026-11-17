@@ -1,10 +1,10 @@
 # motel systemd unit, modeled on Caddy's official dist unit.
 #
 # Write every absolute path in these comments in backticks.
-# `systemctl cat motel` prints each file under a line that is "# "
+# `systemctl cat moteld` prints each file under a line that is "# "
 # and its path, and docs/upgrading.md tells the operator to read the
 # output by those lines: a comment line that opened with a bare path
-# would read as one more file (a test in cmd/motel fails on such a
+# would read as one more file (a test in cmd/moteld fails on such a
 # line).
 #
 # Note on hardening: deployed apps do NOT run inside this unit. liveswap
@@ -55,8 +55,8 @@ RuntimeDirectoryMode=0750
 # environment variable — ACME DNS tokens and any other supervisor
 # secrets — into the journal at each start, and journals get pasted
 # into bug reports. Add it back temporarily to debug environment issues.
-ExecStart=/usr/bin/motel run --config /etc/motel/Caddyfile
-ExecReload=/usr/bin/motel reload --config /etc/motel/Caddyfile --force
+ExecStart=/usr/bin/moteld run --config /etc/motel/Caddyfile
+ExecReload=/usr/bin/moteld reload --config /etc/motel/Caddyfile --force
 # A crashed motel comes back on its own; a start it refused stays
 # down. Every exit is Caddy's: a start that is refused — a rejected
 # config, a host that cannot deliver the per-app sandbox, no user
@@ -78,7 +78,7 @@ ExecReload=/usr/bin/motel reload --config /etc/motel/Caddyfile --force
 # Caddy never sends WATCHDOG=1, so it would be killed on schedule.
 # The start limit stays at systemd's default (5 starts in 10 s): a
 # crash on every start ends in `start-limit-hit`, cleared by
-# `systemctl reset-failed motel`; a slower loop retries for as long
+# `systemctl reset-failed moteld`; a slower loop retries for as long
 # as it takes, like the liveswap watchdog does for an app — the loop
 # is the signal. RestartSec keeps that loop legible, one attempt (and
 # one probe unit) a second, and costs a one-off crash nothing next to

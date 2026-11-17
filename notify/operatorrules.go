@@ -510,7 +510,7 @@ func checkRules(rules []Rule, apps map[string]bool) error {
 
 // ReadsResponses is whether the rule reads an app's response series,
 // which only an `observe` handler in the app's route counts: a request
-// threshold, or post_deploy. cmd/motel's gate refuses one naming an app
+// threshold, or post_deploy. cmd/moteld's gate refuses one naming an app
 // that no route observes, which only the whole config can tell.
 func (r Rule) ReadsResponses() bool {
 	switch r.Kind {
@@ -588,7 +588,7 @@ func thresholdRule(r Rule) vmRule {
 
 // pushSeries is a series every push carries: the store had motel's
 // push before a time when this series has a sample before it.
-const pushSeries = `process_start_time_seconds{job="motel"}`
+const pushSeries = `process_start_time_seconds{job="moteld"}`
 
 // counterLookback is how far back counterIncrease looks for a series'
 // earlier sample: a release name the store saw within it, rolled back
@@ -758,7 +758,7 @@ func observedBefore(sel string, win time.Duration) string {
 // further terms joined with "and". A guard is a condition that is not
 // the closeness (a sample floor: too few requests to judge), and one
 // with no op holds when its value has a series at all (disk_fill's
-// history). expr is the one join: what `motel monitor rules` lists and
+// history). expr is the one join: what `moteld monitor rules` lists and
 // what rules.yml holds are the same text.
 type ruleTerm struct {
 	value     string

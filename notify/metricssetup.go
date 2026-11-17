@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-// The files `motel monitor setup --metrics` writes, which ship in the
+// The files `moteld monitor setup --metrics` writes, which ship in the
 // binary: the package installs nothing of the store's until root asks.
 var (
 	//go:embed units/metrics/motel-metrics-netns.service
@@ -77,7 +77,7 @@ func metricsUnits() []struct {
 	}
 }
 
-// metricsSetup is the store's part of `motel monitor setup --metrics`,
+// metricsSetup is the store's part of `moteld monitor setup --metrics`,
 // after Alertmanager's (runSetup): Debian's victoria-metrics, installed
 // so that it never listens in the host's namespace, even for a moment. Debian's unit starts on install on 0.0.0.0:8428 with no
 // authentication (DESIGN-metrics.md, "Packaging and setup"), so the
@@ -267,7 +267,7 @@ func metricsSetup(sys system, root string, out io.Writer) (err error) {
 		both = did(running) + " the store and " + did(vmalertRan) + " vmalert"
 	}
 	say("%s: the store listens on %s only, its TCP in the motel-metrics namespace", both, DefaultStoreSocket)
-	if err := sys.run("systemctl", "try-reload-or-restart", "motel.service"); err != nil {
+	if err := sys.run("systemctl", "try-reload-or-restart", "moteld.service"); err != nil {
 		return err
 	}
 	say("%s", loadedSays(sys, true))

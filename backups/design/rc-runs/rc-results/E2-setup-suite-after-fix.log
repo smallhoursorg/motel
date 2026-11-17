@@ -1,5 +1,5 @@
 docker compose run --rm -e CGO_ENABLED=0 dev sh -c '\
-		go build -trimpath -o build/e2e-backup/motel ./cmd/motel & p1=$!; \
+		go build -trimpath -o build/e2e-backup/moteld ./cmd/moteld & p1=$!; \
 		(cd backups && go build -trimpath -tags e2e -o ../build/e2e-backup/motel-backup ./cmd/motel-backup) & p2=$!; \
 		wait $p1 || exit 1; wait $p2 || exit 1; \
 		chmod -R a+rwX build'
@@ -84,7 +84,7 @@ docker compose up --build -d --scale e2e-backup-box=1 e2e-s3 e2e-backup-box
 #20 0.771 System has not been booted with systemd as init system (PID 1). Can't operate.
 #20 0.771 Failed to connect to system scope bus via local transport: Host is down
 #20 0.779 motel installed. Start it with:
-#20 0.779   sudo systemctl enable --now motel
+#20 0.779   sudo systemctl enable --now moteld
 #20 0.826 /usr/bin/deb-systemd-helper was not called from dpkg. Exiting.
 #20 0.849 /usr/bin/deb-systemd-helper was not called from dpkg. Exiting.
 #20 0.878 /usr/bin/deb-systemd-helper was not called from dpkg. Exiting.

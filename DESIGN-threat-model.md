@@ -68,7 +68,7 @@ scope by product design.
 6. **The box's configuration at rest** — `/etc/motel/Caddyfile`:
    which repository may deploy each app, each app's command and
    flags, which hosts are served, and who may change the file itself.
-   Root-owned, 0644; written only by root — `motel init`, the `box`
+   Root-owned, 0644; written only by root — `moteld init`, the `box`
    applier, the console ([box/DESIGN-box.md](box/DESIGN-box.md)), and
    the package's postinstall, which puts the starter there only where
    nothing stands or while the file is byte-identical to the starter
@@ -524,7 +524,7 @@ entire liveswap/webhook block ships commented out
 (packaging/Caddyfile) — a fresh install has no deploy endpoint. Admin
 is off TCP, on `unix//run/motel/admin.sock` (the `admin` directive,
 same file), `RuntimeDirectoryMode=0750` owned by the service user
-(packaging/motel.service) — so admin access is gated on *being the
+(packaging/moteld.service) — so admin access is gated on *being the
 `motel` user*. Every deployed app is that user, but a sandboxed app
 cannot reach `/run/motel` at all (the path is not in its view), so
 the gate holds against apps and only motel itself can connect. The
@@ -635,7 +635,7 @@ authoritative for its behaviour; this section places it. Status:
 released in v0.3.0, and the secrets it carries (below) in v0.3.1.
 On a box set up from the
 template (`examples/box`; docs/first-deploy.md, step 3) root writes
-the file once, with `motel init`, and the config repository's
+the file once, with `moteld init`, and the config repository's
 signed pushes write it after that. A box with no `box` block has no
 config webhook, and its file is root's to edit.
 
@@ -680,7 +680,7 @@ in under the next signed one); proves the file is the committed file
 (commit, tree and blob hashes); requires first-parent descent from the
 recorded baseline; refuses a file that drops the `box` block, every
 signer, the `box_webhook` site or the key that signed it; and only
-then writes, reloads through `systemctl reload motel`, and rolls
+then writes, reloads through `systemctl reload moteld`, and rolls
 back — reloading again — on failure. It never runs Caddy's validate or
 adapter: both execute module code on the input and expand `{$VAR}`
 from root's environment.
@@ -956,7 +956,7 @@ box at least once every 90.
   residuals). What is in the repository stays: the box cannot remove
   it, and the look sees the snapshots stop. A declaration stays inside
   its app's `shared/`, whoever signed it: the run refuses an absolute,
-  unclean or escaping path, as `motel validate` does
+  unclean or escaping path, as `moteld validate` does
   (liveswap/README.md, "Declaring backups"). The credential does not
   ride the channel: `setup` writes it at a terminal into
   `/etc/motel-backup`, outside the channel's `/etc/motel`
@@ -1389,7 +1389,7 @@ beside its `ExecStartEx`: the manager spawns one process per unit
   ships no host policy. Open by default; the modules a netlink socket
   or a `socketpair()` loads are in Residual risks (#315).
 - Lifecycle: `Restart=no` (the liveswap watchdog is the sole
-  restarter of apps; motel.service itself is restarted by systemd
+  restarter of apps; moteld.service itself is restarted by systemd
   after a crash, never after a refused start), `KillMode=control-group`,
   `TimeoutStopSec=` (the app's `grace`), no `ExecStopPost=` (the
   instance's socket goes with its run dir when motel retires it,
@@ -1460,7 +1460,7 @@ only public material:
   otherwise do.
 - **Local key (no OIDC: a laptop, or a runner without it):** the box
   trusts a public key (`deploy_trust local`); the operator mints tokens with the private
-  half (`motel deploy-token`). The signing key never touches the
+  half (`moteld deploy-token`). The signing key never touches the
   box. The block's `audience` names the box a token is for; without
   one — warned about at load — a token minted for any box that trusts
   the same key is accepted.
@@ -1491,7 +1491,7 @@ the model:
   one its issuer set; for a local one, at most its block's
   `max_token_ttl` after its `iat` (24h unless the block sets one). The
   box refuses a local token minted to live longer, or without an `iat`,
-  and `motel deploy-token` warns above an hour.
+  and `moteld deploy-token` warns above an hour.
 
 What it does **not** do: ACME tokens and TLS keys still live on the box,
 so the sandbox is still required. Auth design shrinks the prize; it
@@ -1532,7 +1532,7 @@ does not isolate the runtime.
   6) — a check a
   supervisor RCE skips with the rest of the handler, and one `motel
   init` does not run. Neither catches a mistyped `claim`, a host
-  without a certificate, or a key no laptop holds, any of which strands the box. The remedy is root on the box: `motel init`
+  without a certificate, or a key no laptop holds, any of which strands the box. The remedy is root on the box: `moteld init`
   again, or a hand edit the next signed push overwrites.
 - **A signer's software-held key is the box.** Nothing on the box
   distinguishes a signature made by the operator from one made by
@@ -1682,7 +1682,7 @@ does not isolate the runtime.
   `system.slice`, kept a 5–9 ms median (the root splits CPU evenly
   between the two slices), a leak is taken by the global OOM killer
   (the app first: user-manager units run at `oom_score_adj` 200 and
-  motel.service at 0 — systemd's defaults, which motel does not
+  moteld.service at 0 — systemd's defaults, which motel does not
   set and no test holds) and forks
   are bounded by the user manager's default `TasksMax=` (measured;
   DESIGN-liveswap.md "Resource caps"). Per-app `memory_max`,
@@ -1809,7 +1809,7 @@ Dated one-liners; the full text of each is in git.
   leaves the model when the applier ships, the secrets grant when
   secrets ride the same channel.
 - 2026-10-11 — `box` built: the handler (step 6 reachability
-  included), the root applier, `motel init` and the template that
+  included), the root applier, `moteld init` and the template that
   applies by signed push (box/DESIGN-box.md, History). `bin/push` and the
   `MOTEL_CONFIG` grant are gone from the template; the tutorial sets
   up the config repository on day 0, an administrator is optional and

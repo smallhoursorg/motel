@@ -21,7 +21,7 @@ import (
 // motel is the binary that adapts the Caddyfile. Absolute: a
 // relative name is looked up on whatever PATH the caller has. A
 // variable only so a test can stand a script in for it.
-var motel = "/usr/bin/motel"
+var motel = "/usr/bin/moteld"
 
 // Program is the path the plan unit runs motel from: what setup
 // checks is installed before asking anyone for a secret.

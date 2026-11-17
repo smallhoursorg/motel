@@ -295,7 +295,7 @@ func realAdapter(t *testing.T) {
 		if adapterDir, adapterErr = os.MkdirTemp("", "plan-adapter-"); adapterErr != nil {
 			return
 		}
-		build := exec.Command("go", "build", "-o", filepath.Join(adapterDir, "motel"), "./cmd/motel")
+		build := exec.Command("go", "build", "-o", filepath.Join(adapterDir, "motel"), "./cmd/moteld")
 		build.Dir = root
 		if out, err := build.CombinedOutput(); err != nil {
 			adapterErr = fmt.Errorf("building motel: %w\n%s", err, out)

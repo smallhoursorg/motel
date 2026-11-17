@@ -730,7 +730,7 @@ func TestReleaseRetiresTheRulesOnAReloadAlone(t *testing.T) {
 			t.Fatal(err)
 		}
 		alerting := strings.Contains(string(b), "alert:")
-		gone := logs.FilterMessage("monitor metrics: the metrics line is gone: vmalert is given no rule; the store and vmalert, which motel monitor setup --metrics started, run until their units are stopped").Len()
+		gone := logs.FilterMessage("monitor metrics: the metrics line is gone: vmalert is given no rule; the store and vmalert, which moteld monitor setup --metrics started, run until their units are stopped").Len()
 		switch {
 		case reload && (alerting || gone != 1):
 			t.Errorf("a reload took the metrics line away: rules.yml has alerting rules %v, %d journal lines; want none, and one", alerting, gone)
@@ -1247,7 +1247,7 @@ func TestMetricsViewRequests(t *testing.T) {
 	// The hour's, whole.
 	hour := `((increase_pure(%[1]s{app="blog"}[1h]) unless%[3]s (present_over_time(%[2]s{app="blog"}[1d] offset 1h)` +
 		` unless (last_over_time(%[2]s{app="blog"}[1d] offset 1h) > first_over_time(%[2]s{app="blog"}[1h]))))` +
-		` and%[3]s (tfirst_over_time(%[2]s{app="blog"}[1h]) > scalar(min(tfirst_over_time(process_start_time_seconds{job="motel"}[62m]))) + 15))` +
+		` and%[3]s (tfirst_over_time(%[2]s{app="blog"}[1h]) > scalar(min(tfirst_over_time(process_start_time_seconds{job="moteld"}[62m]))) + 15))` +
 		` or increase(%[1]s{app="blog"}[1h])`
 	reqs := fmt.Sprintf(hour, "motel_app_requests_total", "motel_app_requests_total", "")
 	hist := fmt.Sprintf(hour, "motel_app_response_seconds_bucket", "motel_app_response_seconds_count", " ignoring(le)")

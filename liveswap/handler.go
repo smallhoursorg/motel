@@ -643,7 +643,7 @@ func (h *Handler) deployRecord(w http.ResponseWriter, ma *managedApp, version st
 		// the answer, which says only that the record did not read, in
 		// the handler's words alone, and the journal says why.
 		c.logger.Error("reading a deploy record", zap.String("version", version), zap.Error(err))
-		return RespondJSON(w, http.StatusInternalServerError, wire.Error{Error: "this deploy's record could not be read; the box's journal says why (journalctl -u motel)"}, NewRedactor(nil, nil))
+		return RespondJSON(w, http.StatusInternalServerError, wire.Error{Error: "this deploy's record could not be read; the box's journal says why (journalctl -u moteld)"}, NewRedactor(nil, nil))
 	}
 	// The requested version, and the record's own pin, are names the
 	// filter should let through whether or not the status still lists

@@ -2,7 +2,7 @@
 # motel starts (see e2e/mint-token.sh).
 [Unit]
 Description=e2e: mint the local deploy token
-Before=motel.service
+Before=moteld.service
 
 [Service]
 Type=oneshot

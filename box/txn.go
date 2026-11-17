@@ -392,7 +392,7 @@ func (a *Applier) writeApplied(rec *record) error {
 }
 
 // putApplied writes applied.json whole (I8): writeApplied's write, and
-// `motel box baseline`'s.
+// `moteld box baseline`'s.
 func (a *Applier) putApplied(v applied) error {
 	if err := v.valid(); err != nil {
 		return fmt.Errorf("the baseline would not read back: %w", err)
@@ -956,8 +956,8 @@ type notUpError struct{ msg string }
 
 func (e *notUpError) Error() string { return e.msg }
 
-// runInit is `motel init`'s way into the transaction (DESIGN-box.md,
-// "`motel init`"): under root's lock, after recovery, step 16's
+// runInit is `moteld init`'s way into the transaction (DESIGN-box.md,
+// "`moteld init`"): under root's lock, after recovery, step 16's
 // question once — anything but up refuses before anything is written,
 // since the reload is the only check init makes of the file — then the
 // same state machine with origin init and no result files. The caller

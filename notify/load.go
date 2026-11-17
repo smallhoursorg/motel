@@ -9,13 +9,13 @@ import (
 )
 
 // What a load knows of the command it runs under (DESIGN-notify.md,
-// "Secrets at load"). Caddy's provisioning cannot tell `motel validate`
-// from a config load: cmd/motel tells notify which command this process
+// "Secrets at load"). Caddy's provisioning cannot tell `moteld validate`
+// from a config load: cmd/moteld tells notify which command this process
 // runs, before Caddy's own command does anything.
 
-// PushedSecretsEnv names, to `motel validate`, the secrets a box push
+// PushedSecretsEnv names, to `moteld validate`, the secrets a box push
 // carries in its secrets/_box/: a comma-separated list of names, never
-// a value (box.NotifyPushedSecretsEnv, which cmd/motel's test holds
+// a value (box.NotifyPushedSecretsEnv, which cmd/moteld's test holds
 // equal to this). The box handler validates a push before root writes
 // those values into _box.env, and cannot read them (only root opens
 // them), so validate takes each named one as held by the box: it is not
@@ -28,7 +28,7 @@ const PushedSecretsEnv = "MOTEL_NOTIFY_PUSHED_SECRETS" //nolint:gosec // G101: a
 // module), which is held to every refusal.
 var command atomic.Value
 
-// SetCommand tells notify the motel command this process runs: cmd/motel
+// SetCommand tells notify the motel command this process runs: cmd/moteld
 // calls it with its first argument before Caddy's own command runs.
 func SetCommand(cmd string) { command.Store(cmd) }
 
@@ -56,10 +56,10 @@ func pushedSecrets() map[string]bool {
 // dropsChannels reports whether this load drops a channel whose secret
 // it cannot use (missing from the secrets file, or a value the URL
 // check refuses) instead of refusing the config: the first load of
-// `motel run`, with no config running. That load is a boot, or a
+// `moteld run`, with no config running. That load is a boot, or a
 // restart, and refusing it would leave every site down for an alert
 // channel; validate and a reload refuse, a refused reload keeping the
-// running config, as cmd/motel's gate does for its own rules.
+// running config, as cmd/moteld's gate does for its own rules.
 func dropsChannels() bool { return runningCommand() == "run" && !configRunning() }
 
 // configRunning reports whether Caddy runs a config now: none before a

@@ -109,7 +109,7 @@ type runner interface {
 
 // migrationRunningError is a sweep that found a pre_start still
 // running — an earlier deploy's, since a deploy in flight holds the
-// lock every sweeping caller takes: one a motel stop cut short, or
+// lock every sweeping caller takes: one a moteld stop cut short, or
 // one whose start and stop this motel could not observe. Stopping it would
 // half-apply a migration, so the sweep leaves it to end on its own
 // clock (TimeoutStartSec=) and reports itself unconfirmed, naming it.

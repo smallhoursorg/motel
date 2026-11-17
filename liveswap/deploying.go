@@ -92,7 +92,7 @@ func clearDeployMarker(d appDirs) error {
 	return nil
 }
 
-// interruptedDeployError is what a deploy cut short by a motel stop
+// interruptedDeployError is what a deploy cut short by a moteld stop
 // is recorded as; a release that could not be removed adds why, in the
 // words a failed deploy's cleanup uses.
 const interruptedDeployError = "the deploy was cut short: motel stopped or restarted during it"

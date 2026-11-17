@@ -492,7 +492,7 @@ func TestMeasureSandboxProvesTheManagerBeforeMeasuring(t *testing.T) {
 
 // TestProbeSandboxCapabilityRetriesTimeout pins the one retry, and
 // its shape. The probe's verdict decides whether motel starts at
-// all, and a refused start (exit 1) is the one exit motel.service
+// all, and a refused start (exit 1) is the one exit moteld.service
 // never retries — so a transient timeout under boot load must get a
 // second attempt in-process before it becomes a refusal to start.
 // Only a timeout: a probe that FAILED measured the host, and retrying

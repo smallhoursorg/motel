@@ -279,7 +279,7 @@ func TestGetCertificateFailure(t *testing.T) {
 	b.client.HTTP = NewHTTP(nil) // the system's roots, which never signed the test's certificate
 	_, err := b.client.Get(context.Background(), "/blog", nil)
 	f := failure(t, err)
-	if f.Exit != ExitCertificate || !strings.Contains(f.Message, "did not verify; the check says: \"x509: certificate signed by unknown authority\". motelctl never sends a token over an unverified connection. As root on the box: journalctl -u motel -g certificate") {
+	if f.Exit != ExitCertificate || !strings.Contains(f.Message, "did not verify; the check says: \"x509: certificate signed by unknown authority\". motelctl never sends a token over an unverified connection. As root on the box: journalctl -u moteld -g certificate") {
 		t.Fatalf("exit %d: %s", f.Exit, f.Message)
 	}
 	if b.hits.Load() != 0 {
@@ -294,7 +294,7 @@ func TestGetNothingAnswers(t *testing.T) {
 	c := &Client{Box: Box{Host: "127.0.0.1", Port: port}, Cred: DeployToken("tok"), HTTP: NewHTTP(nil), Now: time.Now}
 	_, err := c.Get(context.Background(), "/blog", nil)
 	f := failure(t, err)
-	want := "127.0.0.1 did not answer on " + port + " (connection refused). If motel is down, as root on the box: systemctl status motel; journalctl -u motel -n 50. The box's off-box heartbeat also reports a stopped motel."
+	want := "127.0.0.1 did not answer on " + port + " (connection refused). If motel is down, as root on the box: systemctl status moteld; journalctl -u moteld -n 50. The box's off-box heartbeat also reports a stopped motel."
 	if f.Exit != ExitUnknown || f.Message != want {
 		t.Fatalf("exit %d\n%s\nwant 3\n%s", f.Exit, f.Message, want)
 	}

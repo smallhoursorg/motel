@@ -217,7 +217,7 @@ func (e *engine) scrapeFailed(ctx context.Context, read func(context.Context) ([
 // receivers since, motel stops posting Watchdog; the alert ends within
 // heartbeatLife (its receiver sends no resolved), and the check off the
 // box reports the box down through its own channels. The next delivery
-// through a suspect's receivers (`motel monitor test` makes one) ends
+// through a suspect's receivers (`moteld monitor test` makes one) ends
 // the hold. It is in memory, as the counter's baseline is: a restart
 // of motel ends it.
 
@@ -284,7 +284,7 @@ func (e *engine) untoldFor(key, receiver string, sus []string, m amMetrics, now 
 // heartbeatHoldAfter without one holds the heartbeat. After a config
 // load (load: loadSince's answer) Alertmanager counts from 0, so any
 // delivery counted is since it: the documented mend, a reload, then
-// `motel monitor test`. A receiver with no count from an earlier read
+// `moteld monitor test`. A receiver with no count from an earlier read
 // (a reload renamed it) is otherwise counted from this one, as is a
 // count lower than the last. With mu held.
 func (e *engine) watchUntold(m amMetrics, now time.Time, load bool) {
@@ -314,7 +314,7 @@ func (e *engine) watchUntold(m amMetrics, now time.Time, load bool) {
 			u.held = true
 			e.logger.Warn("monitor: heartbeat held: a failed delivery no channel was told of; the heartbeat's check off the box will report this box down",
 				zap.Strings("suspects", u.suspects), zap.Time("failed_at", u.since),
-				zap.String("resumes", "at the next delivery through the channel: mend it, then motel monitor test "+u.suspects[0]))
+				zap.String("resumes", "at the next delivery through the channel: mend it, then moteld monitor test "+u.suspects[0]))
 		}
 	}
 }

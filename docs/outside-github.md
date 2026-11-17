@@ -24,7 +24,7 @@ and the box accepts it if a `deploy_trust` block for that app (or the
 | `github` | GitHub Actions, per run | nothing | `audience`, and `claim repository` with `claim ref` |
 | `gitlab` | GitLab CI, per job (`id_tokens:`); `issuer https://gitlab.example.com` for a self-hosted instance, `https://gitlab.com` otherwise | nothing | `audience`, and `claim project_path` with `claim ref_path` |
 | `oidc` | any other OIDC issuer: `issuer <url>` | nothing | `audience`, `issuer`, and `subject` (the issuer's own form of `sub`) |
-| `local` | you, with `motel deploy-token` and a private key | the public half of your key, a file on the box | `public_key`, and `audience` (the box's name) |
+| `local` | you, with `moteld deploy-token` and a private key | the public half of your key, a file on the box | `public_key`, and `audience` (the box's name) |
 
 What each costs:
 
@@ -61,7 +61,7 @@ On a Linux machine with `motel` on it, or in a container
 ([section 5](#5-minting-without-a-linux-motel)):
 
 ```sh
-motel deploy-keygen --out example.key
+moteld deploy-keygen --out example.key
 ```
 
 ```
@@ -119,7 +119,7 @@ sudo install -D -m 644 deploy.example.com/example.pub /etc/motel/example.pub
 **Minting.** One token per run, as late as the step that uses it:
 
 ```sh
-MOTEL_TOKEN=$(motel deploy-token --key example.key --audience deploy.example.com)
+MOTEL_TOKEN=$(moteld deploy-token --key example.key --audience deploy.example.com)
 ```
 
 The token lives for `--ttl` from now, five minutes unless you say
@@ -246,7 +246,7 @@ With a **key** on a runner without OIDC, the job mints its own token
 and the rest is the same:
 
 ```sh
-MOTEL_TOKEN=$(motel deploy-token --key "$DEPLOY_KEY" --audience deploy.example.com) \
+MOTEL_TOKEN=$(moteld deploy-token --key "$DEPLOY_KEY" --audience deploy.example.com) \
 MOTEL_URL=https://deploy.example.com/example scripts/deploy.sh app.tar.gz
 ```
 
@@ -274,7 +274,7 @@ changed them, and no token waits on an issuer, so the first OIDC token
 after a motel restart or reload can reach a box that holds no keys
 yet. The box's journal says which, and a re-run goes through. The
 box's own answer says no more, by design; its journal names the check
-that refused it (`journalctl -u motel`, the `webhook auth failed`
+that refused it (`journalctl -u moteld`, the `webhook auth failed`
 lines).
 
 ## 4. The box's config from another runner
@@ -288,8 +288,8 @@ Actions job does can run it:
   bundles them from the checkout; a shallow clone is refused with a
   message saying so. On GitLab, that is the project's *Git shallow
   clone* setting, or `GIT_DEPTH` set to `0` on the job.
-- **`motel` on `PATH`.** `bin/apply` runs `motel box webhook` to
-  read each box's address from its file. `bin/install-motel
+- **`motel` on `PATH`.** `bin/apply` runs `moteld box webhook` to
+  read each box's address from its file. `bin/install-moteld
   default` installs the latest release's binary on a Linux runner with
   `curl`, `sha256sum`, `tar` and `sudo` on it; a GitLab job on the
   Docker executor has no `sudo`, so `apt-get install -y sudo` first,
@@ -308,7 +308,7 @@ With a key, the `box` block trusts it like an app's would, and the
 job mints:
 
 ```sh
-MOTEL_TOKEN=$(motel deploy-token --key "$BOX_KEY" --audience motel --ttl 1h --claims sha=$(git rev-parse HEAD)) bin/apply
+MOTEL_TOKEN=$(moteld deploy-token --key "$BOX_KEY" --audience motel --ttl 1h --claims sha=$(git rev-parse HEAD)) bin/apply
 ```
 
 The audience here is not one box's name, as an app's is in
@@ -353,10 +353,10 @@ it lands.
 ## 5. Minting without a Linux `motel`
 
 motel is built for Linux on amd64 and arm64, and nothing else:
-`motel deploy-token` does not run on a Mac. Two ways round it.
+`moteld deploy-token` does not run on a Mac. Two ways round it.
 
 **A Linux container.** Each release's bare binary is on its releases
-page as `motel_<version>_linux_<arch>.tar.gz`, beside a
+page as `moteld_<version>_linux_<arch>.tar.gz`, beside a
 `checksums.txt`, and runs in any Debian 13 container. To mint, with
 the private key in the current directory, which the container sees
 read-only at `/w` and writes nothing into:
@@ -365,16 +365,16 @@ read-only at `/w` and writes nothing into:
 docker run --rm -v "$PWD:/w:ro" -w /tmp debian:13-slim sh -c '
   apt-get -qq update && apt-get -qq install -y curl ca-certificates >/dev/null &&
   v=0.3.1 && arch=$(dpkg --print-architecture) &&
-  curl -fsSLO https://github.com/smallhoursorg/motel/releases/download/v$v/motel_${v}_linux_$arch.tar.gz &&
+  curl -fsSLO https://github.com/smallhoursorg/motel/releases/download/v$v/moteld_${v}_linux_$arch.tar.gz &&
   curl -fsSLO https://github.com/smallhoursorg/motel/releases/download/v$v/checksums.txt &&
   sha256sum -c --ignore-missing checksums.txt >/dev/null &&
-  tar -xzf motel_${v}_linux_$arch.tar.gz motel &&
-  ./motel deploy-token --key /w/example.key --audience deploy.example.com'
+  tar -xzf moteld_${v}_linux_$arch.tar.gz moteld &&
+  ./moteld deploy-token --key /w/example.key --audience deploy.example.com'
 ```
 
 Set `v` to the release the box runs, from its releases page. The same
 command makes a key: mount the directory writable, `-v "$PWD:/w"`, and
-end with `./motel deploy-keygen --out /w/example.key` in place of
+end with `./moteld deploy-keygen --out /w/example.key` in place of
 the last line; the pair lands in the current directory, the private
 half mode 0600. Each run downloads the release again; a token a day is
 fine that way, a token an hour wants the binary kept in an image of

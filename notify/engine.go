@@ -31,7 +31,7 @@ type Event struct {
 	Instance string
 	// Source is the detector: liveswap, backup, tls, disk, metrics,
 	// rules (the operator's post_deploy), or external:<name> for
-	// `motel monitor send`.
+	// `moteld monitor send`.
 	Source  string
 	Summary string
 	// Release and DeployedBy are labels on a one-shot (part of what
@@ -44,7 +44,7 @@ type Event struct {
 	// Hold is how long a state alert's condition must stay clear before
 	// its recovery is posted; at least minHold.
 	Hold time.Duration
-	// Details are an external producer's key=value pairs (motel monitor
+	// Details are an external producer's key=value pairs (moteld monitor
 	// send --detail), annotations detail_<key>, through the filter.
 	Details map[string]string
 	// Standing, on a state alert, is a detector's report of what it
@@ -235,7 +235,7 @@ type engine struct {
 	diskPaths  []string
 	lastDisk   time.Time
 	// seen is what the pollers measured last, copied under mu for
-	// `motel monitor rules` (ruleslist.go).
+	// `moteld monitor rules` (ruleslist.go).
 	seen polled
 
 	// channel_failed's memory of Alertmanager's counter, and the read.

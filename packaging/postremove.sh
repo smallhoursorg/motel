@@ -6,7 +6,7 @@
 # here: postinstall's `configure` reloads the manager.
 #
 # remove, and the purge that follows one: the manager drops the removed
-# unit files (motel.service, motel-box-apply.path and .service,
+# unit files (moteld.service, motel-box-apply.path and .service,
 # motel-backup's two services and two timers), and the path unit and
 # the backup timers are masked, as dh_installsystemd has it, so that
 # nothing of them comes back until an install unmasks and enables them

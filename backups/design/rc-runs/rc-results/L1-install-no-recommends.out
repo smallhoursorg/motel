@@ -1,5 +1,5 @@
 ### apt-config: APT::Install-Recommends "false";
-### apt install ./motel_0.3.0.rc1_arm64.deb
+### apt install ./moteld_0.3.0.rc1_arm64.deb
 Recommended packages:
   restic  sqlite3  dbus-user-session
 Setting up libpam-systemd:arm64 (257.13-1~deb13u1) ...

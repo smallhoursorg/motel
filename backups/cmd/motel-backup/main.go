@@ -518,7 +518,7 @@ func printStatus(w io.Writer, r status.Result, asJSON bool) error {
 // the same to the live file, as another user, inside a view that holds
 // the config directory and nothing else. What that view and that user
 // would make of an import it cannot say from here, where the whole
-// filesystem is in view: that is `motel validate`'s, which has the
+// filesystem is in view: that is `moteld validate`'s, which has the
 // adapter's own word on where each backup block comes from.
 func validate(ctx context.Context, file string) error {
 	abs, err := filepath.Abs(file)

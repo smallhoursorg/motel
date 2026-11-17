@@ -22,9 +22,9 @@ func TestHelpNamesTheBinary(t *testing.T) {
 		args string
 		want []string
 	}{
-		{"monitor --help", []string{"Usage:\n  motel monitor [command]\n"}},
-		{"monitor setup --help", []string{"Usage:\n  motel monitor setup [--metrics] [flags]\n"}},
-		{"monitor send --help", []string{"Usage:\n  motel monitor send --source <name>"}},
+		{"monitor --help", []string{"Usage:\n  moteld monitor [command]\n"}},
+		{"monitor setup --help", []string{"Usage:\n  moteld monitor setup [--metrics] [flags]\n"}},
+		{"monitor send --help", []string{"Usage:\n  moteld monitor send --source <name>"}},
 		{"--help", []string{"Usage:\n  motel [command]\n", "motel is the smallhours app server"}},
 	} {
 		// The child's own -test.timeout bounds a help that came to block,

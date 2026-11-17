@@ -174,7 +174,7 @@ func (c *userManagerClient) get() (*sddbus.Conn, error) {
 	}
 	// systemd gives services soft NOFILE 1024 by default however high
 	// the hard limit is; the exec runner's children inherited
-	// motel.service's soft=hard. Units are created with both set to
+	// moteld.service's soft=hard. Units are created with both set to
 	// the manager's hard ceiling (which the package raises via a
 	// user@<uid>.service.d drop-in), so a setrlimit can never exceed
 	// what the manager permits. Read while the handshake deadlines are

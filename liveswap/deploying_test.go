@@ -13,7 +13,7 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 )
 
-// A deploy of v2 that a motel stop cut short (#318): what it left
+// A deploy of v2 that a moteld stop cut short (#318): what it left
 // is a marker naming v2 and its start, and a release under that name.
 // These are what the dead deploy would have left on disk.
 func leaveInterruptedDeploy(t *testing.T, rig *testRig) {

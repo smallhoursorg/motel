@@ -22,7 +22,7 @@ import (
 	caddycmd "github.com/caddyserver/caddy/v2/cmd"
 )
 
-// The files `motel monitor setup` writes, which ship in the binary: the
+// The files `moteld monitor setup` writes, which ship in the binary: the
 // package installs nothing of notify's until root asks.
 var (
 	//go:embed units/motel-am.socket
@@ -214,14 +214,14 @@ func loadedSays(sys system, metrics bool) string {
 	case metrics && has && a.Metrics != nil:
 		return "reloaded motel, which renders the store's rules into " + filepath.Join(DefaultMetricsStateDir, RulesName) + " and pushes"
 	case metrics:
-		return "reloaded motel, whose config has no monitor block with a metrics line: nothing is pushed until there is one (docs/monitor.md); add it, then systemctl reload motel"
+		return "reloaded motel, whose config has no monitor block with a metrics line: nothing is pushed until there is one (docs/monitor.md); add it, then systemctl reload moteld"
 	case has && !a.storeAlone():
 		return "reloaded motel, which renders the monitor block's channels into " + filepath.Join(DefaultStateDir, ConfigName)
 	}
-	return "reloaded motel, whose config has no monitor block with channels: Alertmanager sends nothing until there is one (docs/monitor.md); add it, then systemctl reload motel"
+	return "reloaded motel, whose config has no monitor block with channels: Alertmanager sends nothing until there is one (docs/monitor.md); add it, then systemctl reload moteld"
 }
 
-// setup is `motel monitor setup`: Debian's Alertmanager, installed so
+// setup is `moteld monitor setup`: Debian's Alertmanager, installed so
 // that it never listens on a port, even for a moment. Debian's unit
 // starts on install on :9093 and gossips on 0.0.0.0:9094, and a host
 // with no firewall would put both on the internet; a `Depends` cannot
@@ -332,7 +332,7 @@ func setup(sys system, root string, out io.Writer) (err error) {
 		}
 	}
 	say("Alertmanager listens on %s only, started by its first connection", DefaultSocket)
-	if err := sys.run("systemctl", "try-reload-or-restart", "motel.service"); err != nil {
+	if err := sys.run("systemctl", "try-reload-or-restart", "moteld.service"); err != nil {
 		return err
 	}
 	say("%s", loadedSays(sys, false))

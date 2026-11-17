@@ -92,7 +92,7 @@ func (r *boxRepo) secrets(shell, stdin, cmd string, env ...string) (string, int)
 	return string(out), 0
 }
 
-// boxKey makes an age identity, as motel box key would on a box, and
+// boxKey makes an age identity, as moteld box key would on a box, and
 // returns its file and its recipient.
 func (r *boxRepo) boxKey(name string) (string, string) {
 	r.t.Helper()
@@ -186,7 +186,7 @@ func TestBoxSecretSet(t *testing.T) {
 
 	// The box's first secret needs the box's own key.
 	if out, code := r.secrets("", "v\n", "set", app...); code != 1 ||
-		!strings.Contains(out, "this first one needs the box's own key: BOX_KEY=$(ssh root@<your box> motel box key)") {
+		!strings.Contains(out, "this first one needs the box's own key: BOX_KEY=$(ssh root@<your box> moteld box key)") {
 		t.Fatalf("no BOX_KEY: exit %d\n%s", code, out)
 	}
 	for _, bad := range []string{"age1nope", "ssh-ed25519 AAAA", "age1pq1" + strings.Repeat("q", 55), "AGE-SECRET-KEY-1" + strings.Repeat("Q", 58)} {

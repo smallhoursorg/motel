@@ -83,8 +83,8 @@ func TestABootWithNoMetricsLineRetiresTheRules(t *testing.T) {
 	}
 }
 
-// `motel run` by a user other than the state directory's owner (root
-// trying a file by hand, the service running) is not motel.service's
+// `moteld run` by a user other than the state directory's owner (root
+// trying a file by hand, the service running) is not moteld.service's
 // start: the rules stay as the running service wrote them, and it says
 // why.
 func TestARunByHandLeavesTheServicesRulesAlone(t *testing.T) {

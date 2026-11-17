@@ -12,7 +12,7 @@ import (
 	"github.com/smallhoursorg/motel/liveswap/backupdecl"
 )
 
-// fromAdapted is what the plan step makes of `motel adapt`'s output:
+// fromAdapted is what the plan step makes of `moteld adapt`'s output:
 // the plan, validated.
 func fromAdapted(raw []byte) (*Plan, error) {
 	p, _, err := extractAll(raw)
@@ -41,7 +41,7 @@ func TestFromAdapted(t *testing.T) {
 	}
 }
 
-// Nothing is trusted because `motel validate` would have refused
+// Nothing is trusted because `moteld validate` would have refused
 // it: the file may never have been validated.
 func TestFromAdaptedRefuses(t *testing.T) {
 	for name, tc := range map[string]struct{ raw, want string }{
@@ -146,7 +146,7 @@ func TestEnvNamesReadsEveryFileBesideTheCaddyfile(t *testing.T) {
 	}
 }
 
-// fakeMotel stands in for `motel adapt`, failing where and how
+// fakeMotel stands in for `moteld adapt`, failing where and how
 // the real one does [measured]: a variable with no default, unset or
 // empty, is a parse error ({$ACME_EMAIL}, {$ROOT_NO_DEFAULT}, {$MAGIC});
 // a port ({$METRICS_PORT}, {$ADMIN_PORT}, {$PORT:8080}) has to be a

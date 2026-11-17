@@ -80,7 +80,7 @@ usermod -aG adm alice
 Check from the laptop:
 
 ```sh
-ssh alice@box.example.com journalctl -u motel -n 5   # the journal, through adm
+ssh alice@box.example.com journalctl -u moteld -n 5   # the journal, through adm
 ```
 
 What this grants: `adm` reads the whole system journal, not only

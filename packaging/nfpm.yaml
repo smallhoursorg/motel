@@ -7,7 +7,7 @@
 # penaltybox — but refuse any Caddyfile defining an app. An OpenRC
 # package would install a motel missing the feature it exists for.
 # The raw-binary tarball is for other systemd hosts, not for Alpine.
-name: motel
+name: moteld
 arch: "${NFPM_ARCH}"
 platform: linux
 version: "${NFPM_VERSION}"
@@ -67,13 +67,13 @@ depends:
 # install, listening on :9093 and gossiping on 0.0.0.0:9094, and apt may
 # configure a dependency, and so start it, before any script of motel's
 # runs; on a box with no firewall that is the alert and silence API on
-# the internet. `motel monitor setup`, run by root, masks the unit, then
+# the internet. `moteld monitor setup`, run by root, masks the unit, then
 # installs it, configures socket activation and starts it, in that
 # order. Nothing of notify's is installed until then: the units it
 # writes ship in the binary.
 # The metrics store (notify/DESIGN-metrics.md), Suggests for the same
 # reason: Debian's victoria-metrics starts on install listening on
-# 0.0.0.0:8428 with no authentication. `motel monitor setup --metrics`
+# 0.0.0.0:8428 with no authentication. `moteld monitor setup --metrics`
 # masks it, installs it and starts it in a network namespace of its own.
 # vmalert ships in the same package.
 suggests:
@@ -83,17 +83,17 @@ suggests:
 # Every entry pins its mode. Without file_info nfpm copies the mode of
 # the file on the build host, so the package would carry whatever the
 # builder's umask happened to be — `make package` under umask 0002
-# shipped /usr/bin/motel group-writable (0775). A permission that
+# shipped /usr/bin/moteld group-writable (0775). A permission that
 # arrives by accident is one nobody reviewed.
 contents:
   # `make package` stages the right arch's binary at this fixed path
   # before each nfpm run (nfpm does not env-expand contents paths).
-  - src: build/motel
-    dst: /usr/bin/motel
+  - src: build/moteld
+    dst: /usr/bin/moteld
     file_info:
       mode: 0755
-  - src: packaging/motel.service
-    dst: /lib/systemd/system/motel.service
+  - src: packaging/moteld.service
+    dst: /lib/systemd/system/moteld.service
     file_info:
       mode: 0644
   # The backup program and its units: the hourly run and the Sunday
@@ -142,7 +142,7 @@ contents:
   # last wrote (the sha256 in /var/lib/motel-package/starter.sha256),
   # and otherwise never touches it. So an upgrade never asks. As a
   # conffile, a changed starter made dpkg ask on every box whose file
-  # `motel init` or a push had written, and Y there replaced the
+  # `moteld init` or a push had written, and Y there replaced the
   # box's config with this one, which no push can reach. ucf asks too,
   # or (forced) never replaces an untouched file; dpkg-maintscript-helper
   # rm_conffile empties the live path mid-upgrade. Neither is used.

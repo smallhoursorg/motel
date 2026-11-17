@@ -1939,7 +1939,7 @@ func (ma *managedApp) restoreSpec(owner any) bool {
 //
 // On process exit the instance is deliberately left running: it is a
 // systemd unit that does not depend on motel, state.json names it,
-// and the next motel start reattaches to it — that is how apps
+// and the next moteld start reattaches to it — that is how apps
 // survive motel restarts and upgrades. Only removing the app from
 // the config stops it.
 func (ma *managedApp) Destruct() error {
@@ -2146,7 +2146,7 @@ func notifyOwnedEnvKey(kv string) bool { return strings.HasPrefix(kv, notifyEnvP
 
 // BoxSecretsDir is where the box writes each app's env file
 // (box/DESIGN-box.md, "Values and the env file"), held equal to the
-// box's own by cmd/motel's test; boxSecretsDir is it, a variable so a
+// box's own by cmd/moteld's test; boxSecretsDir is it, a variable so a
 // test can stand in for it.
 const BoxSecretsDir = "/etc/motel/secrets" //nolint:gosec // G101: a directory's path, not a credential
 

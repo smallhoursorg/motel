@@ -9,7 +9,7 @@ bob@box3:~$ sudo tar -xzf etc-motel.tar.gz -C /etc
 bob@box3:~$ motel-backup validate /etc/motel/Caddyfile
 a run would back up demo, under /var/lib/liveswap
 [exit 0, 0.0585775s, 2026-10-05T18:44:19Z]
-bob@box3:~$ sudo systemctl reload motel
+bob@box3:~$ sudo systemctl reload moteld
 [exit 0, 0.153528s, 2026-10-05T18:44:19Z]
 ## a storage that refuses every write plainly (403)
 bob@box3:~$ sudo motel-backup setup s3:http://127.0.0.1:9100/box1

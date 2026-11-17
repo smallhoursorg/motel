@@ -336,7 +336,7 @@ const oneChannelBlock = `monitor {
 }`
 
 // counters is ops's two receivers in holdEngine's block that the test
-// moves: its warning events' and its own (motel monitor test's).
+// moves: its warning events' and its own (moteld monitor test's).
 func counters(failed, events, eventsFailed, tests int) string {
 	return metricsHead + amLines("event-warning-ops", failed, events, eventsFailed) +
 		amLines("ch-ops", 0, tests, 0) + amLines("heartbeat", 0, 9, 0)
@@ -393,7 +393,7 @@ func TestHeartbeatHeldWhileAFailureIsToldToNoChannel(t *testing.T) {
 	if len(te.lines("monitor: heartbeat held: a failed delivery no channel was told of; the heartbeat's check off the box will report this box down")) != 1 {
 		t.Fatal("held said twice")
 	}
-	// The channel mended, and motel monitor test delivers through it.
+	// The channel mended, and moteld monitor test delivers through it.
 	*body = counters(1, 4, 1, 1)
 	te.advance(time.Minute)
 	te.scrapeFailed(context.Background(), read)
@@ -407,7 +407,7 @@ func TestHeartbeatHeldWhileAFailureIsToldToNoChannel(t *testing.T) {
 
 // TestHeartbeatResumesAtADeliveryAfterALoad: the documented mend, the
 // URL mended (a reload of Alertmanager, which starts its counts from 0)
-// and then `motel monitor test`, resumes the heartbeat at the next read.
+// and then `moteld monitor test`, resumes the heartbeat at the next read.
 // First with a read between the load and the test: the load alone
 // resumes nothing (that read's 0 is any reader's baseline for the
 // test's 1). Then the case that needs the load's stamp: the test read
@@ -433,7 +433,7 @@ func TestHeartbeatResumesAtADeliveryAfterALoad(t *testing.T) {
 	if !te.heartbeatHeld() {
 		t.Fatal("resumed by a load with no delivery since")
 	}
-	*body = counters(0, 0, 0, 1) + loadedAt(after) // motel monitor test ops
+	*body = counters(0, 0, 0, 1) + loadedAt(after) // moteld monitor test ops
 	te.advance(time.Minute)
 	te.scrapeFailed(context.Background(), read)
 	if l := te.lines("monitor: heartbeat resumed"); len(l) != 1 || l[0].ContextMap()["delivered_through"] != "ch-ops" {

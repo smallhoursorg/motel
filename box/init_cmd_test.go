@@ -32,7 +32,7 @@ func initDir(t testing.TB, file []byte) string {
 	return dir
 }
 
-// initCmd runs `motel init <sha>` as root against the box, from dir.
+// initCmd runs `moteld init <sha>` as root against the box, from dir.
 func (b *testBox) initCmd(dir, sha string) (string, error) {
 	b.t.Helper()
 	var out bytes.Buffer
@@ -50,7 +50,7 @@ func keyLine(b *testBox) string {
 	if err != nil {
 		b.t.Fatalf("init made no age.pub: %v", err)
 	}
-	return "init: secrets for this box encrypt to " + strings.TrimSuffix(string(pub), "\n") + "; motel box key prints it again\n"
+	return "init: secrets for this box encrypt to " + strings.TrimSuffix(string(pub), "\n") + "; moteld box key prints it again\n"
 }
 
 // summary is init's first two lines for a boxFile on host.
@@ -59,8 +59,8 @@ func summary(host string) string {
 		"init: this box's file is " + host + "/Caddyfile in the repository\n"
 }
 
-// What `motel init` prints for each way a run can end, and what it
-// leaves on disk (DESIGN-box.md, "`motel init`").
+// What `moteld init` prints for each way a run can end, and what it
+// leaves on disk (DESIGN-box.md, "`moteld init`").
 func TestInitCmd(t *testing.T) {
 	onHost := func(file []byte, host string) []byte {
 		return bytes.Replace(file, []byte("deploy.example.com {"), []byte(host+" {"), 1)
@@ -270,7 +270,7 @@ func TestInitCmdRefusals(t *testing.T) {
 		want   string
 		remedy bool
 	}{
-		{name: "not root", euid: 1000, file: whole, want: "motel init runs as root: it installs /etc/motel/Caddyfile"},
+		{name: "not root", euid: 1000, file: whole, want: "moteld init runs as root: it installs /etc/motel/Caddyfile"},
 		{name: "a short sha", file: whole, sha: "4f1c2a9", want: "4f1c2a9 is not a commit id: 40 lowercase hex, as git rev-parse HEAD prints one"},
 		{name: "an upper-case sha", file: whole, sha: strings.Repeat("A", 40), want: strings.Repeat("A", 40) + " is not a commit id"},
 		{name: "a sha that is not hex", file: whole, sha: strings.Repeat("z", 40), want: "is not a commit id"},
@@ -394,7 +394,7 @@ func TestBaselineUnrecordedRemedies(t *testing.T) {
 		dir := initDir(t, file)
 		var out bytes.Buffer
 		err := runInitCmd(context.Background(), 0, b.applier(hooks{fail: failAt(map[string]int{"applied.json": -1})}), dir, sha, &out)
-		want := phaseUnknown + ": applied but the baseline could not be recorded; motel init " + sha + " again, which ends no_change and records it"
+		want := phaseUnknown + ": applied but the baseline could not be recorded; moteld init " + sha + " again, which ends no_change and records it"
 		if err == nil || err.Error() != want {
 			t.Fatalf("%v, want %q", err, want)
 		}
@@ -437,7 +437,7 @@ func TestBaselineUnrecordedRemedies(t *testing.T) {
 		if err := b.run(hooks{fail: failAt(map[string]int{"applied.json": -1})}); err != nil {
 			t.Fatal(err)
 		}
-		want := "applied but the baseline could not be recorded; motel box baseline " + c8 + " on the box records it (the next push then reports the file as edited out of band; it was not)"
+		want := "applied but the baseline could not be recorded; moteld box baseline " + c8 + " on the box records it (the next push then reports the file as edited out of band; it was not)"
 		if r := b.result(id); r == nil || r.Phase != phaseUnknown || r.Error != want {
 			t.Fatalf("%+v", r)
 		}

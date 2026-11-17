@@ -318,11 +318,11 @@ func (c *Client) unreachable(ctx context.Context, err error) error {
 		}
 		if len(c.Roots) > 0 {
 			return &Failure{Exit: ExitCertificate, Message: fmt.Sprintf(
-				"The certificate of %s did not verify; the check says: %s. motelctl never sends a token over an unverified connection. %s is set, and replaces the system's roots with the ones it names: that is the likelier cause. Else, as root on the box: journalctl -u motel -g certificate",
+				"The certificate of %s did not verify; the check says: %s. motelctl never sends a token over an unverified connection. %s is set, and replaces the system's roots with the ones it names: that is the likelier cause. Else, as root on the box: journalctl -u moteld -g certificate",
 				box, termtext.Quote(why), termtext.From(strings.Join(c.Roots, " and ")))}
 		}
 		return &Failure{Exit: ExitCertificate, Message: fmt.Sprintf(
-			"The certificate of %s did not verify; the check says: %s. motelctl never sends a token over an unverified connection. As root on the box: journalctl -u motel -g certificate",
+			"The certificate of %s did not verify; the check says: %s. motelctl never sends a token over an unverified connection. As root on the box: journalctl -u moteld -g certificate",
 			box, termtext.Quote(why))}
 	case errors.As(err, &dns):
 		return &Failure{Exit: ExitUnknown, Message: fmt.Sprintf(
@@ -332,7 +332,7 @@ func (c *Client) unreachable(ctx context.Context, err error) error {
 	// text then quotes them (a status line, a header's value): only a
 	// fixed reason of motelctl's own is said. The system's words are
 	// kept for a dial alone, which no byte of the peer's reached.
-	down := "If motel is down, as root on the box: systemctl status motel; journalctl -u motel -n 50. The box's off-box heartbeat also reports a stopped motel."
+	down := "If motel is down, as root on the box: systemctl status moteld; journalctl -u moteld -n 50. The box's off-box heartbeat also reports a stopped motel."
 	var op *net.OpError
 	switch {
 	case errors.As(err, &op) && op.Op == "dial":
@@ -372,7 +372,7 @@ func (c *Client) refused(ans *Answer) error {
 			scope = "this app's"
 		}
 		return &Failure{Exit: ExitRefused, Message: fmt.Sprintf(
-			"%s refused the token in MOTEL_TOKEN (sent as Bearer). Most often %s deploy_trust does not accept the key it was minted with, or the audience, subject or claim it pins. Or the app is not one the box knows: an unknown app answers the same 401. Or the box could not consult the token's issuer. The box's journal (journalctl -u motel, 'webhook auth failed') names the check that refused it.",
+			"%s refused the token in MOTEL_TOKEN (sent as Bearer). Most often %s deploy_trust does not accept the key it was minted with, or the audience, subject or claim it pins. Or the app is not one the box knows: an unknown app answers the same 401. Or the box could not consult the token's issuer. The box's journal (journalctl -u moteld, 'webhook auth failed') names the check that refused it.",
 			box, scope)}
 	}
 	clock := ""

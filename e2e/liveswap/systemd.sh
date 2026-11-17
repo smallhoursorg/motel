@@ -32,13 +32,13 @@ wait_hook() { # -> 0 once the webhook answers 200, 1 after 30s
 	done
 }
 
-# motel.service itself, as systemd sees it. The crash rows below
+# moteld.service itself, as systemd sees it. The crash rows below
 # read the unit's own record — Result, ExecMainCode/Status, NRestarts —
 # never a systemctl command's exit status: Caddy sends READY=1 before
 # it knows whether the config loaded, so `systemctl start` can return
 # 0 for a start that then exits 1.
-hs_prop() { systemctl show -p "$1" --value motel; }
-hs_shape() { systemctl show -p ActiveState,SubState,Result,NRestarts motel | tr '\n' ' '; }
+hs_prop() { systemctl show -p "$1" --value moteld; }
+hs_shape() { systemctl show -p ActiveState,SubState,Result,NRestarts moteld | tr '\n' ' '; }
 wait_hs_substate() { # <glob> -> 0 once SubState matches (10s)
 	i=0
 	until case "$(hs_prop SubState)" in $1) true ;; *) false ;; esac; do
@@ -57,7 +57,7 @@ wait_hs_up() { # <old ExecMainPID> -> 0 once active/running on another main pid 
 # the baseline every assertion is measured against — relative, never
 # absolute.
 crash_prelude() {
-	systemctl reset-failed motel
+	systemctl reset-failed moteld
 	N0=$(hs_prop NRestarts); HP0=$(hs_prop ExecMainPID); T0=$(date +%s)
 }
 # failure_shape reads the death's record inside the RestartSec window,
@@ -69,7 +69,7 @@ failure_shape() { # <label> <Result> <ExecMainCode> <ExecMainStatus>
 	wait_hs_substate 'auto-restart*' \
 		|| { fail "$1: not in auto-restart within 10s: $(hs_shape)"; return 1; }
 	Result= ExecMainCode= ExecMainStatus=
-	eval "$(systemctl show -p Result,ExecMainCode,ExecMainStatus motel)"
+	eval "$(systemctl show -p Result,ExecMainCode,ExecMainStatus moteld)"
 	case "|$2|" in *"|$Result|"*) rok=1 ;; *) rok=0 ;; esac
 	[ "$rok" = 1 ] && [ "$ExecMainCode" = "$3" ] && [ "$ExecMainStatus" = "$4" ] \
 		&& pass "$1: Result=$Result ExecMainCode=$ExecMainCode ExecMainStatus=$ExecMainStatus" \
@@ -125,12 +125,12 @@ fi
 # motel's own unit is the other half of that rule: systemd restarts
 # it after a crash, and never after an exit 1 (a start it refused).
 [ "$(hs_prop Restart)" = "on-failure" ] \
-	&& pass "motel.service has Restart=on-failure" || fail "motel.service Restart is '$(hs_prop Restart)'"
+	&& pass "moteld.service has Restart=on-failure" || fail "moteld.service Restart is '$(hs_prop Restart)'"
 [ "$(hs_prop RestartPreventExitStatus)" = "1" ] \
-	&& pass "motel.service never retries an exit 1" || fail "motel.service RestartPreventExitStatus is '$(hs_prop RestartPreventExitStatus)'"
+	&& pass "moteld.service never retries an exit 1" || fail "moteld.service RestartPreventExitStatus is '$(hs_prop RestartPreventExitStatus)'"
 
-echo "=== systemd 2: systemctl restart motel keeps the app running ==="
-systemctl restart motel || fail "systemctl restart motel failed"
+echo "=== systemd 2: systemctl restart moteld keeps the app running ==="
+systemctl restart moteld || fail "systemctl restart moteld failed"
 wait_hook || fail "webhook not back within 30s of restart"
 s=$(status)
 if [ "$(json_num "$s" pid)" = "$pid" ] && [ "$(json_str "$s" unit)" = "$unit" ]; then
@@ -150,17 +150,17 @@ echo "=== systemd 3: SIGKILL of motel: systemd brings it back, and it reattaches
 # No `systemctl start` here: one inside the RestartSec window would
 # pre-empt the automatic restart and the row would prove nothing.
 crash_prelude
-systemctl kill --kill-whom=main -s SIGKILL motel
+systemctl kill --kill-whom=main -s SIGKILL moteld
 failure_shape "SIGKILL" signal 2 9
 came_back "SIGKILL"
-journalctl -u motel --no-pager --since "@$T0" | grep -q "code=killed, status=9/KILL" \
+journalctl -u moteld --no-pager --since "@$T0" | grep -q "code=killed, status=9/KILL" \
 	&& pass "SIGKILL: the journal records the unclean death" || fail "SIGKILL: no killed/9 line in the journal since $T0"
 
 echo "=== systemd 3b: motel exits 2 (SIGQUIT is Caddy's force-quit, a panic's code): systemd brings it back ==="
 # The row that pins "a panic is restarted": Restart=on-abnormal would
 # leave an unclean exit code down.
 crash_prelude
-systemctl kill --kill-whom=main -s SIGQUIT motel
+systemctl kill --kill-whom=main -s SIGQUIT moteld
 failure_shape "exit 2" exit-code 1 2
 came_back "exit 2"
 
@@ -188,7 +188,7 @@ if [ -w "/sys/fs/cgroup$hcg/memory.max" ]; then
 		echo max > "/sys/fs/cgroup$hcg/memory.swap.max" 2>/dev/null
 	fi
 	came_back "OOM"
-	journalctl -u motel --no-pager --since "@$T0" | grep -qi "oom" \
+	journalctl -u moteld --no-pager --since "@$T0" | grep -qi "oom" \
 		&& pass "OOM: the journal records the OOM kill" || fail "OOM: no oom line in the journal since $T0"
 	[ "$(cat "/sys/fs/cgroup$(hs_prop ControlGroup)/memory.max")" = "max" ] \
 		&& pass "OOM: the restarted unit runs unlimited" \
@@ -470,7 +470,7 @@ s=$(status)
 gunit=$(json_str "$s" unit)
 gpid=$(json_num "$s" pid)
 user_systemctl stop "$gunit"
-systemctl restart motel || fail "systemctl restart motel failed"
+systemctl restart moteld || fail "systemctl restart moteld failed"
 wait_hook || fail "webhook not back within 30s of restart"
 i=0
 until [ -n "$(json_num "$(status)" pid)" ] && [ "$(json_num "$(status)" pid)" != "$gpid" ]; do
@@ -630,15 +630,15 @@ dunit=$(json_str "$s" unit)
 dpid=$(json_num "$s" pid)
 snapshot_examples
 cp /etc/motel/Caddyfile /tmp/with-demo.Caddyfile
-systemctl stop motel
-kill -0 "$dpid" 2>/dev/null && pass "app survives motel stop (pid $dpid)" || fail "app died with motel stop"
+systemctl stop moteld
+kill -0 "$dpid" 2>/dev/null && pass "app survives moteld stop (pid $dpid)" || fail "app died with moteld stop"
 cp /tmp/without-demo.Caddyfile /etc/motel/Caddyfile
-systemctl start motel || fail "start without the apps failed"
+systemctl start moteld || fail "start without the apps failed"
 unit_gone "$dunit" && pass "start-time sweep stopped the unit of an app no config names" \
 	|| fail "unit $dunit of a removed app survived the restart"
 assert_examples_gone "start-time sweep"
 cp /tmp/with-demo.Caddyfile /etc/motel/Caddyfile
-systemctl restart motel || fail "restart with the app failed"
+systemctl restart moteld || fail "restart with the app failed"
 wait_hook || fail "webhook not back after restoring the app"
 wait_new_pid "$dpid" && pass "restored app relaunched from state.json (pid $dpid -> $NEWPID)" \
 	|| fail "restored app did not come back: $(status)"
@@ -656,15 +656,15 @@ cp /etc/motel/Caddyfile /tmp/good.Caddyfile
 removal_config /tmp/refused.Caddyfile
 printf ':8081 {\n\tliveswap_webhook\n}\n' >> /tmp/refused.Caddyfile
 cp /tmp/refused.Caddyfile /etc/motel/Caddyfile
-systemctl reset-failed motel
+systemctl reset-failed moteld
 N0=$(hs_prop NRestarts) # the baseline, taken before the start that will be refused
 T0=$(date +%s)
-systemctl restart motel >/dev/null 2>&1 # status ignored on purpose, see above
+systemctl restart moteld >/dev/null 2>&1 # status ignored on purpose, see above
 i=0
 until [ "$(hs_prop ActiveState)" = "failed" ]; do i=$((i + 1)); [ "$i" -ge 100 ] && break; sleep 0.1; done
 [ "$(hs_prop ActiveState)" = "failed" ] && pass "refused config: the unit failed" || fail "unit did not fail on the refused config: $(hs_shape)"
 Result= ExecMainCode= ExecMainStatus=
-eval "$(systemctl show -p Result,ExecMainCode,ExecMainStatus motel)"
+eval "$(systemctl show -p Result,ExecMainCode,ExecMainStatus moteld)"
 [ "$Result" = "exit-code" ] && [ "$ExecMainCode" = "1" ] && [ "$ExecMainStatus" = "1" ] \
 	&& pass "the refusal is exit-code 1 (Caddy's failed startup)" \
 	|| fail "refusal shape Result=$Result ExecMainCode=$ExecMainCode ExecMainStatus=$ExecMainStatus"
@@ -672,11 +672,11 @@ sleep 3 # > RestartSec: had systemd retried, the unit would be activating or act
 [ "$(hs_prop ActiveState)" = "failed" ] && [ "$(hs_prop SubState)" = "failed" ] && [ "$(hs_prop NRestarts)" = "$N0" ] \
 	&& pass "still failed 3s later, NRestarts unchanged ($N0): RestartPreventExitStatus=1 held" \
 	|| fail "systemd retried the refused start: $(hs_shape)"
-journalctl -u motel --no-pager --since "@$T0" | grep -q "no apps are defined" \
+journalctl -u moteld --no-pager --since "@$T0" | grep -q "no apps are defined" \
 	&& pass "the journal carries the refusal's reason" || fail "refusal reason not in the journal since $T0"
 kill -0 "$fpid" 2>/dev/null && pass "the app kept running through the refused start (pid $fpid)" || fail "app $fpid died with the refused start"
 cp /tmp/good.Caddyfile /etc/motel/Caddyfile
-systemctl start motel || fail "start after restoring the config failed"
+systemctl start moteld || fail "start after restoring the config failed"
 wait_hook || fail "webhook not back after restoring the config"
 s=$(status)
 [ "$(json_num "$s" pid)" = "$fpid" ] && [ "$(json_str "$s" unit)" = "$funit" ] \
@@ -695,8 +695,8 @@ echo "=== systemd 11: motel is non-dumpable — its /proc is closed to its own U
 # the host filesystem through /proc/<motel>/root. liveswap/harden's
 # init marks the process non-dumpable before main; this proves it
 # under the packaged unit.
-hpid=$(systemctl show -p MainPID --value motel)
-[ -n "$hpid" ] && [ "$hpid" != "0" ] || fail "no MainPID for motel.service"
+hpid=$(systemctl show -p MainPID --value moteld)
+[ -n "$hpid" ] && [ "$hpid" != "0" ] || fail "no MainPID for moteld.service"
 # (The /proc/<pid> directory itself keeps the task's uid so `ps` can
 # stat it; the per-process files inside are what turn root-owned.)
 [ "$(stat -c %U "/proc/$hpid/environ")" = "root" ] \

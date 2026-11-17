@@ -459,7 +459,7 @@ the rest do ("What this does NOT stop").
 
 One attempt, one retry on timeout only (the shape a
 capable host under boot load produces; a refused start exits 1, which
-motel.service deliberately never retries, so without it one slow
+moteld.service deliberately never retries, so without it one slow
 attempt keeps a capable box down until someone starts it by hand),
 30 s each, and a hung attempt is then stopped with its grace and the
 runner's stop slack: 190 s bounded with the manager connection's two
@@ -537,7 +537,7 @@ The governing asymmetry an operator should know:
 Before restarting into a new box or binary, establish that the host
 can deliver the sandbox. A reload is the safe place to find out — a
 config that cannot activate leaves the running one serving, where a
-restart does not. `motel validate` does not measure the host (it
+restart does not. `moteld validate` does not measure the host (it
 never starts a unit). The verdict is cached per manager connection, so
 a reload measures the host only the first time after motel dialled
 the manager; a namespace policy changed underneath a running motel
