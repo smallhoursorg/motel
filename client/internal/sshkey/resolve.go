@@ -13,7 +13,7 @@ import (
 	"github.com/smallhoursorg/motel/client/internal/termtext"
 )
 
-// Key is the key motel signs with, and why it is that one.
+// Key is the key the client signs with, and why it is that one.
 type Key struct {
 	Public PublicKey
 	// Path is what ssh-keygen -f is given: the private key, or its

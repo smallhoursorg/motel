@@ -45,7 +45,7 @@ func hostileWhoAmI() wire.WhoAmI {
 	}
 }
 
-// runKey runs motel with a person's key, ~/me.pub, whose signer is
+// runKey runs the client with a person's key, ~/me.pub, whose signer is
 // a stand-in, at whoamiNow, on the fake box (whose port MOTEL_URL
 // carries).
 func runKey(t *testing.T, fb *fakeBox, env map[string]string, args ...string) result {
@@ -165,7 +165,7 @@ func TestWhoamiAndAppsNeedAKey(t *testing.T) {
 // or from another box than the one it asked, is not one to act on:
 // only the warning is printed, the box's value quoted beside this
 // side's, and nothing else of the answer; the command exits 3, and
-// --json prints motel's own error, not the body.
+// --json prints the client's own error, not the body.
 func TestWhoamiAboutAnotherKeyOrBox(t *testing.T) {
 	for _, c := range []struct {
 		name  string

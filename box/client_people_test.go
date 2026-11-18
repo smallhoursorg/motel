@@ -32,7 +32,7 @@ type sshKey struct {
 func keygen(t *testing.T, dir, name string) sshKey {
 	t.Helper()
 	if _, err := exec.LookPath("ssh-keygen"); err != nil {
-		t.Skip("SKIPPED — NOT TESTED HERE: no ssh-keygen on this machine, and motel signs with it; CI's runners have it")
+		t.Skip("SKIPPED — NOT TESTED HERE: no ssh-keygen on this machine, and the client signs with it; CI's runners have it")
 	}
 	path := filepath.Join(dir, name)
 	if out, err := exec.Command("ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C", name, "-f", path).CombinedOutput(); err != nil {

@@ -1,4 +1,4 @@
-// motel reads a motel box over HTTPS from a laptop or CI: an app's
+// motel reads a box over HTTPS from a laptop or CI: an app's
 // status and deploys, and the box's own state, with a token the
 // person's own ssh key signs, or with a deploy token in MOTEL_TOKEN.
 // It links no Caddy: the box's wire types come from liveswap/wire,

@@ -81,7 +81,7 @@ func TestWhoamiEmptyTimeAndSpacedName(t *testing.T) {
 		`{"name":"alice bob","key":"SHA256:x","roles":[],"box":"b","protocol":1,"token_expires_at":"2026-11-15T10:00:00Z"}`: "its name is not one a box takes)",
 	} {
 		f := failure(t, cl.Read(&Answer{Code: http.StatusOK, Header: http.Header{"Content-Type": {"application/json"}}, Body: []byte(body)}, &wire.WhoAmI{}))
-		if f.Exit != ExitUnknown || !strings.Contains(f.Message, "not motel's answer: "+want) {
+		if f.Exit != ExitUnknown || !strings.Contains(f.Message, "not moteld's answer: "+want) {
 			t.Errorf("%s: exit %d %q", body, f.Exit, f.Message)
 		}
 	}
@@ -89,7 +89,7 @@ func TestWhoamiEmptyTimeAndSpacedName(t *testing.T) {
 
 // The values a status, a record and the box's status print unlabelled
 // or as markers are held to the server's grammars: any other is not
-// motel's answer.
+// moteld's answer.
 func TestServerGrammars(t *testing.T) {
 	cl := &Client{Box: Box{Host: "127.0.0.1"}}
 	const status = `{"app":"blog","phase":"idle","current_version":"v2","unit":"motel-blog.v2.0123456789abcdef.service","available_versions":["v2","v1"],` +
@@ -107,7 +107,7 @@ func TestServerGrammars(t *testing.T) {
 		{"a version with a space", strings.Replace(status, `"current_version":"v2"`, `"current_version":"v2 (running)"`, 1), &wire.Status{}, "a version in it is not a version"},
 		{"a listed version with a space", strings.Replace(status, `["v2","v1"]`, `["v2","v1 (running)"]`, 1), &wire.Status{}, "a version in it is not a version"},
 		{"a version of 65", strings.Replace(status, `"current_version":"v2"`, `"current_version":"`+strings.Repeat("v", 65)+`"`, 1), &wire.Status{}, "a version in it is not a version"},
-		{"a unit motel does not name", strings.Replace(status, `motel-blog.v2.0123456789abcdef.service`, `sshd.service`, 1), &wire.Status{}, "its unit is not one motel names"},
+		{"a unit moteld does not name", strings.Replace(status, `motel-blog.v2.0123456789abcdef.service`, `sshd.service`, 1), &wire.Status{}, "its unit is not one moteld names"},
 		{"a watchdog state of each kind", strings.Replace(status, `"phase":"idle"`, `"phase":"idle","watchdog":{"state":"throttled"},"metrics":{"window":"24h"}`, 1), &wire.Status{}, ""},
 		{"a watchdog with no state, metrics with an error alone", strings.Replace(status, `"phase":"idle"`, `"phase":"idle","watchdog":{},"metrics":{"error":"the store did not answer"}`, 1), &wire.Status{}, ""},
 		{"a watchdog state with the client's words", strings.Replace(status, `"phase":"idle"`, `"phase":"idle","watchdog":{"state":"watching, 0 failed checks; run this"}`, 1), &wire.Status{}, "its watchdog's state is not one a watchdog has"},
@@ -129,7 +129,7 @@ func TestServerGrammars(t *testing.T) {
 			}
 			continue
 		}
-		if f := failure(t, err); f.Exit != ExitUnknown || !strings.Contains(f.Message, "not motel's answer: "+c.why+")") {
+		if f := failure(t, err); f.Exit != ExitUnknown || !strings.Contains(f.Message, "not moteld's answer: "+c.why+")") {
 			t.Errorf("%s: exit %d %q", c.name, f.Exit, f.Message)
 		}
 	}

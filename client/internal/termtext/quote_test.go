@@ -71,7 +71,7 @@ func TestQuote(t *testing.T) {
 var quotedBy = regexp.MustCompile(`\\"%[-+# 0-9.]*[sv]|%[-+# 0-9.]*[sv]\\"|` + "`" + `[^` + "`" + `]*"%[-+# 0-9.]*[sv]"[^` + "`" + `]*` + "`" + `|"\\""|'"'|` + "`\"`" + `|strconv\.Quote`)
 
 // TestNoHandMadeQuoteMarks reads the non-test sources of the packages
-// that write motel's sentences (client, cli, render) for the few
+// that write the client's sentences (client, cli, render) for the few
 // shapes of a quotation made by hand that quotedBy names: a quote mark
 // beside a format verb, a quote mark alone as a string or a rune, and
 // strconv.Quote. It claims nothing more: a box value spliced into prose

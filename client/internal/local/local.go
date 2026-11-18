@@ -1,4 +1,4 @@
-// Package local is what motel reads from the machine it runs on,
+// Package local is what the client reads from the machine it runs on,
 // besides its environment: the programs it runs (ssh-keygen, ssh-add,
 // git) and the box repository the working directory may be in. It
 // writes nothing: no file, no cache, no log.
@@ -21,7 +21,7 @@ import (
 type Cmd struct {
 	Name string
 	Args []string
-	// Dir is the working directory; empty is motel's own.
+	// Dir is the working directory; empty is the client's own.
 	Dir string
 	// Stdin is the program's whole input.
 	Stdin []byte
@@ -47,7 +47,7 @@ type Runner interface {
 // waitDelay bounds the wait for a program's pipes after it ends.
 const waitDelay = time.Second
 
-// Exec runs programs with os/exec, in motel's own environment, so
+// Exec runs programs with os/exec, in the client's own environment, so
 // ssh-keygen and ssh-add reach the agent SSH_AUTH_SOCK names. That is
 // the one way they have: unlike ssh, neither reads IdentityAgent from
 // ~/.ssh/config (the README says so to the person).
@@ -55,12 +55,12 @@ type Exec struct{}
 
 // Output runs c.
 func (Exec) Output(ctx context.Context, c Cmd) ([]byte, error) {
-	//nolint:gosec // G204: the program is one of motel's own three, its arguments motel's; nothing reaches a shell
+	//nolint:gosec // G204: the program is one of the client's own three, its arguments the client's; nothing reaches a shell
 	cmd := exec.CommandContext(ctx, c.Name, c.Args...)
 	cmd.Dir = c.Dir
 	// Once the program has exited or the context has ended, its pipes
 	// are waited on this long and no longer: a child it left behind
-	// holding one cannot hang motel.
+	// holding one cannot hang the client.
 	cmd.WaitDelay = waitDelay
 	cmd.Stdin = bytes.NewReader(c.Stdin)
 	cmd.Stderr = c.Stderr

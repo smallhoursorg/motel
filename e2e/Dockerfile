@@ -25,8 +25,8 @@ FROM denoland/deno:bin-2.9.8 AS deno
 # CustomVersion), so whoami names one as a shipped box does; the people
 # suite (e2e/box/people.sh) reads it there, and holds each answer's
 # headers it checks, accepted or refused, to naming none.
-# motel is the laptop client that suite runs on the box, as a
-# laptop would, over the box's own TLS.
+# client/ builds motel, the laptop client that suite runs on the box,
+# as a laptop would, over the box's own TLS.
 FROM golang:1.27-trixie AS builder
 WORKDIR /src
 RUN --mount=type=bind,target=/src,rw \

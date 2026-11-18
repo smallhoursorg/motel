@@ -1,5 +1,5 @@
 // Package sshkey is the person's side of a person's token: which ssh
-// key motel signs with, and the token that key's signature makes.
+// key the client signs with, and the token that key's signature makes.
 // It holds no crypto of its own. The key is read as its public line,
 // and the signature is OpenSSH's, made by the system ssh-keygen, so
 // the agent, a hardware key and the person's own ssh setup all work as

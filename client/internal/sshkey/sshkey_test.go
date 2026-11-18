@@ -667,8 +667,8 @@ func TestKeygenAgentOnlyKey(t *testing.T) {
 
 // A key file protected by a passphrase, with no terminal to ask it on:
 // ssh-keygen reads the token's claims as the passphrase and fails, and
-// motel says to add the key to the agent. With a terminal, or with
-// a key file that is not encrypted, ssh-keygen's own words stand.
+// the client says to add the key to the agent. With a terminal, or
+// with a key file that is not encrypted, ssh-keygen's own words stand.
 func TestKeygenPassphraseWithNoTerminal(t *testing.T) {
 	bin := keygen(t)
 	path := filepath.Join(t.TempDir(), "id_ed25519")

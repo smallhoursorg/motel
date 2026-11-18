@@ -20,7 +20,7 @@ import (
 	"github.com/smallhoursorg/motel/liveswap/access"
 )
 
-// motel with a person's token against the real liveswap_webhook,
+// The client with a person's token against the real liveswap_webhook,
 // with people declared: every key is made by ssh-keygen and every
 // token signed by it, as on a laptop, so the box's checker takes what
 // OpenSSH makes.
@@ -40,7 +40,7 @@ type sshKey struct {
 func keygen(t *testing.T, dir, name, typ string) sshKey {
 	t.Helper()
 	if _, err := exec.LookPath("ssh-keygen"); err != nil {
-		t.Skip("SKIPPED — NOT TESTED HERE: no ssh-keygen on this machine, and motel signs with it; CI's runners have it")
+		t.Skip("SKIPPED — NOT TESTED HERE: no ssh-keygen on this machine, and the client signs with it; CI's runners have it")
 	}
 	path := filepath.Join(dir, name)
 	args := []string{"-q", "-t", typ, "-N", "", "-C", name, "-f", path}
@@ -342,9 +342,9 @@ func TestClientPeopleRefused(t *testing.T) {
 
 // TestClientPeopleECDSA: a person whose key ssh-keygen made as ECDSA
 // cannot be declared yet (the box refuses the line by name: a person's
-// key is an Ed25519 key for now), and motel refuses that key before
-// it signs or sends anything, exit 2 with the remedy, for a read and
-// for `motel key`, which prints no line the box would refuse.
+// key is an Ed25519 key for now), and the client refuses that key
+// before it signs or sends anything, exit 2 with the remedy, for a read
+// and for `motel key`, which prints no line the box would refuse.
 func TestClientPeopleECDSA(t *testing.T) {
 	bin := clientBin(t)
 	frank := keygen(t, t.TempDir(), "frank", "ecdsa")

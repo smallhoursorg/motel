@@ -126,7 +126,7 @@ func (t Text) String() string { return t.s }
 // was sent, before any escape is written.
 const QuoteMax = 200
 
-// Quote is the one way motel quotes a value someone else sent (a
+// Quote is the one way the client quotes a value someone else sent (a
 // box's sentence, a box's field, a certificate's reason) inside its own
 // words. Every run of white space becomes one space and the ends are
 // trimmed, so no run of blanks can wrap the value to the start of a
@@ -144,7 +144,7 @@ const QuoteMax = 200
 // three marks and U+FFFD (From's sign for a byte that is not UTF-8),
 // and the closing quote is the only unescaped mark that reads as a
 // double quote: nothing s holds can end the quotation and write
-// motel's next words. A rule by what a character is (its category)
+// the client's next words. A rule by what a character is (its category)
 // or by a list of look-alikes cannot hold that: quote marks are
 // punctuation in some scripts and letters in others (U+1426, U+05F2),
 // a letter can print as a blank (the Hangul fillers) or on the cell

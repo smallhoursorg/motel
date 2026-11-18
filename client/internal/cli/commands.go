@@ -19,7 +19,7 @@ import (
 // ClientVersion is `motel version --json`: the client's release,
 // and the protocols and token forms it speaks.
 type ClientVersion struct {
-	// Version is motel's release.
+	// Version is the client's release.
 	Version string `json:"version"`
 	// Protocols are the protocol numbers it speaks, as whoami's
 	// protocol names a box's.
@@ -48,8 +48,8 @@ func (r *runner) version() *cobra.Command {
 	}
 }
 
-// KeyInfo is `motel key --json`: the key motel would sign with,
-// why that one, and the person line that lists it on a box.
+// KeyInfo is `motel key --json`: the key the client would sign
+// with, why that one, and the person line that lists it on a box.
 type KeyInfo struct {
 	// Key is the key as the person named it, or "the agent's key".
 	Key string `json:"key"`

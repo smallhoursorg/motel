@@ -19,7 +19,7 @@ import (
 // the box channel's token: the client's own module links no Caddy, so
 // the test that stands the handler up lives here, and runs the client
 // as the program a person runs. It is built from the workspace
-// (go.work), as liveswap's own motel tests build it.
+// (go.work), as liveswap's own client tests build it.
 
 func clientBin(t *testing.T) string {
 	t.Helper()
@@ -28,9 +28,9 @@ func clientBin(t *testing.T) string {
 	cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		if os.Getenv("GOWORK") == "off" {
-			t.Skipf("SKIPPED — NOT TESTED HERE: GOWORK=off, and motel is built from the workspace: %s", out)
+			t.Skipf("SKIPPED — NOT TESTED HERE: GOWORK=off, and the client is built from the workspace: %s", out)
 		}
-		t.Fatalf("building motel: %v\n%s", err, out)
+		t.Fatalf("building the client: %v\n%s", err, out)
 	}
 	return bin
 }
@@ -40,7 +40,7 @@ type ctlRun struct {
 	stdout, stderr string
 }
 
-// ctl runs motel with only the environment given, in a home and a
+// ctl runs the client with only the environment given, in a home and a
 // working directory of its own.
 func ctl(t *testing.T, bin string, env []string, args ...string) ctlRun {
 	t.Helper()
@@ -53,7 +53,7 @@ func ctl(t *testing.T, bin string, env []string, args ...string) ctlRun {
 	err := cmd.Run()
 	var exit *exec.ExitError
 	if err != nil && !errors.As(err, &exit) {
-		t.Fatalf("running motel: %v", err)
+		t.Fatalf("running the client: %v", err)
 	}
 	return ctlRun{cmd.ProcessState.ExitCode(), out.String(), errOut.String()}
 }

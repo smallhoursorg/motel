@@ -24,7 +24,7 @@ import (
 
 var update = flag.Bool("update", false, "rewrite the golden files")
 
-// The hostile strings a box can send (motel-spec 5.5): every one
+// The hostile strings a box can send: every one
 // must reach the terminal made visible, never acted on. Written with
 // \x escapes so no control character is in this file itself.
 var hostile = []string{
@@ -351,7 +351,7 @@ func TestBoxAnswersFailure(t *testing.T) {
 	}
 	// An unknown app answers 401 to a deploy token, like a bad token.
 	// The box's 401 body is not printed: --json is an object whose one
-	// key is error, holding motel's own sentence, the one on stderr.
+	// key is error, holding the client's own sentence, the one on stderr.
 	r = run(t, fb, deployToken, "status", appURL(fb, "ghost"), "--json")
 	var got map[string]string
 	said := strings.TrimSuffix(strings.TrimPrefix(r.stderr, "motel: "), "\n")
@@ -362,8 +362,8 @@ func TestBoxAnswersFailure(t *testing.T) {
 }
 
 // A status the box's own filter replaced values in is read, and each
-// such value is shown in motel's words, with nothing of what the box
-// sent in it; the app and a record's version are the ones asked for
+// such value is shown in the client's words, with nothing of what the
+// box sent in it; the app and a record's version are the ones asked for
 // when the box's equal them but at a marker.
 func TestStatusTheFilterReplacedValuesIn(t *testing.T) {
 	fb := newFakeBox(t)
@@ -580,7 +580,7 @@ func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
 }
 
 // Which credential: a --key typed beats MOTEL_TOKEN; MOTEL_TOKEN beats
-// MOTEL_KEY and every key motel finds by itself.
+// MOTEL_KEY and every key the client finds by itself.
 func TestCredentialOrder(t *testing.T) {
 	line := "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMuTYJV40qpZ7rH7T4/BJP6ERoj5JgqFQwHIEBTe5wrn" // gitleaks:allow — made up for this test
 	home := t.TempDir()
@@ -637,7 +637,7 @@ func TestHostileKeyPath(t *testing.T) {
 	}
 }
 
-// motel is https only, with no way round it: no help text offers
+// The client is https only, with no way round it: no help text offers
 // deploy.sh's MOTEL_ALLOW_HTTP.
 func TestNoPlainHTTP(t *testing.T) {
 	for _, cmd := range [][]string{{}, {"status"}, {"deploys"}, {"box", "status"}, {"key"}, {"version"}, {"whoami"}, {"apps"}} {

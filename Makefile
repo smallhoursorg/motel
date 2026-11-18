@@ -345,7 +345,8 @@ install-test:
 # pushed through box_webhook to the root applier, with the box
 # template's own commands, and the e2e config put back. Then the people
 # suite, inside it too: people declared in a box's file read it with
-# motel over the box's own TLS (e2e/box/people.sh says what it holds).
+# the client over the box's own TLS (e2e/box/people.sh says what it
+# holds).
 e2e:
 	$(cgroup2_preflight)
 	$(COMPOSE) up --build -d e2e-motel e2e-upstream e2e-artifacts
@@ -357,7 +358,7 @@ e2e:
 	$(COMPOSE) run --rm --entrypoint "/bin/sh /suite-recovery.sh" e2e-runner || status=1; \
 	echo "════ box apply suite: signed pushes through box_webhook to the root applier ════"; \
 	$(COMPOSE) exec -T e2e-motel /bin/sh /suite-box.sh || status=1; \
-	echo "════ people suite: motel over the box's TLS, as a laptop reads it ════"; \
+	echo "════ people suite: the client over the box's TLS, as a laptop reads it ════"; \
 	$(COMPOSE) exec -T e2e-motel /bin/sh /suite-people.sh || status=1; \
 	if [ $$status -ne 0 ]; then \
 		$(COMPOSE) logs e2e-upstream e2e-artifacts; \

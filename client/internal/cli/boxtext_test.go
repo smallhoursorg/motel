@@ -47,7 +47,7 @@ func TestHostileQuotations(t *testing.T) {
 }
 
 // An answer about another app, another version or another host than
-// the one asked is not motel's answer (exit 3), and none of it is
+// the one asked is not moteld's answer (exit 3), and none of it is
 // printed: the head lines name what was asked for.
 func TestAnswerAboutAnotherThing(t *testing.T) {
 	env := map[string]string{"MOTEL_TOKEN": "a.deploy.token"}
@@ -70,7 +70,7 @@ func TestAnswerAboutAnotherThing(t *testing.T) {
 					args = append(args, "--json")
 				}
 				r := run(t, fb, env, args...)
-				if r.code != 3 || !strings.Contains(r.stderr, "not motel's answer: "+c.why+")") || (!asJSON && r.stdout != "") {
+				if r.code != 3 || !strings.Contains(r.stderr, "not moteld's answer: "+c.why+")") || (!asJSON && r.stdout != "") {
 					t.Errorf("--json %v: %+v", asJSON, r)
 				}
 			}
@@ -84,7 +84,7 @@ func TestAnswerAboutAnotherThing(t *testing.T) {
 	t.Cleanup(srv.Close)
 	fb := &fakeBox{srv: srv, bodies: map[string][]byte{}}
 	r := run(t, fb, map[string]string{"MOTEL_TOKEN": "a.deploy.token", "MOTEL_URL": srv.URL + "/blog"}, "box", "status")
-	if r.code != 3 || r.stdout != "" || !strings.Contains(r.stderr, "not motel's answer: it names another host than the one asked)") {
+	if r.code != 3 || r.stdout != "" || !strings.Contains(r.stderr, "not moteld's answer: it names another host than the one asked)") {
 		t.Errorf("another host: %+v", r)
 	}
 }

@@ -1,4 +1,4 @@
-// Package cli is motel's command tree: what each command reads,
+// Package cli is the client's command tree: what each command reads,
 // asks and prints, and the exit code it ends with. The commands are
 // the client's whole surface; a later screen is a view over the same
 // functions.
@@ -39,7 +39,7 @@ type Env struct {
 	Run       local.Runner
 	// Signer signs a person's token; nil is ssh-keygen through Run.
 	Signer sshkey.Signer
-	// Version is motel's own release.
+	// Version is the client's own release.
 	Version string
 }
 
@@ -57,12 +57,12 @@ const experimental = "Every command is experimental: its flags, output and exit 
 	"~/.ssh/id_ed25519_sk, or the agent's only key, in that order. Only https:\n" +
 	"there is no way round it.\n\n" +
 	"Exit codes: 0 read; 1 the box answered with a failure; 2 nothing sent (usage,\n" +
-	"no box or key, an RSA or ECDSA key); 3 could not tell (no answer, not motel's\n" +
+	"no box or key, an RSA or ECDSA key); 3 could not tell (no answer, not moteld's\n" +
 	"answer, any 5xx, a 429 that stood); 4 not accepted (a 401 after one retry);\n" +
 	"5 not allowed (403); 6 not found (404); 8 the certificate did not verify; 130\n" +
 	"interrupted."
 
-// Main runs motel with args (without the program's name) and
+// Main runs the client with args (without the program's name) and
 // returns the exit code.
 func Main(ctx context.Context, args []string, env Env) int {
 	r := &runner{env: env}
@@ -122,7 +122,7 @@ func (r *runner) tree() *cobra.Command {
 	root := &cobra.Command{
 		Use:           "motel",
 		Short:         "Read a motel box over HTTPS (experimental)",
-		Long:          "motel reads a motel box over HTTPS: who your key is there and the apps it may view,\nan app's status and deploys, and the box's own state.\n\n" + experimental,
+		Long:          "motel reads a box over HTTPS: who your key is there and the apps it may view,\nan app's status and deploys, and the box's own state.\n\n" + experimental,
 		SilenceErrors: true,
 		SilenceUsage:  true,
 	}
@@ -181,7 +181,7 @@ func (r *runner) client(ctx context.Context, t *target, fromApp *client.Box, sco
 		return nil, err
 	}
 	// A --key typed on the command line beats MOTEL_TOKEN; MOTEL_TOKEN
-	// beats MOTEL_KEY and every key motel would find by itself.
+	// beats MOTEL_KEY and every key the client would find by itself.
 	var cred client.Credential
 	tok := r.env.Getenv("MOTEL_TOKEN")
 	if tok != "" && t.key == "" && keyOnly != "" {

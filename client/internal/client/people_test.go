@@ -132,7 +132,7 @@ func TestReadPeoplesFields(t *testing.T) {
 	} {
 		ans := &Answer{Code: http.StatusOK, Header: http.Header{"Content-Type": {"application/json"}}, Body: []byte(c.body)}
 		f := failure(t, cl.Read(ans, &wire.WhoAmI{}))
-		if f.Exit != ExitUnknown || !strings.Contains(f.Message, "not motel's answer: "+c.want) {
+		if f.Exit != ExitUnknown || !strings.Contains(f.Message, "not moteld's answer: "+c.want) {
 			t.Errorf("%s: exit %d %q", c.name, f.Exit, f.Message)
 		}
 	}
@@ -144,7 +144,7 @@ func TestReadPeoplesFields(t *testing.T) {
 		body, _ := json.Marshal(wire.Apps{Apps: []wire.AppEntry{{Name: "blog"}, {Name: name}}})
 		ans := &Answer{Code: http.StatusOK, Header: http.Header{"Content-Type": {"application/json"}}, Body: body}
 		f := failure(t, cl.Read(ans, &wire.Apps{}))
-		if f.Exit != ExitUnknown || !strings.HasSuffix(f.Message, "not motel's answer: a name in its list is no app name). Is this the box's deploy host?") {
+		if f.Exit != ExitUnknown || !strings.HasSuffix(f.Message, "not moteld's answer: a name in its list is no app name). Is this the box's deploy host?") {
 			t.Errorf("%q: exit %d %q", name, f.Exit, f.Message)
 		}
 	}
@@ -156,7 +156,7 @@ func TestReadPeoplesFields(t *testing.T) {
 
 // A box sentence that closes the quotation and writes what reads as the
 // client's next words stays inside the one quotation: the closing quote
-// motel writes is the only unescaped one.
+// the client writes is the only unescaped one.
 func TestForbiddenQuotationHolds(t *testing.T) {
 	person, _ := personCred(t)
 	cl := &Client{Box: Box{Host: "127.0.0.1"}, Cred: person}
@@ -221,7 +221,7 @@ func TestUnreadableFieldNamedNotQuoted(t *testing.T) {
 		t.Errorf("exit %d %q", f.Exit, f.Message)
 	}
 	ans.Body = []byte(`{"app":"blog"` + strings.Repeat(" ", 3) + `x}`)
-	if f := failure(t, cl.Read(ans, &wire.Status{})); !strings.HasSuffix(f.Message, "(HTTP 200, not motel's answer: not JSON). Is this the box's deploy host?") {
+	if f := failure(t, cl.Read(ans, &wire.Status{})); !strings.HasSuffix(f.Message, "(HTTP 200, not moteld's answer: not JSON). Is this the box's deploy host?") {
 		t.Errorf("a syntax error: %q", f.Message)
 	}
 }
@@ -277,7 +277,7 @@ func TestWhoamiNullsAndRoles(t *testing.T) {
 		r, _ := json.Marshal([]wire.RoleHeld{{Role: c.role, Scope: c.scope}})
 		m["roles"] = string(r)
 		f := read(encode(m), &wire.WhoAmI{})
-		if (f == nil) != c.ok || (f != nil && !strings.HasSuffix(f.Message, "not motel's answer: a role in it is not one a box names). Is this the box's deploy host?")) {
+		if (f == nil) != c.ok || (f != nil && !strings.HasSuffix(f.Message, "not moteld's answer: a role in it is not one a box names). Is this the box's deploy host?")) {
 			t.Errorf("%q %q: %+v", c.role, c.scope, f)
 		}
 	}
@@ -316,7 +316,7 @@ func TestWhoamiNameAndRelease(t *testing.T) {
 			}
 			continue
 		}
-		if f := failure(t, err); f.Exit != ExitUnknown || !strings.Contains(f.Message, "not motel's answer: "+c.why+")") {
+		if f := failure(t, err); f.Exit != ExitUnknown || !strings.Contains(f.Message, "not moteld's answer: "+c.why+")") {
 			t.Errorf("%q %q: exit %d %q", c.name, c.version, f.Exit, f.Message)
 		}
 	}

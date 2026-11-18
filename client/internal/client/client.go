@@ -3,7 +3,7 @@
 // what each kind of answer means as an exit code and a sentence. It
 // decodes into liveswap/wire's types, the ones the box marshals, so
 // there is one shape and nothing is copied; that package imports only
-// the standard library, so motel links no Caddy.
+// the standard library, so the client links no Caddy.
 package client
 
 import (
@@ -172,7 +172,7 @@ type Answer struct {
 	Body   []byte
 }
 
-// NewHTTP is the client motel asks with: the system's roots, TLS
+// NewHTTP is the HTTP client it asks with: the system's roots, TLS
 // 1.2 at least, the environment's proxy, no redirect followed (a
 // motel webhook never redirects, and the token must not follow one).
 func NewHTTP(rt http.RoundTripper) *http.Client {
@@ -278,7 +278,7 @@ func (c *Client) once(ctx context.Context, path string, query url.Values) (*Answ
 		return nil, c.unreachable(ctx, err)
 	}
 	if len(body) > maxBody {
-		return nil, &Failure{Exit: ExitUnknown, Message: fmt.Sprintf("%s answered with more than %d bytes, which is not motel's answer to a read. Is this the box's deploy host?", c.Box.Addr(), maxBody)}
+		return nil, &Failure{Exit: ExitUnknown, Message: fmt.Sprintf("%s answered with more than %d bytes, which is not moteld's answer to a read. Is this the box's deploy host?", c.Box.Addr(), maxBody)}
 	}
 	return &Answer{Code: resp.StatusCode, Header: resp.Header, Body: body}, nil
 }
@@ -286,7 +286,7 @@ func (c *Client) once(ctx context.Context, path string, query url.Values) (*Answ
 // unreachable says why no answer was read: a certificate that did not
 // verify (never continued past), a name not found, nothing to connect
 // to, a timeout, a connection closed, or something that answered in no
-// HTTP motel reads.
+// HTTP the client reads.
 func (c *Client) unreachable(ctx context.Context, err error) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
@@ -330,7 +330,7 @@ func (c *Client) unreachable(ctx context.Context, err error) error {
 	}
 	// Past the dial, bytes may have come from the peer, and Go's error
 	// text then quotes them (a status line, a header's value): only a
-	// fixed reason of motel's own is said. The system's words are
+	// fixed reason of the client's own is said. The system's words are
 	// kept for a dial alone, which no byte of the peer's reached.
 	down := "If moteld is down, as root on the box: systemctl status moteld; journalctl -u moteld -n 50. The box's off-box heartbeat also reports a stopped moteld."
 	var op *net.OpError
@@ -396,7 +396,7 @@ func (c *Client) refused(ans *Answer) error {
 }
 
 // slowDown is a 429 that stood after the wait, or one that asked for a
-// longer wait than motel makes, or one whose wait did not read.
+// longer wait than the client makes, or one whose wait did not read.
 func (c *Client) slowDown(secs int64, ok, waited bool) error {
 	switch {
 	case !ok:
@@ -427,9 +427,9 @@ func retryAfter(h http.Header, now time.Time) (int64, bool) {
 // Read decodes a 200's body into v and returns nil, or says why the
 // answer is not the one asked for: a refusal (403, 404, a 409 or
 // another 4xx with an error sentence, each said as the box's with the
-// sentence quoted), a 5xx, said as not known to be motel's, a body the
+// sentence quoted), a 5xx, said as not known to be moteld's, a body the
 // box's response filter withheld (a 200 whose one sentence says so,
-// quoted), or an answer that is not motel's. No message carries a
+// quoted), or an answer that is not moteld's. No message carries a
 // decoder's error, which quotes what the body holds: a field that does
 // not read is named by the client's own name for it, and nothing of
 // its value. A value held to a grammar that the box's filter replaced
@@ -452,7 +452,7 @@ func (c *Client) Read(ans *Answer, v any) error {
 			}
 			return c.notMotel(ans, "it has no "+fieldList(missing))
 		case err != nil:
-			// motel's answer, by its fields, with a value that did not
+			// moteld's answer, by its fields, with a value that did not
 			// decode: the box's response filter replaces a value equal
 			// to a secret, a timestamp's included, with its marker.
 			what := "a value in it"
@@ -486,10 +486,10 @@ func (c *Client) Read(ans *Answer, v any) error {
 		return &Failure{Exit: ExitNotFound, Message: fmt.Sprintf("%s answered 404; the box says: %s", c.Box.Host, said), Body: ans.Body}
 	}
 	// A gateway in front of a box can answer a 5xx in JSON too, and no
-	// header tells motel's own from it, so no 5xx is said as the box's.
+	// header tells moteld's own from it, so no 5xx is said as the box's.
 	if ans.Code >= 500 {
 		return &Failure{Exit: ExitUnknown, Message: fmt.Sprintf(
-			"Something at %s answered %d, not known to be motel's own answer; it says: %s", c.Box.Addr(), ans.Code, said)}
+			"Something at %s answered %d, not known to be moteld's own answer; it says: %s", c.Box.Addr(), ans.Code, said)}
 	}
 	return &Failure{Exit: ExitFailed, Message: fmt.Sprintf("%s answered %d; the box says: %s", c.Box.Host, ans.Code, said), Body: ans.Body}
 }
@@ -621,7 +621,7 @@ func bracketMark(m string) bool {
 	return len(m) <= 32 && bareMarkRe.MatchString(m)
 }
 
-// Filtered is what motel shows in place of a value the box's
+// Filtered is what the client shows in place of a value the box's
 // response filter replaced part of: its own words, and nothing of the
 // value, which is outside its grammar.
 const Filtered = "[hidden by the box's filter]"
@@ -691,7 +691,7 @@ func hold(v any) string {
 			}
 		}
 		if a.Unit != "" && !held(&a.Unit, unitRe.MatchString) {
-			return "its unit is not one motel names"
+			return "its unit is not one moteld names"
 		}
 		if wd := a.Watchdog; wd != nil && wd.State != "" && !held(&wd.State, func(s string) bool { return watchdogStates[s] }) {
 			return "its watchdog's state is not one a watchdog has"
@@ -813,8 +813,8 @@ func badField(body []byte, v any) string {
 // Forbidden: "viewer", "deployer" or "key"; "app" or "box"), and the
 // sentence is built from them alone, so an app that exists and one
 // that does not read the same and no app is named. Any other needs,
-// a word a later box may name among them, is never put in motel's
-// own sentence, where a box could have it say "it needs the
+// a word a later box may name among them, is never put in the
+// client's own sentence, where a box could have it say "it needs the
 // <words of the box's choosing> role": such a 403 is said as a refusal
 // that did not say what it needs, with the box's own sentence, if any,
 // quoted as the box's.
@@ -858,7 +858,7 @@ func (c *Client) forbidden(ans *Answer) *Failure {
 		"%s does not allow the token in MOTEL_TOKEN this: it needs %s.%s", c.Box.Host, needs, hint)}
 }
 
-// NotMotel is an answer that is not motel's, for a command that reads
+// NotMotel is an answer that is not moteld's, for a command that reads
 // what Read took and finds it about another thing than it asked (an
 // app, a version, a host): why is the command's own words.
 func (c *Client) NotMotel(ans *Answer, why string) error { return c.notMotel(ans, why) }
@@ -873,7 +873,7 @@ func (c *Client) NotMotel(ans *Answer, why string) error { return c.notMotel(ans
 // more than that the answer was withheld. The opening is read as the
 // filter's own last pass may have left it (opensWithheld), so a
 // sentence that opens with a marker is taken too, whatever follows.
-// Any other 200 without the answer's fields is still not motel's.
+// Any other 200 without the answer's fields is still not moteld's.
 func withheld(ans *Answer) (termtext.Text, bool) {
 	var e wire.Error
 	if decodeObject(ans, &e) != nil || !opensWithheld(e.Error) {
@@ -908,7 +908,7 @@ func (c *Client) notMotel(ans *Answer, why string) error {
 		why = ": " + termtext.From(why).String()
 	}
 	return &Failure{Exit: ExitUnknown, Message: fmt.Sprintf(
-		"Something at %s answered (HTTP %d, not motel's answer%s). Is this the box's deploy host?", c.Box.Addr(), ans.Code, why)}
+		"Something at %s answered (HTTP %d, not moteld's answer%s). Is this the box's deploy host?", c.Box.Addr(), ans.Code, why)}
 }
 
 // shape is the fields that make a body the answer it is for: the ones
@@ -980,7 +980,7 @@ func fieldList(f []string) string {
 	return strings.Join(f[:len(f)-1], ", ") + " and " + f[len(f)-1]
 }
 
-// errNotJSON and errNotObject are a body that is not motel's shape at
+// errNotJSON and errNotObject are a body that is not moteld's shape at
 // all.
 var (
 	errNotJSON   = errors.New("not JSON")

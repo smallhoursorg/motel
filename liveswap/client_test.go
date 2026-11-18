@@ -20,13 +20,13 @@ import (
 	"github.com/caddyserver/caddy/v2/modules/caddyhttp"
 )
 
-// motel's commands against the real liveswap_webhook, in-process
+// The client's commands against the real liveswap_webhook, in-process
 // with a deploy token: the client's own module links no Caddy, so the
 // tests that stand the handler up live here, and run the client as the
 // program a person runs. It is built from the workspace (go.work), so
 // these tests run where the repository's go.work does: make test, CI.
 
-// clientBin builds motel into the test's own directory.
+// clientBin builds the client into the test's own directory.
 func clientBin(t *testing.T) string {
 	t.Helper()
 	bin := filepath.Join(t.TempDir(), "motel")
@@ -34,9 +34,9 @@ func clientBin(t *testing.T) string {
 	cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		if os.Getenv("GOWORK") == "off" {
-			t.Skipf("SKIPPED — NOT TESTED HERE: GOWORK=off, and motel is built from the workspace: %s", out)
+			t.Skipf("SKIPPED — NOT TESTED HERE: GOWORK=off, and the client is built from the workspace: %s", out)
 		}
-		t.Fatalf("building motel: %v\n%s", err, out)
+		t.Fatalf("building the client: %v\n%s", err, out)
 	}
 	return bin
 }
@@ -78,7 +78,7 @@ type ctlRun struct {
 	stdout, stderr string
 }
 
-// ctl runs motel with only the environment given: a home and a
+// ctl runs the client with only the environment given: a home and a
 // working directory of its own, so no key or box repository of the
 // machine running the tests is read.
 func ctl(t *testing.T, bin string, env []string, args ...string) ctlRun {
@@ -92,7 +92,7 @@ func ctl(t *testing.T, bin string, env []string, args ...string) ctlRun {
 	err := cmd.Run()
 	var exit *exec.ExitError
 	if err != nil && !errors.As(err, &exit) {
-		t.Fatalf("running motel: %v", err)
+		t.Fatalf("running the client: %v", err)
 	}
 	return ctlRun{cmd.ProcessState.ExitCode(), out.String(), errOut.String()}
 }
@@ -155,7 +155,7 @@ func TestClientReadsTheWebhook(t *testing.T) {
 	}
 }
 
-// TestClientReadsWhatTheFilterChanged runs motel against the real
+// TestClientReadsWhatTheFilterChanged runs the client against the real
 // handler for apps whose env_file values meet their own names, which
 // the response filter then replaces inside the status (redact.go, rule
 // 5 keeps only a value equal to the name, in the "app" pair alone):

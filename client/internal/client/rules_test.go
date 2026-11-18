@@ -130,7 +130,7 @@ func TestRedirectsAreNeverFollowed(t *testing.T) {
 			}
 			f := failure(t, b.client.Read(ans, &struct{}{}))
 			if ans.Code != http.StatusFound || f.Exit != ExitUnknown {
-				t.Errorf("answer %d, exit %d; want the 302 itself, read as not motel's", ans.Code, f.Exit)
+				t.Errorf("answer %d, exit %d; want the 302 itself, read as not moteld's", ans.Code, f.Exit)
 			}
 		})
 	}
@@ -209,7 +209,7 @@ func TestPersonTokenAudIsTheBareHost(t *testing.T) {
 	}
 }
 
-// Every reason motel quotes from something it did not write is
+// Every reason the client quotes from something it did not write is
 // made safe to print: the certificate's, a decoder's, a dialer's.
 func TestReasonsAreSanitised(t *testing.T) {
 	const evil = "evil\x1b]0;pwned\x07"
@@ -231,7 +231,7 @@ func TestReasonsAreSanitised(t *testing.T) {
 	}
 	f := failure(t, c.notMotel(&Answer{Code: 200}, evil))
 	if strings.ContainsAny(f.Message, "\x1b\x07") || !strings.Contains(f.Message, `evil\x1b]0;pwned\x07`) {
-		t.Errorf("not motel's: %q", f.Message)
+		t.Errorf("not moteld's: %q", f.Message)
 	}
 }
 
@@ -288,15 +288,15 @@ func TestReadNeedsTheIdentifyingFields(t *testing.T) {
 			}
 			continue
 		}
-		if f := failure(t, err); f.Exit != ExitUnknown || !strings.Contains(f.Message, "not motel's answer: it has no ") {
+		if f := failure(t, err); f.Exit != ExitUnknown || !strings.Contains(f.Message, "not moteld's answer: it has no ") {
 			t.Errorf("%s: exit %d %q", tc.name, f.Exit, f.Message)
 		}
 	}
-	// motel's answer by its fields, with a time the response filter
+	// moteld's answer by its fields, with a time the response filter
 	// replaced: said as that, not as someone else's answer.
 	replaced := strings.Replace(record, `"2026-11-14T09:13:00Z"`, `"[redacted:DB_PASSWORD]"`, 1)
 	f := failure(t, c.Read(json200(replaced), &wire.DeployResult{}))
-	if f.Exit != ExitUnknown || strings.Contains(f.Message, "not motel's") || f.Message != "127.0.0.1 answered, but its finished_at could not be read: the box's response filter may have replaced it. The box's journal says which key it replaced." {
+	if f.Exit != ExitUnknown || strings.Contains(f.Message, "not moteld's") || f.Message != "127.0.0.1 answered, but its finished_at could not be read: the box's response filter may have replaced it. The box's journal says which key it replaced." {
 		t.Errorf("a replaced time: exit %d %q", f.Exit, f.Message)
 	}
 }
@@ -341,7 +341,7 @@ func okJSON(body string) *Answer {
 }
 
 // A value the box's own response filter replaced part of carries the
-// filter's marker and is outside its grammar. It is motel's answer all
+// filter's marker and is outside its grammar. It is moteld's answer all
 // the same: the value becomes the client's own words, Filtered, and
 // nothing of what the box sent in it is kept. An app whose env_file
 // holds its own name (DB_NAME=<app>) has that name replaced inside its
@@ -393,7 +393,7 @@ func TestReadTakesWhatTheFilterReplaced(t *testing.T) {
 		}
 	}
 
-	// Outside its grammar with no marker of the filter's: not motel's,
+	// Outside its grammar with no marker of the filter's: not moteld's,
 	// as before. And a marker does not carry the rest of a value out.
 	for name, body := range map[string]string{
 		"a unit that is no unit":     `{"app":"blog","phase":"idle","unit":"motel-blog; run this"}`,
@@ -405,7 +405,7 @@ func TestReadTakesWhatTheFilterReplaced(t *testing.T) {
 		"an angle with other words":  `{"app":"blog","phase":"idle","unit":"motel-<shop deleted>.service"}`,
 	} {
 		f := failure(t, c.Read(okJSON(body), &wire.Status{}))
-		if f.Exit != ExitUnknown || !strings.Contains(f.Message, "not motel's answer") {
+		if f.Exit != ExitUnknown || !strings.Contains(f.Message, "not moteld's answer") {
 			t.Errorf("%s: exit %d %q", name, f.Exit, f.Message)
 		}
 	}
@@ -421,7 +421,7 @@ func TestReadTakesWhatTheFilterReplaced(t *testing.T) {
 		"a deploy's status": `{"app":"blog","phase":"idle","deploys":[{"version":"v1","status":"[redacted:X]"}]}`,
 	} {
 		f := failure(t, c.Read(okJSON(body), &wire.Status{}))
-		if f.Exit != ExitUnknown || !strings.Contains(f.Message, "not motel's answer") {
+		if f.Exit != ExitUnknown || !strings.Contains(f.Message, "not moteld's answer") {
 			t.Errorf("%s the filter could not have replaced: exit %d %q", name, f.Exit, f.Message)
 		}
 	}
@@ -463,7 +463,7 @@ func TestSame(t *testing.T) {
 // A 200 whose body is the one the box's response filter writes in
 // place of an answer it withheld is said as that, with the box's
 // sentence, which names what to mend, and its body is the box's for
-// --json. Any other 200 without the answer's fields is not motel's.
+// --json. Any other 200 without the answer's fields is not moteld's.
 func TestReadSaysWhatTheFilterWithheld(t *testing.T) {
 	c := &Client{Box: Box{Host: "127.0.0.1"}}
 	for _, said := range []string{
@@ -526,7 +526,7 @@ func TestReadSaysWhatTheFilterWithheld(t *testing.T) {
 		"a withheld body with no error": `{"redacted_env":["DB_NAME"]}`,
 	} {
 		f := failure(t, c.Read(okJSON(body), &wire.Status{}))
-		if f.Exit != ExitUnknown || !strings.Contains(f.Message, "not motel's answer: it has no app and phase") {
+		if f.Exit != ExitUnknown || !strings.Contains(f.Message, "not moteld's answer: it has no app and phase") {
 			t.Errorf("%s: exit %d %q", name, f.Exit, f.Message)
 		}
 	}

@@ -67,8 +67,8 @@ wait_for_token # $TOKEN: the e2e deploy token, audience e2e
 # 127.0.0.0/8, the client's own address, so that fran's refusal is the
 # list's; stranger's key no line lists. Every person's key is Ed25519,
 # the one kind a box takes for now; eve's is ECDSA, which no box takes
-# yet, so her line is refused (people 0) and motel will not sign
-# with it (people 1).
+# yet, so her line is refused (people 0) and the client will not
+# sign with it (people 1).
 for k in alice vera otto fran nora lena stranger; do ssh-keygen -q -t ed25519 -N '' -C "$k" -f "$work/$k"; done
 ssh-keygen -q -t ecdsa -b 256 -N '' -C eve -f "$work/eve"
 key() { cut -d' ' -f1,2 "$work/$1.pub"; }
@@ -267,7 +267,7 @@ case "$(curl -s --max-time 5 http://localhost:8080/)" in
 *) fail "demo serves: $(curl -s --max-time 5 http://localhost:8080/ | head -c 200)" ;;
 esac
 
-echo "=== people 1: motel for each of them ==="
+echo "=== people 1: the client for each of them ==="
 # matrix <who> <8 exits>: whoami, apps, status demo, status
 # node-example, deploys demo, deploys node-example, deploys demo <DV>,
 # box status. Each command's output is kept as $work/<who>.<n>.out/.err.
@@ -336,7 +336,7 @@ mc whoami --box "$HOST" --key "$work/lena"
 expect "lena, inside her from list: whoami" 0
 has "lena: whoami gives demo's viewer role from here" "$work/out" "roles    viewer of app demo"
 
-# eve's ECDSA key: motel refuses it before it signs or sends, and
+# eve's ECDSA key: the client refuses it before it signs or sends, and
 # `motel key` prints no person line the box would refuse.
 for cmd in "whoami --box $HOST" key; do
 	# shellcheck disable=SC2086 # the command's words
@@ -421,8 +421,8 @@ journalctl -u moteld --since "@$t_matrix" --no-pager -o cat | grep '"logger":"ht
 grep -o '"client_ip":"[^"]*","proto":"[^"]*"' "$work/access" | sed 's/.*"proto":"\([^"]*\)"/\1/' >"$work/protos"
 protos=$(sort "$work/protos" | uniq -c | tr -s ' ' | tr '\n' ' ')
 [ -s "$work/protos" ] && [ "$(wc -l <"$work/protos")" = "$(wc -l <"$work/access")" ] && ! grep -qvx 'HTTP/2.0' "$work/protos" \
-	&& pass "motel spoke HTTP/2 to the box: the access log's whoami lines say $protos" \
-	|| fail "motel's protocol in the access log: '$protos' ($(head -c 300 "$work/access"))"
+	&& pass "the client spoke HTTP/2 to the box: the access log's whoami lines say $protos" \
+	|| fail "the client's protocol in the access log: '$protos' ($(head -c 300 "$work/access"))"
 get h2 --http2 -H "Authorization: Motel $P_VERA" "$BASE/_motel/whoami"
 [ "$CODE" = 200 ] && [ "$PROTO" = 2 ] && pass "curl --http2 is answered over HTTP/2" || fail "curl --http2: $CODE over $PROTO"
 get h2up --http2 -H "Authorization: Motel $P_VERA" -H "Host: PEOPLE.E2E.TEST:443" "$BASE/_motel/whoami"

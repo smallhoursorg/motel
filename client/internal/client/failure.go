@@ -7,14 +7,14 @@ const (
 	// status read exits 0 whatever the app's phase).
 	ExitOK = 0
 	// ExitFailed: the box answered, and the answer is a failure (a 409
-	// from box status). A 5xx is ExitUnknown: nothing tells motel's own
+	// from box status). A 5xx is ExitUnknown: nothing tells moteld's own
 	// from a gateway's.
 	ExitFailed = 1
 	// ExitUsage: nothing was sent (bad arguments, no box or key named,
 	// an RSA or an ECDSA key).
 	ExitUsage = 2
 	// ExitUnknown: could not tell (no answer, a timeout, a body that is
-	// not motel's, any 5xx, a 429 that stood after one wait).
+	// not moteld's, any 5xx, a 429 that stood after one wait).
 	ExitUnknown = 3
 	// ExitRefused: a 401 that stood after one retry.
 	ExitRefused = 4
@@ -27,24 +27,24 @@ const (
 	// a box's 401 is the same as a key it does not list, and the 401's
 	// message names both.
 	ExitTooOld = 7
-	// ExitCertificate: the box's certificate did not verify. motel
-	// never continues past one.
+	// ExitCertificate: the box's certificate did not verify. The
+	// client never continues past one.
 	ExitCertificate = 8
 	// ExitInterrupted: SIGINT.
 	ExitInterrupted = 130
 )
 
 // Failure is a command that did not get its answer: the exit code,
-// what motel says, and, when the box's own body is the answer, that
+// what the client says, and, when the box's own body is the answer, that
 // body for --json.
 type Failure struct {
 	Exit int
-	// Message is safe to print: motel's own words, with whatever a
+	// Message is safe to print: the client's own words, with whatever a
 	// box or a person sent in it made safe (termtext) when it was put
 	// in.
 	Message string
 	// Body is the box's answer as received, printed by --json in place
-	// of an {"error"} of motel's.
+	// of an {"error"} of the client's.
 	Body []byte
 }
 
