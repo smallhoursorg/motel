@@ -1,10 +1,11 @@
 # Giving a person access
 
-**Experimental.** A person you name in the box's Caddyfile can read,
-from their own laptop and over HTTPS, the status and deploys of the apps
-you choose, and the box's own status, with their own ssh key: no
-account on the box, no ssh access, and no deploy token. They cannot
-deploy, roll back or push, whatever you write. ssh stays root's.
+**Experimental, since v0.8.0.** A person you name in the box's
+Caddyfile can read, from their own laptop and over HTTPS, the status
+and deploys of the apps you choose, and the box's own status, with
+their own ssh key: no account on the box, no ssh access, and no deploy
+token. They cannot deploy, roll back or push, whatever you write. ssh
+stays root's.
 
 This needs a `box` block and a site with `box_webhook` (the template's
 deploy host), as a box with a box repository has. People reach the box

@@ -337,12 +337,16 @@ The box repository's workflow checks config with the latest stable
 release, so it needs nothing after an upgrade — unless its
 `MOTEL_VERSION` repository variable pins a release, which then
 wants the new one. One made from the template of v0.7.0 or earlier
-takes this release's template once its box has moved to `moteld`: in
-one commit, copy `.github/workflows/apply.yml`, `Makefile` and `bin/`
-from `examples/box/` over its own and delete `bin/install-motel`. That
-script asks each release for a `motel_…` archive, which no release
-from this one on has, so the workflow's install step fails, naming the
-address it tried.
+is the exception, and takes this release's template before its next
+push: in one commit, copy `.github/workflows/apply.yml`, `Makefile`
+and `bin/` from `examples/box/` over its own, and delete its
+`bin/install-motel` (`bin/install-hotserve` in one from before
+v0.6.0). That script asks each release for an archive under the old
+name, which no `moteld` release has, so both of the workflow's jobs
+fail at their install step, naming the address tried, and no push
+applies. A `<host>/MOTEL_VERSION` file that names a release from
+before `moteld` goes in the same commit: the new script finds no
+archive for it, and `make check` refuses that box.
 
 There is no APT repository yet, so nothing upgrades moteld behind
 your back; the hosted repository on the [roadmap](../README.md#roadmap) is what
