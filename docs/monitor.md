@@ -1174,9 +1174,9 @@ Alertmanager's socket fails it. If you purged first, run the
 names the two packages' units as missing and exits 5, and still stops
 and disables the rest. Then do steps 6 and 7.
 
-Going back to a motel release without monitor is in
-[Upgrading](upgrading.md), which also takes the `observe` lines out of
-the sites: v0.6.1 refuses those too.
+There is no going back to a release without monitor: each one
+(v0.6.1 and earlier) is the `motel` package, and no `.deb` goes back
+across the move to `moteld` ([Upgrading](upgrading.md)).
 
 ## What has been verified where
 

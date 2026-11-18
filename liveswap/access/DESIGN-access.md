@@ -384,9 +384,10 @@ steps would reach no one.
 ## Upgrade and downgrade
 
 An upgrade needs nothing: a file without `person` or `grant` lines
-loads as before and admits no one. Going back to a release without
-them needs the lines taken out first (docs/upgrading.md): such a
-release refuses the file (`unknown box subdirective "person"`).
+loads as before and admits no one. There is no going back to a release
+without them: each one is the `motel` package, and no `.deb` goes back
+across the move to `moteld` (docs/upgrading.md). Such a release
+refuses the file (`unknown box subdirective "person"`).
 
 ## Triage
 

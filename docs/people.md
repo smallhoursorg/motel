@@ -89,16 +89,6 @@ is what they will see as their key, and a `grant` line per grant. A
 `warning` line names anything taken with a doubt: a person with no
 grant, an app grant a box grant already covers, people with no monitor channel.
 
-Until a release carries people, a push of a file with `person` or
-`grant` lines turns the box repository's check red (a file with
-neither stays green), and only a box that runs a build that is not a
-release takes such a file: the workflow validates with a release (the
-latest stable one, or the one `MOTEL_VERSION` names), which refuses
-the file at the first such line (`unknown box subdirective "person"`,
-or `"grant"`). To such a box the push applies all the same: the apply
-job does not wait for the check, and the box validates the file with
-its own binary.
-
 On a box whose Caddyfile you edit at the console and do not push, the
 file must still be one the box can read its people from, as the
 template's is: a `box` block, exactly one site with `box_webhook`,
@@ -125,8 +115,9 @@ signed:
 | `/<app>?deploy=<version>` | one deploy's record |
 | `/` | the box's status, for a viewer of the box |
 
-The `motel` command (in no release yet: built from a clone of this
-repository, client/README.md, "Getting it") makes the token and asks:
+The `motel` command (no release ships it as a binary: it is built
+from a clone of this repository, client/README.md, "Getting it") makes
+the token and asks:
 `motel whoami --box deploy.example.com`, `motel apps`, `motel status
 <app>`, `motel deploys <app> [<version>]`, `motel box status`. Without
 it, this makes one by hand and asks who they are (`box` is the box's
@@ -155,8 +146,3 @@ or not. Too many requests (more than 60 at once, then 2 a second) is a
 Remove their `person` and `grant` lines and push. The box reloads with
 the new file, and from then their key gets the `401`. A `signer` line
 is removed as before, and with it that signer's key as a person.
-
-## Going back to an older release
-
-A release without people refuses a Caddyfile with these lines: take
-them out first ([Upgrading](upgrading.md)).
