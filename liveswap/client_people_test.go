@@ -25,10 +25,10 @@ import (
 // token signed by it, as on a laptop, so the box's checker takes what
 // OpenSSH makes.
 
-// ctlIdentity is the box's identity in these tests: the address the
+// boxIdentity is the box's identity in these tests: the address the
 // test server listens on. A token's aud and the request's Host must
 // both equal it, and the client sends the Host it dials.
-const ctlIdentity = "127.0.0.1"
+const boxIdentity = "127.0.0.1"
 
 // sshKey is a key ssh-keygen made in the test: its private file, which
 // MOTEL_KEY names, and its public half as a person line has it.
@@ -164,7 +164,7 @@ func TestClientPeople(t *testing.T) {
 	if _, err := access.CheckLines(l, nil); err != nil {
 		t.Fatal(err)
 	}
-	h.people = access.NewRegistry(ctlIdentity, l)
+	h.people = access.NewRegistry(boxIdentity, l)
 
 	var last lastBody
 	box := serveClient(t, last.serve(webhook(h)))
@@ -248,7 +248,7 @@ func TestClientPeople(t *testing.T) {
 		key  sshKey
 		want []string
 	}{
-		{alice, []string{"name     alice@example.test\n", "box      127.0.0.1, motel", "protocol 1\n", "key      " + alice.fp + " (" + alice.path + ".pub, MOTEL_KEY)\n", "roles    viewer of app demo\n", "token    expires "}},
+		{alice, []string{"name     alice@example.test\n", "box      127.0.0.1, moteld", "protocol 1\n", "key      " + alice.fp + " (" + alice.path + ".pub, MOTEL_KEY)\n", "roles    viewer of app demo\n", "token    expires "}},
 		{carol, []string{"name     carol@example.test\n", "roles    viewer of the box\n"}},
 		{dave, []string{"name     dave@example.test\n", "roles    none from this address\n"}},
 	} {
@@ -295,7 +295,7 @@ func TestClientPeopleRefused(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h.people = access.NewRegistry(ctlIdentity, access.Lines{Keys: []access.Key{key}, Grants: []access.Grant{g}})
+	h.people = access.NewRegistry(boxIdentity, access.Lines{Keys: []access.Key{key}, Grants: []access.Grant{g}})
 	served := webhook(h)
 	for who, k := range map[string]sshKey{"a key no line lists": stranger, "a person outside their from list": erin} {
 		for _, args := range [][]string{{"whoami"}, {"apps"}, {"status"}, {"deploys"}, {"deploys", "v1"}} {

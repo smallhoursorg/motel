@@ -70,7 +70,7 @@ func TestForbidden(t *testing.T) {
 	}
 }
 
-// whoami's and apps' bodies are motel's by their fields: a 200 without
+// whoami's and apps' bodies are moteld's by their fields: a 200 without
 // them is someone else's answer.
 func TestReadPeoplesBodies(t *testing.T) {
 	cl := &Client{Box: Box{Host: "127.0.0.1"}}

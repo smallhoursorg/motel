@@ -332,7 +332,7 @@ func TestRead(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ans := &Answer{Code: tc.code, Header: http.Header{"Content-Type": {tc.ctype}}, Body: []byte(tc.body + "\n")}
 			// Motel sends no header of its own, so a header that looks
-			// like one makes a 5xx no more motel's.
+			// like one makes a 5xx no more moteld's.
 			if tc.name == "a 5xx with a Motel-Protocol" {
 				ans.Header.Set("Motel-Protocol", "1")
 			}
