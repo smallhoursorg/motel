@@ -167,7 +167,7 @@ func TestClientPeople(t *testing.T) {
 	h.people = access.NewRegistry(ctlIdentity, l)
 
 	var last lastBody
-	box := serveCtl(t, last.serve(webhook(h)))
+	box := serveClient(t, last.serve(webhook(h)))
 	app := box.url + "/demo"
 	envOf := func(k sshKey) []string {
 		return []string{"MOTEL_KEY=" + k.path, "MOTEL_URL=" + app, "SSL_CERT_FILE=" + box.cert}
@@ -208,7 +208,7 @@ func TestClientPeople(t *testing.T) {
 		for name, args := range commands {
 			t.Run(c.who+", "+name, func(t *testing.T) {
 				w := c.want[name]
-				r := ctl(t, bin, envOf(c.key), append(args, "--json")...)
+				r := runClient(t, bin, envOf(c.key), append(args, "--json")...)
 				body := last.get()
 				if name == "deploys" && w.code == 0 {
 					var st struct{ Deploys json.RawMessage }
@@ -220,7 +220,7 @@ func TestClientPeople(t *testing.T) {
 				if r.code != w.code || !printedAs(r.stdout, body) {
 					t.Fatalf("--json: exit %d, stdout\n%s\nwant %d and the handler's\n%s\nstderr %s", r.code, r.stdout, w.code, body, r.stderr)
 				}
-				r = ctl(t, bin, envOf(c.key), args...)
+				r = runClient(t, bin, envOf(c.key), args...)
 				if r.code != w.code || (w.stdout != "" && r.stdout != w.stdout) {
 					t.Fatalf("exit %d, stdout\n%s\nwant %d and\n%s\nstderr %s", r.code, r.stdout, w.code, w.stdout, r.stderr)
 				}
@@ -238,7 +238,7 @@ func TestClientPeople(t *testing.T) {
 	}
 
 	// The record's hostile probe body reaches the terminal made visible.
-	r := ctl(t, bin, envOf(alice), "deploys", app, "v2")
+	r := runClient(t, bin, envOf(alice), "deploys", app, "v2")
 	if !strings.Contains(r.stdout, `osc52 \x1b]52;c;cHduZWQ=\x07 csi \x1b[2J bidi abc\u202edef c1 \u009b31m`) {
 		t.Errorf("the probe body, made visible, is not in the record:\n%s", r.stdout)
 	}
@@ -252,7 +252,7 @@ func TestClientPeople(t *testing.T) {
 		{carol, []string{"name     carol@example.test\n", "roles    viewer of the box\n"}},
 		{dave, []string{"name     dave@example.test\n", "roles    none from this address\n"}},
 	} {
-		r := ctl(t, bin, envOf(c.key), "whoami")
+		r := runClient(t, bin, envOf(c.key), "whoami")
 		for _, w := range c.want {
 			if !strings.Contains(r.stdout, w) {
 				t.Errorf("whoami lacks %q:\n%s", w, r.stdout)
@@ -261,17 +261,17 @@ func TestClientPeople(t *testing.T) {
 	}
 
 	// The 403 for an app that exists and one that does not read the same.
-	exists, ghost := ctl(t, bin, envOf(alice), "status", box.url+"/blog"), ctl(t, bin, envOf(alice), "status", box.url+"/ghost")
+	exists, ghost := runClient(t, bin, envOf(alice), "status", box.url+"/blog"), runClient(t, bin, envOf(alice), "status", box.url+"/ghost")
 	if exists.stderr != strings.ReplaceAll(ghost.stderr, "ghost", "blog") || strings.Contains(exists.stderr, "blog") {
 		t.Errorf("the 403s differ, or name the app:\n%s%s", exists.stderr, ghost.stderr)
 	}
-	exists, ghost = ctl(t, bin, envOf(alice), "status", box.url+"/blog", "--json"), ctl(t, bin, envOf(alice), "status", box.url+"/ghost", "--json")
+	exists, ghost = runClient(t, bin, envOf(alice), "status", box.url+"/blog", "--json"), runClient(t, bin, envOf(alice), "status", box.url+"/ghost", "--json")
 	if exists.stdout != ghost.stdout {
 		t.Errorf("the 403s' bodies differ: %q, %q", exists.stdout, ghost.stdout)
 	}
 
 	// No person with no grant views any app: said in words on stderr.
-	if r := ctl(t, bin, envOf(dave), "apps"); r.stdout != "" || r.stderr != "motel: 127.0.0.1 lists no app your key may view from this address.\n" {
+	if r := runClient(t, bin, envOf(dave), "apps"); r.stdout != "" || r.stderr != "motel: 127.0.0.1 lists no app your key may view from this address.\n" {
 		t.Errorf("dave's apps: %+v", r)
 	}
 }
@@ -304,7 +304,7 @@ func TestClientPeopleRefused(t *testing.T) {
 				// A box of its own, counting what reaches it.
 				var mu sync.Mutex
 				var auths []string
-				box := serveCtl(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				box := serveClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					mu.Lock()
 					auths = append(auths, r.Header.Get("Authorization"))
 					mu.Unlock()
@@ -314,7 +314,7 @@ func TestClientPeopleRefused(t *testing.T) {
 				if args[0] != "whoami" && args[0] != "apps" {
 					args = append([]string{args[0], app}, args[1:]...)
 				}
-				r := ctl(t, bin, []string{"MOTEL_KEY=" + k.path, "MOTEL_URL=" + app, "SSL_CERT_FILE=" + box.cert}, args...)
+				r := runClient(t, bin, []string{"MOTEL_KEY=" + k.path, "MOTEL_URL=" + app, "SSL_CERT_FILE=" + box.cert}, args...)
 				mu.Lock()
 				defer mu.Unlock()
 				if len(auths) != 2 || auths[0] != auths[1] || !strings.HasPrefix(auths[0], "Motel m1.") {
@@ -355,7 +355,7 @@ func TestClientPeopleECDSA(t *testing.T) {
 	served := webhook(h)
 	var mu sync.Mutex
 	reached := 0
-	box := serveCtl(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	box := serveClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
 		reached++
 		mu.Unlock()
@@ -364,7 +364,7 @@ func TestClientPeopleECDSA(t *testing.T) {
 	app := box.url + "/demo"
 	want := "motel: " + frank.path + ".pub (MOTEL_KEY, " + frank.fp + ") is an ecdsa-sha2-nistp256 key. A box takes Ed25519 keys for now, not ECDSA yet: make one with ssh-keygen -t ed25519 (or -t ed25519-sk for a hardware key) and name it with --key or MOTEL_KEY.\n"
 	for _, args := range [][]string{{"whoami"}, {"apps"}, {"status", app}, {"key", "--name", "frank@example.test"}} {
-		r := ctl(t, bin, []string{"MOTEL_KEY=" + frank.path, "MOTEL_URL=" + app, "SSL_CERT_FILE=" + box.cert}, args...)
+		r := runClient(t, bin, []string{"MOTEL_KEY=" + frank.path, "MOTEL_URL=" + app, "SSL_CERT_FILE=" + box.cert}, args...)
 		if r.code != 2 || r.stdout != "" || r.stderr != want {
 			t.Errorf("%v: exit %d, stdout %q, stderr %q", args, r.code, r.stdout, r.stderr)
 		}

@@ -21,7 +21,7 @@ FROM denoland/deno:bin-2.9.8 AS deno
 # The mount is writable because go may write go.work.sum; what it writes
 # is dropped with the step. The cache ids are motel's, shared by its
 # worktrees and no other build. A builder pruned, or CI's, starts cold.
-# motel links a release as `make build` links one (Caddy's
+# moteld links a release as `make build` links one (Caddy's
 # CustomVersion), so whoami names one as a shipped box does; the people
 # suite (e2e/box/people.sh) reads it there, and holds each answer's
 # headers it checks, accepted or refused, to naming none.

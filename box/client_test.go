@@ -35,14 +35,14 @@ func clientBin(t *testing.T) string {
 	return bin
 }
 
-type ctlRun struct {
+type clientRun struct {
 	code           int
 	stdout, stderr string
 }
 
-// ctl runs the client with only the environment given, in a home and a
+// runClient runs the client with only the environment given, in a home and a
 // working directory of its own.
-func ctl(t *testing.T, bin string, env []string, args ...string) ctlRun {
+func runClient(t *testing.T, bin string, env []string, args ...string) clientRun {
 	t.Helper()
 	dir := t.TempDir()
 	cmd := exec.Command(bin, args...)
@@ -55,7 +55,7 @@ func ctl(t *testing.T, bin string, env []string, args ...string) ctlRun {
 	if err != nil && !errors.As(err, &exit) {
 		t.Fatalf("running the client: %v", err)
 	}
-	return ctlRun{cmd.ProcessState.ExitCode(), out.String(), errOut.String()}
+	return clientRun{cmd.ProcessState.ExitCode(), out.String(), errOut.String()}
 }
 
 func TestClientBoxStatus(t *testing.T) {
@@ -82,22 +82,22 @@ func TestClientBoxStatus(t *testing.T) {
 	env := []string{"MOTEL_TOKEN=" + tok, "MOTEL_URL=" + srv.URL + "/app", "SSL_CERT_FILE=" + cert}
 
 	// No baseline yet: the box's 409, its sentence, exit 1.
-	c := ctl(t, bin, env, "box", "status")
+	c := runClient(t, bin, env, "box", "status")
 	if c.code != 1 || c.stdout != "" || c.stderr != "motel: 127.0.0.1 answered 409; the box says: \""+msgNoBaseline+"\"\n" {
 		t.Fatalf("no baseline: %+v", c)
 	}
 	want409 := r.do(t, req{target: "/", token: tok}).Body.String()
-	if c := ctl(t, bin, env, "box", "status", "--json"); c.code != 1 || c.stdout != want409 {
+	if c := runClient(t, bin, env, "box", "status", "--json"); c.code != 1 || c.stdout != want409 {
 		t.Fatalf("--json prints the box's 409 body: %+v, want %q", c, want409)
 	}
 
 	r.applied(t, sha)
 	want := r.do(t, req{target: "/", token: tok}).Body.String()
-	c = ctl(t, bin, env, "box", "status", "--json")
+	c = runClient(t, bin, env, "box", "status", "--json")
 	if c.code != 0 || c.stdout != want {
 		t.Fatalf("exit %d, stdout\n%s\nwant the handler's\n%s\nstderr %s", c.code, c.stdout, want, c.stderr)
 	}
-	c = ctl(t, bin, env, "box", "status")
+	c = runClient(t, bin, env, "box", "status")
 	if c.code != 0 || !strings.Contains(c.stdout, "commit           "+sha+"\n") {
 		t.Fatalf("human: %+v", c)
 	}

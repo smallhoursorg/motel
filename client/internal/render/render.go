@@ -410,9 +410,9 @@ func WriteWhoAmI(w io.Writer, me WhoAmI) error {
 		return p.err
 	}
 	p.line("name     %s", me.Name)
-	release := "motel " + me.Release.String()
+	release := "moteld " + me.Release.String()
 	if me.Release.Empty() {
-		release = "motel, a build that names no release"
+		release = "moteld, a build that names no release"
 	}
 	p.line("box      %s, %s, protocol %d", me.Box, release, me.Protocol)
 	p.line("key      %s (%s, %s)", me.Key, me.KeyShown, me.KeySource)

@@ -111,7 +111,7 @@ func TestWhoamiPlain(t *testing.T) {
 	fb.whoami = wire.WhoAmI{Name: "dave", Key: meFingerprint(), Roles: []wire.RoleHeld{}, Box: "127.0.0.1", Protocol: 1, TokenExpiresAt: whoamiNow.Add(-5 * time.Second)}
 	r := runKey(t, fb, nil, "whoami")
 	want := "name     dave\n" +
-		"box      127.0.0.1, motel, a build that names no release, protocol 1\n" +
+		"box      127.0.0.1, moteld, a build that names no release, protocol 1\n" +
 		"key      " + meFingerprint() + " (~/me.pub, MOTEL_KEY)\n" +
 		"roles    none from this address\n" +
 		"token    expired 2026-11-15 09:59:55 UTC\n"

@@ -118,7 +118,7 @@ func TestClientBoxStatusPeople(t *testing.T) {
 			// The box is the host of MOTEL_URL, which carries the test
 			// server's port.
 			env := []string{"MOTEL_KEY=" + c.key.path, "MOTEL_URL=" + srv.URL + "/app", "SSL_CERT_FILE=" + cert}
-			got := ctl(t, bin, env, "box", "status", "--json")
+			got := runClient(t, bin, env, "box", "status", "--json")
 			mu.Lock()
 			body := last
 			mu.Unlock()
@@ -128,7 +128,7 @@ func TestClientBoxStatusPeople(t *testing.T) {
 			if got.code != c.code || (body != "" && got.stdout != body) || (body == "" && !strings.HasPrefix(got.stdout, `{"error":"`)) {
 				t.Fatalf("--json: exit %d, stdout %q, want %d and %q; stderr %s", got.code, got.stdout, c.code, body, got.stderr)
 			}
-			got = ctl(t, bin, env, "box", "status")
+			got = runClient(t, bin, env, "box", "status")
 			if got.code != c.code || (c.stderr == "") != (got.stderr == "") || !strings.Contains(got.stderr, c.stderr) {
 				t.Fatalf("exit %d, stderr %q; want %d and %q", got.code, got.stderr, c.code, c.stderr)
 			}

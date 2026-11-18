@@ -41,15 +41,15 @@ func clientBin(t *testing.T) string {
 	return bin
 }
 
-// ctlBox is the webhook behind a TLS server whose certificate the
+// clientBox is the webhook behind a TLS server whose certificate the
 // client is told to trust, as a box's real one would be.
-type ctlBox struct {
+type clientBox struct {
 	srv  *httptest.Server
 	url  string // https://127.0.0.1:<port>
 	cert string // the server's certificate, for SSL_CERT_FILE
 }
 
-func serveCtl(t *testing.T, h http.Handler) *ctlBox {
+func serveClient(t *testing.T, h http.Handler) *clientBox {
 	t.Helper()
 	srv := httptest.NewUnstartedServer(h)
 	// The refused handshake of the certificate test is the point.
@@ -60,7 +60,7 @@ func serveCtl(t *testing.T, h http.Handler) *ctlBox {
 	if err := os.WriteFile(cert, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: srv.Certificate().Raw}), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	return &ctlBox{srv: srv, url: srv.URL, cert: cert}
+	return &clientBox{srv: srv, url: srv.URL, cert: cert}
 }
 
 // webhook serves the handler as Caddy would.
@@ -73,15 +73,15 @@ func webhook(h *Handler) http.Handler {
 	})
 }
 
-type ctlRun struct {
+type clientRun struct {
 	code           int
 	stdout, stderr string
 }
 
-// ctl runs the client with only the environment given: a home and a
+// runClient runs the client with only the environment given: a home and a
 // working directory of its own, so no key or box repository of the
 // machine running the tests is read.
-func ctl(t *testing.T, bin string, env []string, args ...string) ctlRun {
+func runClient(t *testing.T, bin string, env []string, args ...string) clientRun {
 	t.Helper()
 	dir := t.TempDir()
 	cmd := exec.Command(bin, args...)
@@ -94,7 +94,7 @@ func ctl(t *testing.T, bin string, env []string, args ...string) ctlRun {
 	if err != nil && !errors.As(err, &exit) {
 		t.Fatalf("running the client: %v", err)
 	}
-	return ctlRun{cmd.ProcessState.ExitCode(), out.String(), errOut.String()}
+	return clientRun{cmd.ProcessState.ExitCode(), out.String(), errOut.String()}
 }
 
 // Each read: the exit code, and --json equal to the handler's own body
@@ -106,7 +106,7 @@ func TestClientReadsTheWebhook(t *testing.T) {
 	if w := do(t, h, http.MethodPost, "/demo", tok, `{"url":"https://x/a.tgz","version":"v1"}`); w.Code != http.StatusOK {
 		t.Fatalf("deploy: %d %s", w.Code, w.Body)
 	}
-	box := serveCtl(t, webhook(h))
+	box := serveClient(t, webhook(h))
 	env := []string{"MOTEL_TOKEN=" + tok, "SSL_CERT_FILE=" + box.cert}
 	app := box.url + "/demo"
 
@@ -135,21 +135,21 @@ func TestClientReadsTheWebhook(t *testing.T) {
 			if c.pick != nil {
 				want = c.pick([]byte(want))
 			}
-			r := ctl(t, bin, env, append(c.args, "--json")...)
+			r := runClient(t, bin, env, append(c.args, "--json")...)
 			if r.code != c.code || r.stdout != want {
 				t.Fatalf("exit %d, stdout\n%s\nwant %d and the handler's\n%s\nstderr: %s", r.code, r.stdout, c.code, want, r.stderr)
 			}
-			r = ctl(t, bin, env, c.args...)
+			r = runClient(t, bin, env, c.args...)
 			if r.code != c.code || (c.code == 0) != (r.stdout != "") {
 				t.Fatalf("human: exit %d, stdout %q, stderr %q", r.code, r.stdout, r.stderr)
 			}
 		})
 	}
-	r := ctl(t, bin, env, "status", app)
+	r := runClient(t, bin, env, "status", app)
 	if !strings.HasPrefix(r.stdout, "demo  ") || !strings.Contains(r.stdout, "versions     v1 (running)") {
 		t.Errorf("status:\n%s", r.stdout)
 	}
-	r = ctl(t, bin, env, "deploys", app, "v9")
+	r = runClient(t, bin, env, "deploys", app, "v9")
 	if r.stderr != "motel: 127.0.0.1 answered 404; the box says: \"no deploy recorded for version v9\"\n" {
 		t.Errorf("an unknown version: %q", r.stderr)
 	}
@@ -198,7 +198,7 @@ func TestClientReadsWhatTheFilterChanged(t *testing.T) {
 	}
 	must(t, os.WriteFile(r.apps[broken].spec.envFile, []byte("this line is no assignment\n"), 0o600))
 	tok := appToken(t)
-	box := serveCtl(t, webhook(r.h))
+	box := serveClient(t, webhook(r.h))
 	env := []string{"MOTEL_TOKEN=" + tok, "SSL_CERT_FILE=" + box.cert}
 
 	// What the box sends, so the test is of the filter's real output.
@@ -222,31 +222,31 @@ func TestClientReadsWhatTheFilterChanged(t *testing.T) {
 	}
 	const hidden = "[hidden by the box's filter]"
 	for _, name := range []string{named, staged, keyed, shaped, nested, angled} {
-		got := ctl(t, bin, env, "status", box.url+"/"+name)
+		got := runClient(t, bin, env, "status", box.url+"/"+name)
 		if got.code != 0 || !strings.HasPrefix(got.stdout, name+"  idle v1  unit "+hidden+"  pid 4242\n") || strings.Contains(got.stdout, "redacted:") || strings.Contains(got.stdout, "REDACTED:") || strings.Contains(got.stdout, "[#") || strings.Contains(got.stdout, "removed>") {
 			t.Errorf("status %s: exit %d\n%s%s", name, got.code, got.stdout, got.stderr)
 		}
-		if got := ctl(t, bin, env, "deploys", box.url+"/"+name); got.code != 0 || !strings.Contains(got.stdout, "v1") {
+		if got := runClient(t, bin, env, "deploys", box.url+"/"+name); got.code != 0 || !strings.Contains(got.stdout, "v1") {
 			t.Errorf("deploys %s: exit %d\n%s%s", name, got.code, got.stdout, got.stderr)
 		}
-		if got := ctl(t, bin, env, "deploys", box.url+"/"+name, "v1"); got.code != 0 || !strings.Contains(got.stdout, "v1") {
+		if got := runClient(t, bin, env, "deploys", box.url+"/"+name, "v1"); got.code != 0 || !strings.Contains(got.stdout, "v1") {
 			t.Errorf("deploys %s v1: exit %d\n%s%s", name, got.code, got.stdout, got.stderr)
 		}
 		want := do(t, r.h, http.MethodGet, "/"+name, tok, "").Body.String()
-		if got := ctl(t, bin, env, "status", box.url+"/"+name, "--json"); got.code != 0 || got.stdout != want {
+		if got := runClient(t, bin, env, "status", box.url+"/"+name, "--json"); got.code != 0 || got.stdout != want {
 			t.Errorf("status %s --json: exit %d\n%s\nwant the handler's\n%s", name, got.code, got.stdout, want)
 		}
 	}
 	want := do(t, r.h, http.MethodGet, "/"+broken, tok, "").Body.String()
-	got := ctl(t, bin, env, "status", box.url+"/"+broken)
+	got := runClient(t, bin, env, "status", box.url+"/"+broken)
 	if got.code != 1 || got.stdout != "" || !strings.HasPrefix(got.stderr, "motel: 127.0.0.1 withheld its answer; the box says: \"response withheld: the app's env_file could not be read") {
 		t.Errorf("status of an app whose env_file does not parse: exit %d, stdout %q, stderr %q", got.code, got.stdout, got.stderr)
 	}
-	if got := ctl(t, bin, env, "status", box.url+"/"+broken, "--json"); got.code != 1 || got.stdout != want {
+	if got := runClient(t, bin, env, "status", box.url+"/"+broken, "--json"); got.code != 1 || got.stdout != want {
 		t.Errorf("--json of a withheld body: exit %d\n%s\nwant the handler's\n%s", got.code, got.stdout, want)
 	}
 	// The filter's sentence with a piece of it replaced, its colon gone.
-	got = ctl(t, bin, env, "status", box.url+"/"+spanned)
+	got = runClient(t, bin, env, "status", box.url+"/"+spanned)
 	if got.code != 1 || got.stdout != "" || !strings.HasPrefix(got.stderr, "motel: 127.0.0.1 withheld its answer; the box says: \"response [redacted:J] redacted value overlapped") {
 		t.Errorf("status of an app whose value spans the filter's own sentence: exit %d, stdout %q, stderr %q", got.code, got.stdout, got.stderr)
 	}
@@ -259,12 +259,12 @@ func TestClientFaults(t *testing.T) {
 	bin := clientBin(t)
 	h, _ := newTestHandler(t)
 	served := webhook(h)
-	box := serveCtl(t, served)
-	staleDate := serveCtl(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	box := serveClient(t, served)
+	staleDate := serveClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Date", time.Now().Add(-5*time.Minute).UTC().Format(http.TimeFormat))
 		served.ServeHTTP(w, r)
 	}))
-	busy := serveCtl(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	busy := serveClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Retry-After", "1")
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusTooManyRequests)
@@ -297,7 +297,7 @@ func TestClientFaults(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel() // the refusals each wait out deploy.sh's 3 s retry
-			r := ctl(t, bin, c.env, "status", c.app+"/demo", "--json")
+			r := runClient(t, bin, c.env, "status", c.app+"/demo", "--json")
 			if r.code != c.code || !strings.Contains(r.stderr, c.want) || strings.Contains(r.stderr, "clock") {
 				t.Fatalf("exit %d, stderr %q; want %d and %q", r.code, r.stderr, c.code, c.want)
 			}
