@@ -105,7 +105,7 @@ The smallest block, with one channel and the numbers:
 
 The box-repo path needs a box repository on this release's template.
 [Upgrading](upgrading.md) says how one made from an earlier release's
-template takes it.
+template takes it, in its paragraph on the box repository's workflow.
 
 On a box with nothing installed yet, setup says:
 
@@ -1168,8 +1168,8 @@ names the two packages' units as missing and exits 5, and still stops
 and disables the rest. Then do steps 6 and 7.
 
 From a `moteld` release there is no going back to a release without
-monitor: each one (v0.6.1 and earlier) is the `motel` package, and no
-`.deb` goes back across the move to `moteld`
+monitor: each one (v0.6.1 and earlier) is from before the package was
+`moteld`, and no `.deb` goes back across that move
 ([Upgrading](upgrading.md)).
 
 ## What has been verified where

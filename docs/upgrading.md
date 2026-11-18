@@ -327,26 +327,30 @@ you read it:
 (`hotserve-box-apply` is the applier's name before v0.6.0) prints 0
 when the journal names no removal, which says nothing of the runs.
 Read any lines it counts on the box itself. `make secrets-import` had the same
-gap: copy this release's `examples/box/bin/secrets` and
-`examples/box/bin/apply` into the box repository's `bin/` (the second
-says a push left a hand-edited file's own variables unnamed), and a
-name in `make secrets` that is a value is one to change too, since the
-old name stays in the repository's history.
+gap, which this release's template closes (the next paragraph has the
+box repository take it; its `bin/apply` says a push left a hand-edited
+file's own variables unnamed), and a name in `make secrets` that is a
+value is one to change too, since the old name stays in the
+repository's history.
 
 The box repository's workflow checks config with the latest stable
 release, so it needs nothing after an upgrade — unless its
 `MOTEL_VERSION` repository variable pins a release, which then
 wants the new one. One made from the template of v0.7.0 or earlier
 is the exception, and takes this release's template before its next
-push: in one commit, copy `.github/workflows/apply.yml`, `Makefile`
-and `bin/` from `examples/box/` over its own, and delete its
-`bin/install-motel` (`bin/install-hotserve` in one from before
-v0.6.0). That script asks each release for an archive under the old
-name, which no `moteld` release has, so both of the workflow's jobs
-fail at their install step, naming the address tried, and no push
-applies. A `<host>/MOTEL_VERSION` file that names a release from
-before `moteld` goes in the same commit: the new script finds no
-archive for it, and `make check` refuses that box.
+push: in one commit, copy `.github/workflows/apply.yml`,
+`.gitattributes`, `Makefile` and `bin/` from `examples/box/` over its
+own, and delete its `bin/install-motel` (`bin/install-hotserve` in one
+from before v0.6.0). With no pin, that script asks the latest release
+for an archive under the old name, which no `moteld` release has, so
+both of the workflow's jobs fail at their install step, naming the
+address tried, and no push applies. A pin that names a release from
+before `moteld` is removed, or set to this release, at the same time:
+the repository variable, and any `<host>/MOTEL_VERSION` file (a
+template from before v0.6.0 names both `HOTSERVE_VERSION`, which the
+new scripts do not read). The new script finds no archive for such a
+release: for the variable it fails the install step, and for a file it
+skips that release and `make check` refuses that box.
 
 There is no APT repository yet, so nothing upgrades moteld behind
 your back; the hosted repository on the [roadmap](../README.md#roadmap) is what

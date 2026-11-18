@@ -385,8 +385,8 @@ steps would reach no one.
 
 An upgrade needs nothing: a file without `person` or `grant` lines
 loads as before and admits no one. There is no going back to a release
-without them: each one is the `motel` package, and no `.deb` goes back
-across the move to `moteld` (docs/upgrading.md).
+without them: each one is from before the package was `moteld`, and no
+`.deb` goes back across that move (docs/upgrading.md).
 
 ## Triage
 
