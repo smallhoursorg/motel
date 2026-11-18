@@ -1468,13 +1468,27 @@ const (
 // where the user manager is briefly unresponsive must not leave a
 // healthy app unrouted until an operator reloads. ctx belongs to the
 // config that started it and ends at that config's Cleanup.
-func (ma *managedApp) recover(ctx context.Context, logger *zap.Logger) {
+func (ma *managedApp) recover(ctx context.Context, logger *zap.Logger, firstDone func(attempted bool)) {
+	// firstDone (nil for none) is called once: with true when the first
+	// attempt has returned, whatever it returned — the start gate's
+	// signal (startgate.go) that a request for this app now meets what
+	// recovery settled, not a race with it — or with false when
+	// recovery ends before making one.
+	called := firstDone == nil // all on this goroutine: no lock
+	first := func(attempted bool) {
+		if !called {
+			called = true
+			firstDone(attempted)
+		}
+	}
+	defer first(false)
 	delay := recoveryBackoffFloor
 	for attempt := 1; ; attempt++ {
 		if ctx.Err() != nil {
 			return // destructed before this attempt
 		}
 		err := ma.ensureRunning()
+		first(true)
 		if err == nil {
 			return
 		}

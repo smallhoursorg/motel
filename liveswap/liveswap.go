@@ -858,14 +858,49 @@ func (a *App) Start() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	a.recoverCancel = cancel
 	a.recoverWG = new(sync.WaitGroup)
+	a.recoverApps(ctx, processStart)
+	return nil
+}
+
+// recoverApps starts every app's recovery for this config, and settles
+// s once every app's first attempt has returned — what the start gate
+// (startgate.go) holds a start's first connections for. A config whose
+// recovery of some app ended before its first attempt (its Cleanup
+// came first: a reload replaced it) does not settle s; the config that
+// replaced it does. Once s is settled, a later config finds it so.
+func (a *App) recoverApps(ctx context.Context, s *startState) {
+	var firstAttempts *sync.WaitGroup
+	var unattempted atomic.Bool
+	if !s.appsSettled() {
+		firstAttempts = new(sync.WaitGroup)
+	}
 	for name, ma := range a.managed {
 		a.recoverWG.Add(1)
+		var firstDone func(bool)
+		if firstAttempts != nil {
+			firstAttempts.Add(1)
+			firstDone = func(attempted bool) {
+				if !attempted {
+					unattempted.Store(true)
+				}
+				firstAttempts.Done()
+			}
+		}
 		go func(name string, ma *managedApp) {
 			defer a.recoverWG.Done()
-			ma.recover(ctx, a.logger.Named(name))
+			ma.recover(ctx, a.logger.Named(name), firstDone)
 		}(name, ma)
 	}
-	return nil
+	if firstAttempts != nil {
+		// Joined by nothing, and needs no join: it ends when the last
+		// first attempt returns, and Cleanup's cancel ends those.
+		go func() {
+			firstAttempts.Wait()
+			if !unattempted.Load() {
+				s.settleApps()
+			}
+		}()
+	}
 }
 
 // systemdConn returns the manager connection this config uses. Apps

@@ -97,9 +97,15 @@ process listening on 80 and 443 is the one being replaced. On stop it
 closes its listeners at once and lets the requests already in flight
 finish, and the new process cannot listen until the old one has
 exited. New visitors get connection refused for that whole window
-(or, as the old process stops, a connection closed with no answer),
-sometimes followed by a few dozen milliseconds of 503s while the new
-process picks the apps back up. A deploy sent in those first moments
+(or, as the old process stops, a connection closed with no answer).
+The new process then holds its first connections until it has picked
+the apps back up, a few tens of milliseconds, so those visitors wait
+rather than get a 503. That is the `liveswap_ready` line in the
+Caddyfile's `servers` option, which the starter Caddyfile and the box
+template carry. A Caddyfile made before this release does not:
+without the line, those visitors get 503s for that moment. Add it to
+the global options (in a box's repository, by a push; the lines are
+in liveswap/README.md, "Restarts"). A deploy sent in those first moments
 waits for motel to load its app, at most 5 seconds; past that it is
 answered 503 with `Retry-After: 1`, and the deploy script sends it once
 more. That holds for a token a `local` key signed, and for an issuer's
@@ -147,8 +153,9 @@ How long a planned restart's window lasts:
 
 This is how Caddy itself upgrades: its official Debian package restarts
 the service the same way, with the same 5-second stop timeout, and the
-shutdown is Caddy's own. The 503s are the one part that is motel's —
-the moment before liveswap has picked your apps back up.
+shutdown is Caddy's own. The one part that is motel's is the moment
+before liveswap has picked your apps back up, which `liveswap_ready`
+holds connections through.
 
 To check for a quiet moment, add `metrics` to the Caddyfile's global
 options (a push from the box's repository, which reloads), and read
@@ -352,6 +359,24 @@ Before you upgrade:
   moteld refused to start, root edits the lines out of
   `/etc/motel/Caddyfile` and runs `systemctl restart moteld`; the next
   push, without them, applies.
+- **Going back to a release without the start gate** (any release
+  before the one that added `liveswap_ready`) needs that line out of
+  the Caddyfile first. Those releases refuse it: `validate` with the
+  old binary says `module not registered:
+  caddy.listeners.liveswap_ready`, and the install's restart fails
+  with nothing served until the file is mended. While the box still
+  runs the newer release:
+  1. **Take out the `liveswap_ready` line** (and its
+     `listener_wrappers` block, and the `servers` block if nothing else
+     is left in it). On a box that takes pushes, push a commit without
+     it. On a box with no push channel, root edits it out of
+     `/etc/motel/Caddyfile` and runs `systemctl reload moteld`. A
+     restart's first visitors meet the 503s again from then on.
+  2. **Go back** with the `.deb`, as above.
+
+  On a box already back whose moteld refused to start, root edits the
+  line out of `/etc/motel/Caddyfile` and runs `systemctl restart
+  moteld`; the next push, without it, applies.
 - **Upgrade moteld and the host separately.** moteld measures what
   the host can sandbox at every start and refuses to start on a host
   that cannot deliver it ([liveswap/README.md](../liveswap/README.md#sandbox)),
