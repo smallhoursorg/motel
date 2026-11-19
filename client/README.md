@@ -62,7 +62,7 @@ the box lists every phase so far, so none is missed between two reads,
 and the last ones come from the outcome's own list. Then it prints the
 outcome's record, as `deploys <app> <version>` does (a failure's error,
 exit, probe and log tail among it), and what serves (`now     7c1e55d0a913
-is running`), and exits 0 when the deploy succeeded, 9 when it failed,
+(running)`), and exits 0 when the deploy succeeded, 9 when it failed,
 and 3 when the box's last deploy is not that deploy's: of its version, and
 beginning with the phases it was seen in, each begun at the time the
 box gave (a push whose upload was never staged leaves none; so does
@@ -335,6 +335,7 @@ made by hand. Accepted:
 | `status --follow` signs its tokens as every command does, each lasting 300 s, so a follow of more than about 3.5 minutes with a hardware key asks for a touch on the terminal mid-follow, the reads waiting until it is given; the TUI's tokens last 600 s (`TestForTUI` holds the longer life to the TUI's client) | 2 | 3 | 1 | 6 | 1, risk 2 (a captured token then lasts twice as long) | accepted: a deploy's usual length is under a minute |
 | A phase a newer box names that this client does not know, in the deploy in flight's phases, makes the whole status "not moteld's answer", exit 3 (on the screens the app is `unknown`), for the rest of that deploy, as one in `last_deploy` already did until the next deploy and one in the status's phase while it lasts: since #580 the phases are printed, and so held to the outcome vocabulary | 2 | 5 | 1 | 10 | 2 (an unknown phase shown in the client's words) | accepted: it is said, and a client of the box's release knows its phases |
 | A TUI left without a key for 10 minutes pauses (the title bar says PAUSED), so a person waiting on an app's screen for CI to reach its deploy sees nothing of a deploy that begins after that until a key; `status --follow` follows only a deploy already in flight when it starts | 2 | 5 | 1 | 10 | 2 (no pause while an app's screen is open: a new rule for the rate and a hardware key's touches) | accepted: the pause is the owner's rule for an unattended TUI, and says itself |
+| An app's `ended` line puts its key hint last (`· d opens its record`), and its `phases` line the failed phase's `✖`: at 80 columns the line of a failure in soaking with 12-character versions is 85 cells, so the hint is cut (`…`), and a failed phase of 100 s or more cuts its `✖`; the line still says `failed in <phase>`, and help lists `d` | 2 | 5 | 1 | 10 | 1 (text), risk 2 | accepted: what is cut is a hint and a repeated mark |
 
 Owed, from the reviews of the TUI's first part (#558; scored there), of
 their fixes, and of its second part; the others are fixed:

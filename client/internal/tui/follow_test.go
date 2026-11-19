@@ -105,6 +105,13 @@ func TestFollowADeploy(t *testing.T) {
 		{"no outcome", func(map[string]any) {}, "ended       4c2d9e7b1a05 ended with no outcome from the box · 3b8812aa0c4f serves", "", "3b8812aa0c4f"},
 		// A later deploy of the same version, begun and ended before the
 		// read: its phases were not begun when the one seen was in them.
+		// A relaunch of the running version that failed: the old
+		// instance serves, not the deploy.
+		{"a relaunch that failed", func(st map[string]any) {
+			endedIn(st, "failed", "soaking", flownThen(t))
+			st["current_version"] = "4c2d9e7b1a05"
+		}, "ended       4c2d9e7b1a05 failed in soaking · 4c2d9e7b1a05 serves · d opens its record",
+			"phases      … extracting 0.7s › preparing 3.9s › starting 1.0s › soaking 18.0s ✖", "4c2d9e7b1a05"},
 		{"a later deploy's outcome", func(st map[string]any) {
 			endedIn(st, "succeeded", "", phasesTo("extracting", "soaking"))
 		}, "ended       4c2d9e7b1a05 ended with no outcome from the box · 3b8812aa0c4f serves", "", "4c2d9e7b1a05"},

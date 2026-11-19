@@ -189,6 +189,17 @@ func TestFollowEnds(t *testing.T) {
 			s.LastDeploy.FinishedAt = t1.Add(-time.Second)
 			return s
 		}()}, false, 3, "motel: the deploy of v43 ended, and the box gives no outcome", ""},
+		// Seen first in its upload, then in a phase: a later deploy of
+		// v43 that ended before the read does not begin with that phase.
+		{"seen in a phase after its upload", []*wire.Status{func() *wire.Status {
+			s := flying("soaking")
+			s.Phase, s.Deploying.Phases = "idle", []wire.PhaseTiming{}
+			return s
+		}(), flying("soaking"), func() *wire.Status {
+			s := landed("succeeded", "v43", "soaking")
+			s.LastDeploy.Phases[0].StartedAt = t1.Add(30 * time.Second)
+			return s
+		}()}, false, 3, "motel: the deploy of v43 ended, and the box gives no outcome", ""},
 		{"an older box", []*wire.Status{{App: "blog", Phase: "soaking", CurrentVersion: "v42", Running: true, AvailableVersions: []string{"v42"}}}, false, 3,
 			"motel: blog is in soaking, and the box names no deploy in flight beside it (a moteld before v0.8.0): there is no deploy to follow\n", ""},
 		{"a read fails", []*wire.Status{flying("soaking"), nil}, false, 3, "(following stopped before the deploy ended, which may still run)\n", ""},

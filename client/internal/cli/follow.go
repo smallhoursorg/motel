@@ -62,6 +62,9 @@ func (r *runner) follow(ctx context.Context, c *client.Client, app client.App, r
 			return followFailed(err)
 		}
 		if now := st.Deploying; now != nil && model.SameDeploy(*f, *now) {
+			// The deploy as last seen: its outcome must begin with every
+			// phase it was seen in (model.OutcomeOf).
+			f = now
 			if err := p.print(now.Phases); err != nil {
 				return err
 			}

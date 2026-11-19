@@ -160,7 +160,7 @@ func endedLine(e *ended, st wire.Status) Line {
 		l = append(l, own(" · nothing serves"))
 	case !st.Running:
 		l = append(l, own(" · "+cur+" is not running"))
-	case cur == e.f.Version:
+	case cur == e.f.Version && d != nil && d.Status == "succeeded":
 		l = append(l, own(" · it serves"))
 	default:
 		l = append(l, own(" · "+cur+" serves"))
