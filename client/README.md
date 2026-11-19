@@ -185,6 +185,14 @@ go build -o motel ./cmd/motel
 A build made this way carries no release: `version` prints `(devel)`,
 or a version Go derives from the commit.
 
+Accepted, for the release's archive and the block above:
+
+| Residual | S | O | D | Score | Size of a fix | Outcome |
+|---|---|---|---|---|---|---|
+| Until the first release after v0.8.0 is out, the block reads v0.8.0 as the latest, whose release has no client, and `curl` stops it at a 404 that names only the address; the paragraph above it says releases up to v0.8.0 carry none | 2 | 5 | 1 | 10 | 1 (text), risk 2 | accepted: it lasts until the next release |
+| The archive's line in `checksums.txt` is picked by `grep`, where each `.` of the name matches any character: an asset whose name differed from the archive's only there would be picked too, and `shasum` would fail on the file not downloaded | 2 | 2 | 1 | 4 | 1 (`awk`'s exact match), risk 2 | accepted: no release has such an asset; it fails red, naming the file |
+| That `tar` in Terminal leaves the unpacked `motel` without the quarantine mark of a browser's download rests on Apple's forum answer (the 2026-11-16 research), not a run on a Mac: were it wrong, macOS refuses `motel` and the `xattr` line above clears it | 2 | 5 | 1 | 10 | 1 (text), risk 2 | accepted: the block's own path, `curl` then `tar`, is not concerned; to be tried on a Mac with the first release that has the archive |
+
 ## How box text is kept out of the client's voice
 
 Everything a box sends is hostile until shown otherwise, and the
