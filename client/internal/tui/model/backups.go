@@ -44,9 +44,11 @@ func verdict(b wire.Backups) Line {
 }
 
 // couldNotTell is the box's why, quoted, under the verdict: laid on
-// rows that begin at the value's column (12), the rows after the first
-// two further in (Sentence), so no row of it begins where one of the
-// screen's own does (at 0 or 2), whatever the box wrote.
+// rows, the first at the value's column (12) and opening with the
+// client's quote mark, the rest two further in (Sentence), so no row of
+// it begins where a row of the screen's own does (at 0 or 2 for the
+// table and the box's lines; at 12, with a word of the client's, for
+// the decided line), whatever the box wrote.
 func couldNotTell(why string, width int, cells Cells) []Line {
 	return Sentence(Line{own(strings.Repeat(" ", 12)), quoted(why)}, width, cells)
 }
@@ -173,8 +175,8 @@ func LineText(l wire.BackupLine) string {
 
 // BoxBackupsLine is the box screen's line of the backups: how old the
 // answer is and the box's verdict, or why there is none. The age and
-// the pointer come first, so a long could not tell, cut at the
-// window's edge, cuts neither.
+// the pointer come first, so a cut at the window's edge cuts neither;
+// the box's why of a could not tell is on :backups alone.
 func (s *Session) BoxBackupsLine(now time.Time) Line {
 	switch {
 	case s.BackupsSt != nil:

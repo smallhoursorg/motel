@@ -17,9 +17,10 @@ func joined(ls []model.Line) string {
 
 // TestBackupsSays: the backups screen and the box screen's line say the
 // box's verdict as the box's, and that it is the box's own claim next to
-// it; a could not tell is laid on rows whole, and on the box screen's
-// line the answer's age and the way to the screen come before it, so a
-// cut at the window's edge cuts neither; a warning's text is not said
+// it; a could not tell's why is laid on rows of its own whole, none
+// beginning where a row of the screen's own does, and the box screen's
+// line gives the answer's age and the way to the screen before the
+// verdict, so a cut at the window's edge cuts neither; a warning's text is not said
 // after its level twice; and a 403, held until the person asks, says
 // how to ask, and a 404 (a moteld older than the read) does not.
 func TestBackupsSays(t *testing.T) {
@@ -45,15 +46,15 @@ func TestBackupsSays(t *testing.T) {
 	}
 	// The box's why is on rows of its own, none beginning where one of
 	// the screen's own does: at the value's column or further in.
-	if len(v) < 4 || v[0].Text() != "backups     could not tell, the box says" {
-		t.Fatalf("the verdict: %q", v[0].Text())
+	if len(v) < 4 || v[0].Text() != "backups     could not tell, the box says" || !strings.HasPrefix(v[1].Text(), strings.Repeat(" ", 12)+`"`) {
+		t.Fatalf("the verdict and the first row of its why:\n%s", text)
 	}
-	for _, l := range v[1:] {
-		if strings.Contains(l.Text(), "decided ") {
+	for _, l := range v[2:] {
+		if strings.HasPrefix(l.Text(), strings.Repeat(" ", 12)+"decided ") {
 			break
 		}
-		if !strings.HasPrefix(l.Text(), strings.Repeat(" ", 12)) {
-			t.Errorf("a row of the box's why begins before the value's column: %q", l.Text())
+		if !strings.HasPrefix(l.Text(), strings.Repeat(" ", 14)) {
+			t.Errorf("a row of the box's why begins before column 14: %q", l.Text())
 		}
 	}
 	if strings.Contains(text, "warning: the run said so") || !strings.Contains(text, "warning  the run said so") {
