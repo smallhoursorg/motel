@@ -383,7 +383,10 @@ else
 	chmod 0644 /var/lib/motel-backup/status.json
 	client backup status --json --box "$HOST" --key "$work/vera"
 	expect "vera: backup status --json, the box's verdict healthy" 0
-	[ "$(jget "$work/out" '(j.could_not_tell === undefined) + " " + j.healthy + " " + j.lines.some(l => l.text.startsWith("could not ask systemd"))')" = "true true false" ] \
+	# Each step by a line only it gives: "last run" only a record read
+	# and parsed (one not there reads as no run yet), "no backup unit
+	# running now" only a listing the manager answered.
+	[ "$(jget "$work/out" '(j.could_not_tell === undefined) + " " + j.healthy + " " + j.lines.some(l => l.text.startsWith("last run ")) + " " + j.lines.some(l => l.text === "no backup unit running now")')" = "true true true true" ] \
 		&& pass "vera: the box looked as the motel user: set up, the record read, the manager asked" \
 		|| fail "vera: backup status --json: $(head -c 600 "$work/out")"
 	client backup status --box "$HOST" --key "$work/otto"
