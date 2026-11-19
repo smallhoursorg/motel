@@ -22,9 +22,9 @@ const OwnClaim = "This is the box's own claim, only as honest as the box: look f
 var BackupCols = []string{"APP", "RESULT", "LAST COMPLETE BACKUP", "FRESH", "RESTORE PROVEN", "LATELY"}
 
 // BackupsAsOf is how old the box's answer about its backups is, for
-// the crumb, and that the last read failed when it did: the answer kept
-// beside a failure is said to be old at the top, as a record's is
-// (RecordAsOf), whatever of the screen is below the fold.
+// the crumb, and that the last read failed when it did: an answer kept
+// beside a failure says so at the top, as a record's does (RecordAsOf),
+// whatever of the screen is below the fold.
 func (s *Session) BackupsAsOf(now time.Time) Line {
 	s.seen(now)
 	if s.BackupsSt == nil {

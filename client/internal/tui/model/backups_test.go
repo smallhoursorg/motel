@@ -76,7 +76,15 @@ func TestBackupsSays(t *testing.T) {
 	if s.BackupsSt == nil || !strings.HasSuffix(s.BackupsAsOf(*now).Text(), " · the last read failed") {
 		t.Errorf("after a read that got no answer: held %v, the crumb says %q", s.BackupsSt != nil, s.BackupsAsOf(*now).Text())
 	}
+	// An answer again: the crumb says no failure.
 	f.Set("backups", nil)
+	*now = now.Add(model.BoxEvery)
+	for range 3 {
+		step(t, s, f, now)
+	}
+	if l := s.BackupsAsOf(*now).Text(); s.BackupsErr != nil || strings.Contains(l, "failed") {
+		t.Errorf("after an answer again: the crumb says %q, err %v", l, s.BackupsErr)
+	}
 
 	// A 403 drops the answer, holds the read, and says ctrl-r asks again.
 	*now = now.Add(model.BoxEvery)
@@ -84,7 +92,7 @@ func TestBackupsSays(t *testing.T) {
 	for range 3 {
 		step(t, s, f, now)
 	}
-	if text := joined(s.BackupsView(*now)); s.BackupsSt != nil || !strings.Contains(text, "viewer role on the box. ctrl-r asks again.\n") {
+	if text := joined(s.BackupsView(*now)); s.BackupsSt != nil || s.BackupsAsOf(*now) != nil || !strings.Contains(text, "viewer role on the box. ctrl-r asks again.\n") {
 		t.Errorf("after a 403: held %v, the screen says:\n%s", s.BackupsSt != nil, text)
 	}
 	// A 404 is a moteld older than the read: asking again mends nothing.
