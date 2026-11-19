@@ -135,7 +135,7 @@ func (r *runner) status() *cobra.Command {
 			"deploy ends, printing each phase as the box lists it, then its outcome: exit\n" +
 			"0 when it succeeded, 9 when it failed, 3 when the box gives no outcome of it.\n" +
 			"With none in flight it prints the status, exit 0. With --json it prints the\n" +
-			"last status read alone.\n\n" + experimental,
+			"last status read alone on exit 0 and 9, and on 3 motel's own {\"error\":...}.\n\n" + experimental,
 		Args: usageArgs(cobra.ExactArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := client.ParseApp(args[0])

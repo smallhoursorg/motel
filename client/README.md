@@ -63,14 +63,17 @@ and the last ones come from the outcome's own list. Then it prints the
 outcome's record, as `deploys <app> <version>` does (a failure's error,
 exit, probe and log tail among it), and what serves (`now     7c1e55d0a913
 is running`), and exits 0 when the deploy succeeded, 9 when it failed,
-and 3 when the box's last deploy is not that deploy's (a push whose
-upload was never staged leaves none; so does another deploy that ended
-after it before the read). With no deploy in flight it prints the
-status and says so on stderr, exit 0; a box older than v0.8.0, which
-names no deploy in flight, exits 3. A read that fails ends it, with
-that read's exit and its sentence saying the deploy may still run.
-ctrl-c stops following, not the deploy, exit 130. With `--json` it
-prints only the last status read, the box's own answer.
+and 3 when the box's last deploy is not that deploy's: of its version, and
+beginning with the phases it was seen in, each begun at the time the
+box gave (a push whose upload was never staged leaves none; so does
+another deploy that ended after it before the read). With no deploy in
+flight it prints the status and says so on stderr, exit 0; a box older
+than v0.8.0 in a deploy's phase, which names no deploy in flight,
+exits 3. A read that fails ends it, with that read's exit and its
+sentence saying the deploy may still run. ctrl-c stops following, not
+the deploy, exit 130. With `--json` it prints only the last status
+read, the box's own answer, on exit 0 and 9, and on exit 3 the
+client's `{"error":"…"}`, as every exit 3 does.
 
 **Which box:** an app URL as `<app>`, else `--box`, `MOTEL_BOX`, the host
 of `MOTEL_URL`, or the box repository the shell is in (inside
@@ -327,6 +330,11 @@ made by hand. Accepted:
 | `motel help tui`, as `motel help` with any word that is no command, says ``Unknown help topic [`tui`]`` and prints the usage, exit 0, where `motel tui` is refused, exit 2: cobra's own answer, and older than `motel` alone as the screen | 2 | 5 | 1 | 10 | 2 | accepted |
 | `motel` alone, where no box or key is found, interrupted (ctrl-c, the terminal closed) in the moment its help is being written: the help is on stdout, the line under it is not said, and the exit is 130, where an interrupted command prints nothing on stdout. The interrupt is looked for before the help is written (`TestSignalBeforeTheScreen`), not during: about 3.5 kB to a terminal, a few milliseconds unless the terminal is held (ctrl-s) | 2 | 2 | 3 | 12 | 2 (the help built whole, then written only if not interrupted) | accepted |
 | A client with #577's change reading a box on v0.8.0 or earlier: that box's `memory_bytes.now` is the range's newest point, kept while it is at most three steps old, so under `--range 24h` up to 15 minutes old (three 5-minute steps; 3 minutes at the hour), and its `avg_5m` and `memory_max_bytes` alike. The app's screen shows it as `now` beside `metrics     over 24h` with no age, where the client before this change said `newest point 14:00:10 UTC (12m ago)` under it | 2 | 5 | 3 | 30 | 2 | accepted over the bar, pending the owner (the skill's rule 4): it ends when the box takes this release, and telling the two kinds of box apart needs the client to judge the box's release |
+| Following a deploy (#580): a deploy seen only before its first phase (a push's upload) is matched to its outcome by its version and its end alone, so a later deploy of the same version that begins and ends before the next read (5 s on an app's screen and for `status --follow`, 30 s or more for another app) is taken for its outcome: `status --follow` exits by that one, and the app's screen says it; so does a step of the box's clock back between the two. Once the deploy was seen in a phase, its outcome must begin with the phases seen, each at the box's time, which no other deploy's does | 3 | 2 | 3 | 18 | 3 (the box would name each deploy, in `deploying` and `last_deploy`) | accepted: it takes two deploys of one version within one read, the first not yet past its upload |
+| `status --follow` ends at the first read that fails (no answer, a 5xx, a 429 that stood after its wait, a moteld restarting), with that read's exit and its sentence saying the deploy may still run, though it may end well a moment later; it is not asked again | 2 | 3 | 1 | 6 | 2 (a retry at its turn, and a count) | accepted: it ends red and named, and run again it follows the same deploy if it still runs |
+| `status --follow` signs its tokens as every command does, each lasting 300 s, so a follow of more than about 3.5 minutes with a hardware key asks for a touch on the terminal mid-follow, the reads waiting until it is given; the TUI's tokens last 600 s (`TestForTUI` holds the longer life to the TUI's client) | 2 | 3 | 1 | 6 | 1, risk 2 (a captured token then lasts twice as long) | accepted: a deploy's usual length is under a minute |
+| A phase a newer box names that this client does not know, in the deploy in flight's phases, makes the whole status "not moteld's answer", exit 3 (on the screens the app is `unknown`), for the rest of that deploy, as one in `last_deploy` already did until the next deploy and one in the status's phase while it lasts: since #580 the phases are printed, and so held to the outcome vocabulary | 2 | 5 | 1 | 10 | 2 (an unknown phase shown in the client's words) | accepted: it is said, and a client of the box's release knows its phases |
+| A TUI left without a key for 10 minutes pauses (the title bar says PAUSED), so a person waiting on an app's screen for CI to reach its deploy sees nothing of a deploy that begins after that until a key; `status --follow` follows only a deploy already in flight when it starts | 2 | 5 | 1 | 10 | 2 (no pause while an app's screen is open: a new rule for the rate and a hardware key's touches) | accepted: the pause is the owner's rule for an unattended TUI, and says itself |
 
 Owed, from the reviews of the TUI's first part (#558; scored there), of
 their fixes, and of its second part; the others are fixed:
@@ -379,9 +387,13 @@ longer shows a deploy the session saw in flight (on any screen), an
 record`; `… succeeded · it serves`; `… ended with no outcome from the
 box`, by `status --follow`'s rule), and, while no other deploy runs, a
 `phases` line every phase it passed through, the one it failed in
-marked `✖`; it stays until a deploy is seen to begin. `d` there opens
-the newest deploy's record, which for a deploy that failed is its own
-(the line says so only then: a relaunch writes no record). A deploy's
+marked `✖`. It stays while the next deploy runs, when one was already
+in flight at the read that saw it end, and goes when a deploy is seen
+to begin after it, or the box's last deploy is another's (one begun and
+ended between two reads, which the `deployed` line says). `d` there
+opens the newest deploy's record, which for a deploy that failed is its
+own (the line says so only then: a relaunch writes no record, nor does
+a deploy refused before it began). A deploy's
 record is laid out for reading a failure, its log tail last. The box screen shows the commit
 the box runs, its Caddyfile's digest and its key for secrets, and, when
 the box says the Caddyfile is not the one that commit installed, a line

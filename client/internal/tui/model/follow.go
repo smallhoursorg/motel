@@ -20,38 +20,54 @@ func SameDeploy(a, b wire.DeployInFlight) bool {
 }
 
 // OutcomeOf is the outcome st holds of f, a deploy seen in flight in an
-// earlier status: its last_deploy when that is f's (the same version,
-// finished no earlier than f was taken), and nil when it holds none of
-// f's. The box clears the deploy in flight in the step that sets
-// last_deploy to its outcome, so the first status without f holds it,
-// but where f ended with no outcome (a push whose upload was never
-// staged), or another deploy ended after it before the read.
+// earlier status: its last_deploy when that is f's, and nil when it
+// holds none of f's. f's is of its version, and begins with the phases
+// f had entered, each begun when f said: the box times a deploy's
+// phases once, and its record carries the same times (liveswap/app.go,
+// timedPhases), so a later deploy of the same version, ended before the
+// read (one refused at once has no phase), is not taken for f once f
+// was seen in a phase. f seen in none (a push's upload) is matched by
+// its outcome's end, no earlier than f was taken: two box times, which
+// a step of the box's clock can put out of order. The box clears the deploy in flight in the step
+// that sets last_deploy to its outcome, so the first status without f
+// holds it, but where f ended with no outcome (a push whose upload was
+// never staged), or another deploy ended after it before the read.
 func OutcomeOf(f wire.DeployInFlight, st wire.Status) *wire.DeployResult {
 	d := st.LastDeploy
-	if d == nil || d.Version != f.Version || d.FinishedAt.Before(f.StartedAt) {
+	if d == nil || d.Version != f.Version || len(d.Phases) < len(f.Phases) || len(f.Phases) == 0 && d.FinishedAt.Before(f.StartedAt) {
 		return nil
+	}
+	for i, p := range f.Phases {
+		if d.Phases[i].Name != p.Name || !d.Phases[i].StartedAt.Equal(p.StartedAt) {
+			return nil
+		}
 	}
 	return d
 }
 
 // ended is a deploy the session saw in flight and then saw end: the
-// deploy as it was last seen, and the outcome the first status without
-// it held (nil: none).
+// deploy as it was last seen, the outcome the first status without it
+// held (nil: none), and that status's last_deploy, whichever's it was.
 type ended struct {
-	f wire.DeployInFlight
-	d *wire.DeployResult
+	f    wire.DeployInFlight
+	d    *wire.DeployResult
+	last *wire.DeployResult
 }
 
 // follow keeps what a status read says of a deploy in flight, before
 // st replaces the status held: the deploy now in flight, and the end of
-// the one seen before it, if it is gone. A deploy seen to begin drops
-// the end of the one before it, which is then no longer the news.
+// the one seen before it, if it is gone. That end is the news until a
+// deploy is seen to begin after it, or the box's last deploy is another
+// than when it ended: one begun and ended between two reads, never seen
+// in flight, whose outcome the deployed line says.
 func (a *appData) follow(st wire.Status) {
 	now := st.Deploying
 	switch {
 	case a.flight != nil && (now == nil || !SameDeploy(*a.flight, *now)):
-		a.ended = &ended{f: *a.flight, d: OutcomeOf(*a.flight, st)}
+		a.ended = &ended{f: *a.flight, d: OutcomeOf(*a.flight, st), last: st.LastDeploy}
 	case a.flight == nil && now != nil:
+		a.ended = nil
+	case a.ended != nil && !sameResult(a.ended.last, st.LastDeploy):
 		a.ended = nil
 	}
 	a.flight = nil
@@ -59,6 +75,15 @@ func (a *appData) follow(st wire.Status) {
 		f := *now
 		a.flight = &f
 	}
+}
+
+// sameResult says whether a and b are one deploy's outcome, or both
+// none.
+func sameResult(a, b *wire.DeployResult) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return a.Version == b.Version && a.StartedAt.Equal(b.StartedAt) && a.FinishedAt.Equal(b.FinishedAt)
 }
 
 // flightLines are an app's screen's lines of a deploy it follows: while

@@ -121,7 +121,7 @@ func TestFollowADeploy(t *testing.T) {
 	if r.code != 9 {
 		t.Fatalf("exit %d, want 9; stderr %q", r.code, r.stderr)
 	}
-	if want := "motel: the deploy of v43 failed in soaking; v42 is running\n"; r.stderr != want {
+	if want := "motel: the deploy of v43 failed in soaking; now v42 (running)\n"; r.stderr != want {
 		t.Errorf("stderr %q, want %q", r.stderr, want)
 	}
 	for _, want := range []string{
@@ -129,7 +129,7 @@ func TestFollowADeploy(t *testing.T) {
 		"\nfollowing the deploy of v43, read every 5 s (ctrl-c stops following, not the deploy)\n" +
 			"14:12:00 UTC  downloading\n14:12:01 UTC  preparing\n14:12:02 UTC  soaking\n\nblog v43  failed in soaking  2026-11-19 14:12:01 to 14:13:00 UTC (59s)\n",
 		"error   the health check answered 500\n",
-		"log tail (1 lines):\n  pg: connection refused\nnow     v42 is running\n",
+		"log tail (1 lines):\n  pg: connection refused\nnow     v42 (running)\n",
 	} {
 		if !strings.Contains(r.stdout, want) {
 			t.Errorf("stdout lacks %q:\n%s", want, r.stdout)
@@ -169,10 +169,30 @@ func TestFollowEnds(t *testing.T) {
 			s.Deploying.StartedAt = t1.Add(2 * time.Minute)
 			return s
 		}()}, false, 3, "motel: the deploy of v43 ended, and the box gives no outcome", ""},
+		// A later deploy of v43, begun after the one followed ended and
+		// ended before the read: its phases are not the ones followed.
+		{"a later deploy's outcome", []*wire.Status{flying("soaking"), func() *wire.Status {
+			s := landed("succeeded", "v43", "soaking")
+			s.LastDeploy.Phases[0].StartedAt = t1.Add(30 * time.Second)
+			return s
+		}()}, false, 3, "motel: the deploy of v43 ended, and the box gives no outcome", ""},
+		// Seen only in its upload, with no phase: matched by its end. The
+		// box's last deploy is an earlier one of v43, ended before it.
+		{"an upload's, with an earlier v43's outcome", []*wire.Status{func() *wire.Status {
+			s := flying("soaking")
+			s.Phase, s.Deploying.Phases = "idle", []wire.PhaseTiming{}
+			s.LastDeploy = landed("failed", "v42", "soaking").LastDeploy
+			s.LastDeploy.FinishedAt = t1.Add(-time.Second)
+			return s
+		}(), func() *wire.Status {
+			s := landed("failed", "v42", "soaking")
+			s.LastDeploy.FinishedAt = t1.Add(-time.Second)
+			return s
+		}()}, false, 3, "motel: the deploy of v43 ended, and the box gives no outcome", ""},
 		{"an older box", []*wire.Status{{App: "blog", Phase: "soaking", CurrentVersion: "v42", Running: true, AvailableVersions: []string{"v42"}}}, false, 3,
 			"motel: blog is in soaking, and the box names no deploy in flight beside it (a moteld before v0.8.0): there is no deploy to follow\n", ""},
 		{"a read fails", []*wire.Status{flying("soaking"), nil}, false, 3, "(following stopped before the deploy ended, which may still run)\n", ""},
-		{"json, failed", []*wire.Status{flying("soaking"), landed("failed", "v42", "soaking")}, true, 9, "motel: the deploy of v43 failed in soaking; v42 is running\n", "last"},
+		{"json, failed", []*wire.Status{flying("soaking"), landed("failed", "v42", "soaking")}, true, 9, "motel: the deploy of v43 failed in soaking; now v42 (running)\n", "last"},
 		{"json, succeeded", []*wire.Status{flying("soaking"), landed("succeeded", "v43", "soaking")}, true, 0, "", "last"},
 		{"json, none in flight", []*wire.Status{landed("succeeded", "v43", "soaking")}, true, 0, "", "last"},
 	} {

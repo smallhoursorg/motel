@@ -2,8 +2,11 @@ package tui
 
 import (
 	"encoding/json"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 
@@ -31,9 +34,27 @@ func apiAfter(t *testing.T, edit func(st map[string]any)) string {
 // endedIn is api's last deploy, and its newest record, as the deploy in
 // flight's outcome: status, the phase it failed in, and the phases.
 func endedIn(st map[string]any, status, phase string, phases []any) {
-	d := map[string]any{"version": "4c2d9e7b1a05", "status": status, "deployed_by": "github:example/api@refs/heads/main",
+	endedAs(st, "4c2d9e7b1a05", status, phase, phases)
+}
+
+// flownThen is the phases the fixture's deploy in flight had entered,
+// as the box times them, and then names, each of 1.5 s: the phases of
+// its outcome.
+func flownThen(t *testing.T, names ...string) []any {
+	t.Helper()
+	var st struct {
+		Deploying struct{ Phases []any }
+	}
+	if err := json.Unmarshal([]byte(apiStatus(t)), &st); err != nil {
+		t.Fatal(err)
+	}
+	return append(st.Deploying.Phases, phasesTo(names...)...)
+}
+
+func endedAs(st map[string]any, version, status, phase string, phases []any) {
+	d := map[string]any{"version": version, "status": status, "deployed_by": "github:example/api@refs/heads/main",
 		"started_at": "@-20s", "finished_at": "@-1s", "phases": phases}
-	rec := map[string]any{"version": "4c2d9e7b1a05", "status": status, "started_at": "@-20s", "finished_at": "@-1s"}
+	rec := map[string]any{"version": version, "status": status, "started_at": "@-20s", "finished_at": "@-1s"}
 	if phase != "" {
 		d["phase"], rec["phase"] = phase, phase
 	}
@@ -72,16 +93,21 @@ func TestFollowADeploy(t *testing.T) {
 		newest string // the record d opens: the newest, whichever it is
 	}{
 		{"failed", func(st map[string]any) {
-			endedIn(st, "failed", "soaking", phasesTo("downloading", "extracting", "preparing", "starting", "soaking"))
+			endedIn(st, "failed", "soaking", flownThen(t))
 		}, "ended       4c2d9e7b1a05 failed in soaking · 3b8812aa0c4f serves · d opens its record",
-			"phases      … extracting 1.5s › preparing 1.5s › starting 1.5s › soaking 1.5s ✖", "4c2d9e7b1a05"},
+			"phases      … extracting 0.7s › preparing 3.9s › starting 1.0s › soaking 18.0s ✖", "4c2d9e7b1a05"},
 		{"succeeded", func(st map[string]any) {
-			endedIn(st, "succeeded", "", phasesTo("extracting", "preparing", "starting", "soaking", "promoting", "draining", "stopping_old"))
+			endedIn(st, "succeeded", "", flownThen(t, "promoting", "draining", "stopping_old"))
 			st["current_version"] = "4c2d9e7b1a05"
 		}, "ended       4c2d9e7b1a05 succeeded · it serves",
-			"phases      … soaking 1.5s › promoting 1.5s › draining 1.5s › stopping_old 1.5s", "4c2d9e7b1a05"},
+			"phases      … soaking 18.0s › promoting 1.5s › draining 1.5s › stopping_old 1.5s", "4c2d9e7b1a05"},
 		// A push whose upload was never staged: the box keeps no outcome.
 		{"no outcome", func(map[string]any) {}, "ended       4c2d9e7b1a05 ended with no outcome from the box · 3b8812aa0c4f serves", "", "3b8812aa0c4f"},
+		// A later deploy of the same version, begun and ended before the
+		// read: its phases were not begun when the one seen was in them.
+		{"a later deploy's outcome", func(st map[string]any) {
+			endedIn(st, "succeeded", "", phasesTo("extracting", "soaking"))
+		}, "ended       4c2d9e7b1a05 ended with no outcome from the box · 3b8812aa0c4f serves", "", "4c2d9e7b1a05"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			h := start(t, 100, 30, nil)
@@ -169,5 +195,74 @@ func TestFollowAfterARefusal(t *testing.T) {
 	}
 	if got := rowOf(h, "ended"); got != "" {
 		t.Errorf("after a refusal, an end of a deploy not seen to end: %q", got)
+	}
+}
+
+// TestFollowEndGoesStale: the end of a deploy seen in flight goes when
+// the box's last deploy is another's, one begun and ended between two
+// reads and never seen in flight; the deployed line says that one.
+func TestFollowEndGoesStale(t *testing.T) {
+	h := start(t, 100, 30, nil)
+	h.open(app("api"))
+	// Its times as of the read that saw the deploy in flight, so that
+	// the same answer read later is the same outcome.
+	h.fake.Body("status/api.json", asOf(apiAfter(t, func(st map[string]any) {
+		endedIn(st, "failed", "soaking", flownThen(t))
+	}), h.now))
+	h.press(tcell.KeyCtrlR)
+	if rowOf(h, "ended") == "" {
+		t.Fatal("no ended line")
+	}
+	// The same answer again keeps it.
+	h.now = h.now.Add(model.FocusEvery)
+	h.pump()
+	if rowOf(h, "ended") == "" {
+		t.Fatal("the ended line went with nothing new")
+	}
+	h.fake.Body("status/api.json", apiAfter(t, func(st map[string]any) {
+		endedAs(st, "5e6f7a8b9c0d", "succeeded", "", phasesTo("soaking"))
+		st["current_version"] = "5e6f7a8b9c0d"
+	}))
+	h.now = h.now.Add(model.FocusEvery)
+	h.pump()
+	if got := rowOf(h, "ended"); got != "" {
+		t.Errorf("another deploy's outcome keeps the end of the one before it: %q", got)
+	}
+}
+
+// asOf is body with each of the fixtures' times ("@-12m") written as
+// the time it is at now.
+func asOf(body string, now time.Time) string {
+	units := map[string]time.Duration{"s": time.Second, "m": time.Minute, "h": time.Hour, "d": 24 * time.Hour}
+	return regexp.MustCompile(`"@(-?[0-9]+)([smhd])"`).ReplaceAllStringFunc(body, func(m string) string {
+		p := regexp.MustCompile(`"@(-?[0-9]+)([smhd])"`).FindStringSubmatch(m)
+		n, _ := strconv.Atoi(p[1])
+		return `"` + now.Add(time.Duration(n)*units[p[2]]).UTC().Format(time.RFC3339) + `"`
+	})
+}
+
+// TestFollowFirstDeployWithNoOutcome: a new app's first deploy that
+// ends with no outcome (a push whose upload was never staged) is said
+// to have ended, not lost under "its first deploy comes from CI".
+func TestFollowFirstDeployWithNoOutcome(t *testing.T) {
+	h := start(t, 100, 30, nil)
+	first := func(st map[string]any) {
+		for _, k := range []string{"current_version", "pid", "unit", "socket", "command", "last_deploy", "deploys", "watchdog"} {
+			delete(st, k)
+		}
+		st["running"], st["available_versions"] = false, []any{}
+	}
+	var st map[string]any
+	if err := json.Unmarshal([]byte(apiStatus(t)), &st); err != nil {
+		t.Fatal(err)
+	}
+	first(st)
+	b, _ := json.Marshal(st)
+	h.fake.Body("status/api.json", string(b))
+	h.open(app("api"))
+	h.fake.Body("status/api.json", apiAfter(t, first))
+	h.press(tcell.KeyCtrlR)
+	if got, want := rowOf(h, "ended"), "ended       4c2d9e7b1a05 ended with no outcome from the box · nothing serves"; got != want {
+		t.Errorf("the end is drawn\n%q, want\n%q", got, want)
 	}
 }

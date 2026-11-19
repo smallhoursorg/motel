@@ -82,10 +82,12 @@ func (r *runner) followed(name string, f wire.DeployInFlight, st wire.Status, an
 	if err := p.print(d.Phases); err != nil {
 		return err
 	}
+	// What serves, as the versions line of status marks it:
+	// "v42 (running)", or "not deployed".
 	view := statusView(st, name)
-	serves := "nothing serves"
+	serves := view.State.String()
 	if !view.Version.Empty() {
-		serves = view.Version.String() + " is " + view.State.String()
+		serves = view.Version.String() + " (" + serves + ")"
 	}
 	if r.json {
 		if d.Status == "failed" {
@@ -113,7 +115,7 @@ func deployFailed(d *wire.DeployResult, serves string) string {
 	if d.Phase != "" {
 		w += " in " + tx(d.Phase).String()
 	}
-	return fmt.Sprintf("the deploy of %s %s; %s", tx(d.Version), w, serves)
+	return fmt.Sprintf("the deploy of %s %s; now %s", tx(d.Version), w, serves)
 }
 
 // followFailed is a read made while following that got no status: the

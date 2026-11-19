@@ -119,7 +119,7 @@ func (s *Session) Overview(app string, now time.Time) OverviewView {
 			return v
 		}
 		v.Note = []Line{{own(app + " has no version yet. Its first deploy comes from CI. Nothing to show until then.")}}
-		if len(v.Deploys) > 0 || st.LastDeploy != nil {
+		if len(v.Deploys) > 0 || st.LastDeploy != nil || len(flight) > 0 {
 			v.Note = append(append([]Line{{own(app + " has no version yet: no deploy of it serves.")}}, flight...), lastDeploy(st.LastDeploy, now)...)
 		}
 		return v
