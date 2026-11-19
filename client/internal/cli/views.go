@@ -170,7 +170,7 @@ func backupsView(b wire.Backups, asked string) render.Backups {
 			Last: when(a.LastCompleteBackup, "none"), Proven: when(a.RestoreProven, "never"), Fresh: a.Fresh, Lately: a.RestoreProvenLately})
 	}
 	for _, l := range b.Lines {
-		v.Lines = append(v.Lines, render.BackupLine{Level: tx(l.Level), Text: tx(l.Text)})
+		v.Lines = append(v.Lines, render.BackupLine{Level: tx(l.Level), Text: tx(model.LineText(l))})
 	}
 	return v
 }

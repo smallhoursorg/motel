@@ -13,5 +13,5 @@ problem  shop-2: failed: c1 \u009b31mred
 problem  shop-2: failed: fake ::error::file=x::owned
 problem  shop-2: failed: bad utf8 ��
 problem  shop-2: failed: marks alm\u061c lrm\u200e rlm\u200f
-warning  warning: wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww…[cut]
+warning  wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww…[cut]
 This is the box's own claim, only as honest as the box: look from a machine of your own with restic too (docs/backups.md, "Look from your own machine").

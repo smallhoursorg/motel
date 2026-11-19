@@ -53,7 +53,12 @@ func (s *Session) BackupsViewFit(now time.Time, width int, cells Cells) []Line {
 	s.seen(now)
 	switch {
 	case s.BackupsSt == nil && s.BackupsErr != nil:
-		return Sentence(Line{{T: Capped(failureText(s.BackupsErr), 4*LineMax)}}, width, cells)
+		out := Sentence(Line{{T: Capped(failureText(s.BackupsErr), 4*LineMax)}}, width, cells)
+		if Forbidden(s.BackupsErr) || NotFound(s.BackupsErr) {
+			// Held until the person asks: say how, as an app's screen does.
+			out = append(out, s.askAgain(now))
+		}
+		return out
 	case s.BackupsSt == nil:
 		return Sentence(Line{own("asking " + s.Host + " what it says of its backups…")}, width, cells)
 	}
@@ -61,8 +66,10 @@ func (s *Session) BackupsViewFit(now time.Time, width int, cells Cells) []Line {
 	v := verdict(b)
 	// When the box decided, which its cache may have kept for up to 10 s
 	// before this answer: the crumb gives the answer's own age.
-	decided := Line{own("decided " + clock(b.At, now, true) + " UTC, " + since(b.At, now))}
-	out := []Line{cutTo(field("backups", v...), width, cells), cutTo(field("", decided...), width, cells)}
+	// The verdict is the client's sentence, which may quote the box's
+	// could not tell: laid on rows, as a failure's sentence is.
+	decided := Line{own("decided " + clock(b.At, now, true) + " UTC, " + since(b.At, now) + " · the box's claim")}
+	out := append(laid(width, cells, field("backups", v...)), cutTo(field("", decided...), width, cells))
 	if len(b.Apps) > 0 {
 		out = append(out, nil)
 		out = append(out, s.backupRows(b, now, width, cells)...)
@@ -78,7 +85,7 @@ func (s *Session) BackupsViewFit(now time.Time, width int, cells Cells) []Line {
 			if l.Level != "info" {
 				c = Warn
 			}
-			out = append(out, cutTo(Line{ownC(mark+pad(l.Level, 8)+" ", c), boxT(l.Text)}, width, cells))
+			out = append(out, cutTo(Line{ownC(mark+pad(l.Level, 8)+" ", c), boxT(LineText(l))}, width, cells))
 		}
 	}
 	out = append(out, nil)
@@ -140,16 +147,29 @@ func (s *Session) backupRows(b wire.Backups, now time.Time, width int, cells Cel
 	return out
 }
 
-// BoxBackupsLine is the box screen's line of the backups: the box's
-// verdict and how old the answer is, or why there is none.
+// LineText is a line's text without the `warning: ` status writes
+// before a warning's, which the level beside it already says.
+func LineText(l wire.BackupLine) string {
+	if l.Level == "warning" {
+		if t, ok := strings.CutPrefix(l.Text, "warning: "); ok {
+			return t
+		}
+	}
+	return l.Text
+}
+
+// BoxBackupsLine is the box screen's line of the backups: how old the
+// answer is and the box's verdict, or why there is none. The age and
+// the pointer come first, so a long could not tell, cut at the
+// window's edge, cuts neither.
 func (s *Session) BoxBackupsLine(now time.Time) Line {
 	switch {
 	case s.BackupsSt != nil:
-		l := append(verdict(s.BackupsSt.V), own(" · "+Ago(now.Sub(s.BackupsSt.At))+" ago"))
+		l := Line{own(Ago(now.Sub(s.BackupsSt.At)) + " ago · :backups · ")}
 		if s.BackupsErr != nil {
-			l = append(l, ownC(" · the last read failed", Warn))
+			l = append(l, ownC("the last read failed · ", Warn))
 		}
-		return field("backups", append(l, own(" · :backups"))...)
+		return field("backups", append(l, verdict(s.BackupsSt.V)...)...)
 	case NotFound(s.BackupsErr):
 		return field("backups", own("not said here (it answered 404: a moteld older than this read)"))
 	case s.BackupsErr != nil:
