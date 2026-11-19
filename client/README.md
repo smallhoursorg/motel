@@ -316,7 +316,6 @@ their fixes, and of its second part; the others are fixed:
 | Two names over 20 characters that differ only in their middle are shown longer until they differ, which can take the room of VERSION and LAST DEPLOY on every row. Where the width cannot hold both whole beside the widest STATE (with `running · 12s`, from 44 characters at 60 columns, none at 80; with `not deployed · stale`, from 37 at 60, 57 at 80) they are shown alike, and enter on one may open the other (at 80 columns its crumb then names it; at 60 the crumb is cut before the place they differ) | 2 | 5 | 3 | 30 | 3 | the owner's call: over the bar, and no cut within the width tells every such pair apart |
 | The title bar's name, roles and release are whoami's last answer, shown beside the freshness of the newest answer to any read: while whoami answers (every 5 minutes) they can be up to 5 minutes older than that word says, unmarked. While its newest read has failed, the title bar says so and the answer's age before it (below) | 2 | 5 | 3 | 30 | 2 | the owner's call: over the bar; whoami's schedule is the owner's, and who am I shows the answer under its own age |
 | Between reads nothing is waited for, so after a box stops answering the title bar says `live`, its age growing, until 5 s into the first read made after it (from the end of its signature, when it signs a token; then `waiting`, as "The rate" under "## The TUI" below says): for the time to the next read due and 5 s more, as long as between two reads of a box that answers and 5 s. Measured on the fake clock: 7 s on an app's screen (its read every 5 s: at most 10 s), 14 s on the apps screen with one app and refusals that come 10 s late (its app read every 30 s: at most 35 s), at most 65 s on an apps screen with no app (the list every 60 s); with more apps their reads are spread over the cycle and it is shorter | 2 | 4 | 3 | 24 | 3 (a read made only to see that the box answers, when nothing else is due: a new schedule, and requests against the rate) | the owner's call: over the bar, and closing it costs requests, which this change was held not to add; the age beside the word is never more than 5 s past what the same screen shows of a box that answers |
-| A deploy in flight to an app that is stopped, throttled or in backoff is not said on the apps screen: the row's state and mark are chosen in that order (`throttled`, `stopped`, `backoff`, then a deploy in flight), so its row and the strip go on saying `stopped` while the deploy that may mend it runs; the app's own screen has the `deploying` line | 2 | 4 | 3 | 24 | 2 | owed: older than the trial's fixes; with the deploy watch, which reworks what a row says during a deploy |
 
 ## The TUI
 
@@ -330,14 +329,20 @@ each entry naming the command whose read it makes
 what needs a look, with a strip that says why; a person with one app
 opens on it, with the list under it. Its first reads, whoami and the list, are made before the screen opens: once they have waited 3 s for the box (a signature, a hardware key's touch among them, and the client's own pause before it asks again after a 401 not counted), one line on stderr says what is asked and that the screen opens when the box answers, or within a minute; an ordinary start, about four round trips of the box, says nothing. Where no screen can be drawn (no terminal, as in a CI job, a `TERM` with no entry or none that moves the cursor, such as `dumb`, or a locale that names a character set other than UTF-8 or ASCII, as `LANG=en_US.ISO-8859-1` does; one that names none, `LANG=en_US`, is taken for UTF-8, which is tcell's rule) it stops before anything is signed or sent, exit 2.
 While a deploy is in flight an
-app's row (one not stopped, throttled or in backoff, which it says
-instead) is marked `⟳`, whatever its newest record says (a failed one
+app's row (one not stopped, throttled or in backoff) is marked `⟳`,
+whatever its newest record says (a failed one
 stays in LAST DEPLOY, `d` still opens it, and the row still counts as
 needing a look), STATE says the deploy's phase (`deploying` while its
 upload is received), VERSION the version in flight, as on its way
 (`→ 4c2d9e7b1a05`), and the strip `deploying 4c2d9e7b1a05: soaking`; a
 box that names no version in flight (one older than `deploying`) has
 VERSION keep the running one and the strip say `deploying: soaking`.
+A row stopped, throttled or in backoff keeps that state and its mark
+(`✖`, `✖`, `▲`), and sorts by it, while a deploy that may mend it is
+in flight; VERSION says the version in flight as above, and the strip
+says the deploy after the row's reason (`stopped: 3b8812aa0c4f is not
+running; deploying 4c2d9e7b1a05: soaking`). Its app's screen says the
+same state, with the `deploying` line under it.
 A name longer than 20 characters is
 cut in its middle, in the table and the strip, its start and its end
 kept; two names that would be cut alike are shown longer, alike, until
