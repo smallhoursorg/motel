@@ -90,23 +90,54 @@ func TestDetailsCutSaid(t *testing.T) {
 
 // TestFailedSentenceCutSaid: an app's "the last read failed" sentence
 // that fills half the window (a 409 quoting 200 bidi overrides, laid on
-// rows at 60x16) leaves its last row to say what is not shown: the
-// sentence's end and the fields under it.
+// rows at 60x16) leaves its last row to count what is not shown: the
+// sentence's end and the fields under it. 60x80 gives the details 40
+// rows, room for the sentence laid at 60 columns and every field.
 func TestFailedSentenceCutSaid(t *testing.T) {
 	long := strings.Repeat("\u202e", 200)
-	h := start(t, 100, 60, nil)
-	h.open(app("blog"))
-	fields := len(detailRows(t, h, "─ DEPLOY"))
-	h = start(t, 60, 16, nil)
-	h.open(app("blog"))
-	h.fake.Set("blog", &model.Failure{Kind: model.FailThis, Message: demo.Host + ` answered 409; the box says: "` + long + `"`})
-	h.now = h.now.Add(model.MeAlways)
-	h.press(tcell.KeyCtrlR)
-	rows := detailRows(t, h, "─ DEPLOY")
-	if len(rows) != 8 || !strings.HasPrefix(rows[0], "the last read failed: ") {
-		t.Fatalf("the details are not the failed sentence over 8 rows:\n%s", h.screen())
+	fail := &model.Failure{Kind: model.FailThis, Message: demo.Host + ` answered 409; the box says: "` + long + `"`}
+	details := func(hgt int) []string {
+		h := start(t, 60, hgt, nil)
+		h.open(app("blog"))
+		h.fake.Set("blog", fail)
+		h.now = h.now.Add(model.MeAlways)
+		h.press(tcell.KeyCtrlR)
+		rows := detailRows(t, h, "─ DEPLOY")
+		if len(rows) == 0 || !strings.HasPrefix(rows[0], "the last read failed: ") {
+			t.Fatalf("60x%d: the details do not open with the failed sentence:\n%s", hgt, h.screen())
+		}
+		return rows
 	}
-	if n := cutSaid(rows); n <= fields {
-		t.Errorf("the last row says %d more lines, want more than the %d fields under the sentence:\n%s", n, fields, h.screen())
+	all := details(80)
+	if n := cutSaid(all); n != -1 || len(all) <= 8 {
+		t.Fatalf("60x80: %d rows of details, the last saying %d more lines; want more than 8, none cut", len(all), n)
 	}
+	rows := details(16)
+	if len(rows) != 8 {
+		t.Errorf("60x16: the details take %d rows, want 8", len(rows))
+	}
+	if got, want := cutSaid(rows), len(all)-len(rows)+1; got != want {
+		t.Errorf("60x16: the last row says %d more lines, want %d", got, want)
+	}
+}
+
+// TestCutSaidInColour: in colour the notice is drawn as the overlay's
+// own cut is, in the warning's colour, not as one more field.
+func TestCutSaidInColour(t *testing.T) {
+	h := start(t, 60, 16, nil)
+	h.on(func() { h.u.Colour = true })
+	h.open(app("api"))
+	rows := screenRows(h)
+	for y, r := range rows {
+		if !strings.HasSuffix(r.text, moreSaid) {
+			continue
+		}
+		var fg tcell.Color
+		h.on(func() { _, st, _ := h.scr.Get(0, y); fg, _, _ = st.Decompose() })
+		if fg != tcell.ColorYellow {
+			t.Errorf("the notice %q is drawn in %v, want yellow", r.text, fg)
+		}
+		return
+	}
+	t.Fatalf("no row says what is cut:\n%s", h.screen())
 }

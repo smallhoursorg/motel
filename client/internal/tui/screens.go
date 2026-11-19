@@ -373,8 +373,8 @@ func (u *UI) renderRecord(v model.View, now time.Time) {
 // fitRows keeps the lines that fit in rows, the room a screen gives
 // its details above a table or a log tail. When some do not fit, the
 // last row that shows says how many are not shown (that row's own line
-// among them) and where they all are; a line cut at the width is
-// already marked by its "…".
+// among them) and where they all are, in the colour the overlay's own
+// cut is said in; a line cut at the width is already marked by its "…".
 func fitRows(ls []model.Line, rows, w int) []model.Line {
 	switch {
 	case len(ls) <= rows:
@@ -383,8 +383,8 @@ func fitRows(ls []model.Line, rows, w int) []model.Line {
 		return nil
 	}
 	n := len(ls) - rows + 1
-	more := ownLine("… "+strconv.Itoa(n)+" more lines: y shows the whole answer").Cut(w, door.Width)
-	return append(ls[:rows-1:rows-1], more)
+	more := model.Line{{T: termtext.From("… " + strconv.Itoa(n) + " more lines: y shows the whole answer"), C: model.Warn}}
+	return append(ls[:rows-1:rows-1], more.Cut(w, door.Width))
 }
 
 // withStop puts why every read stopped above a screen's lines, so the
