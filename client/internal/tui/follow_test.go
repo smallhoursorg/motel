@@ -2,11 +2,8 @@ package tui
 
 import (
 	"encoding/json"
-	"regexp"
-	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/gdamore/tcell/v2"
 
@@ -211,11 +208,9 @@ func TestFollowAfterARefusal(t *testing.T) {
 func TestFollowEndGoesStale(t *testing.T) {
 	h := start(t, 100, 30, nil)
 	h.open(app("api"))
-	// Its times as of the read that saw the deploy in flight, so that
-	// the same answer read later is the same outcome.
-	h.fake.Body("status/api.json", asOf(apiAfter(t, func(st map[string]any) {
+	h.fake.Body("status/api.json", apiAfter(t, func(st map[string]any) {
 		endedIn(st, "failed", "soaking", flownThen(t))
-	}), h.now))
+	}))
 	h.press(tcell.KeyCtrlR)
 	if rowOf(h, "ended") == "" {
 		t.Fatal("no ended line")
@@ -235,17 +230,6 @@ func TestFollowEndGoesStale(t *testing.T) {
 	if got := rowOf(h, "ended"); got != "" {
 		t.Errorf("another deploy's outcome keeps the end of the one before it: %q", got)
 	}
-}
-
-// asOf is body with each of the fixtures' times ("@-12m") written as
-// the time it is at now.
-func asOf(body string, now time.Time) string {
-	units := map[string]time.Duration{"s": time.Second, "m": time.Minute, "h": time.Hour, "d": 24 * time.Hour}
-	return regexp.MustCompile(`"@(-?[0-9]+)([smhd])"`).ReplaceAllStringFunc(body, func(m string) string {
-		p := regexp.MustCompile(`"@(-?[0-9]+)([smhd])"`).FindStringSubmatch(m)
-		n, _ := strconv.Atoi(p[1])
-		return `"` + now.Add(time.Duration(n)*units[p[2]]).UTC().Format(time.RFC3339) + `"`
-	})
 }
 
 // TestFollowFirstDeployWithNoOutcome: a new app's first deploy that
@@ -271,5 +255,24 @@ func TestFollowFirstDeployWithNoOutcome(t *testing.T) {
 	h.press(tcell.KeyCtrlR)
 	if got, want := rowOf(h, "ended"), "ended       4c2d9e7b1a05 ended with no outcome from the box · nothing serves"; got != want {
 		t.Errorf("the end is drawn\n%q, want\n%q", got, want)
+	}
+}
+
+// TestDemoDeployStaysOne: the fake box's times are its first read's, as
+// a box's stay put, so the same deploy in flight read again a read
+// later is the same deploy: no ended line beside it (Copilot on #600:
+// --demo's fixtures moved with the wall clock at every read).
+func TestDemoDeployStaysOne(t *testing.T) {
+	h := start(t, 100, 30, nil)
+	h.open(app("api"))
+	for range 3 {
+		h.now = h.now.Add(model.FocusEvery)
+		h.pump()
+	}
+	if got := rowOf(h, "ended"); got != "" {
+		t.Errorf("the deploy in flight, read again, is said to have ended: %q", got)
+	}
+	if got, want := rowOf(h, "deploying"), "deploying   4c2d9e7b1a05 soaking · started 40s ago"; !strings.HasPrefix(got, want) {
+		t.Errorf("the deploy in flight is drawn %q, want it to begin %q (its age grows)", got, want)
 	}
 }

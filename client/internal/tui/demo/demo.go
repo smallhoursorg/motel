@@ -1,8 +1,8 @@
 // Package demo is a box made of fixtures: the TUI's --demo, which
 // shows sample data with no box, and the fake client its tests run
 // against. Its fixtures are bodies as a box writes them, with times
-// written as "@-12m" (twelve minutes before the fake's clock) so that
-// ages read as they would.
+// written as "@-12m" (twelve minutes before the fake's clock at its
+// first read) so that ages read as they would, and grow as a box's do.
 package demo
 
 import (
@@ -40,6 +40,10 @@ type Fake struct {
 	// Bodies replaces a fixture's body, keyed by its path in fixtures/.
 	Bodies map[string]string
 	Calls  []Call
+	// anchor is the fake's clock at its first read, which the fixtures'
+	// times are read against: a box's times stay put from one read to
+	// the next, so the deploy in flight is the same deploy at each.
+	anchor time.Time
 }
 
 // Call is one read the fake answered.
@@ -90,6 +94,10 @@ func (f *Fake) load(ctx context.Context, j model.Job, key, path string, v any) (
 	f.mu.Lock()
 	now := f.Now()
 	f.Calls = append(f.Calls, Call{Job: j, At: now})
+	if f.anchor.IsZero() {
+		f.anchor = now
+	}
+	anchor := f.anchor
 	err := f.Errs[key]
 	body, replaced := f.Bodies[path]
 	f.mu.Unlock()
@@ -106,7 +114,7 @@ func (f *Fake) load(ctx context.Context, j model.Job, key, path string, v any) (
 	body = token.ReplaceAllStringFunc(body, func(m string) string {
 		p := token.FindStringSubmatch(m)
 		n, _ := strconv.Atoi(p[1])
-		return `"` + now.Add(time.Duration(n)*units[p[2]]).UTC().Format(time.RFC3339) + `"`
+		return `"` + anchor.Add(time.Duration(n)*units[p[2]]).UTC().Format(time.RFC3339) + `"`
 	})
 	if err := json.Unmarshal([]byte(body), v); err != nil {
 		return nil, fmt.Errorf("fixture %s: %w", path, err)

@@ -387,8 +387,9 @@ longer shows a deploy the session saw in flight (on any screen), an
 (`4c2d9e7b1a05 failed in soaking · 3b8812aa0c4f serves · d opens its
 record`; `… succeeded · it serves`; `… ended with no outcome from the
 box`, by `status --follow`'s rule), and, while no other deploy runs, a
-`phases` line every phase it passed through, the one it failed in
-marked `✖`. It stays while the next deploy runs, when one was already
+`phases` line the last 4 phases it passed through, earlier ones
+marked `… `, the one it failed in marked `✖` (`d` opens the record,
+which lists them all). It stays while the next deploy runs, when one was already
 in flight at the read that saw it end, and goes when a deploy is seen
 to begin after it, or the box's last deploy is another's (one begun and
 ended between two reads, which the `deployed` line says). `d` there
