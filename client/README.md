@@ -306,6 +306,8 @@ made by hand. Accepted:
 | `motel help tui`, as `motel help` with any word that is no command, says ``Unknown help topic [`tui`]`` and prints the usage, exit 0, where `motel tui` is refused, exit 2: cobra's own answer, and older than `motel` alone as the screen | 2 | 5 | 1 | 10 | 2 | accepted |
 | `motel` alone, where no box or key is found, interrupted (ctrl-c, the terminal closed) in the moment its help is being written: the help is on stdout, the line under it is not said, and the exit is 130, where an interrupted command prints nothing on stdout. The interrupt is looked for before the help is written (`TestSignalBeforeTheScreen`), not during: about 3.5 kB to a terminal, a few milliseconds unless the terminal is held (ctrl-s) | 2 | 2 | 3 | 12 | 2 (the help built whole, then written only if not interrupted) | accepted |
 | A client with #577's change reading a box on v0.8.0 or earlier: that box's `memory_bytes.now` is the range's newest point, kept while it is at most three steps old, so under `--range 24h` up to 15 minutes old (three 5-minute steps; 3 minutes at the hour), and its `avg_5m` and `memory_max_bytes` alike. The app's screen shows it as `now` beside `metrics     over 24h` with no age, where the client before this change said `newest point 14:00:10 UTC (12m ago)` under it | 2 | 5 | 3 | 30 | 2 | accepted over the bar, pending the owner (the skill's rule 4): it ends when the box takes this release, and telling the two kinds of box apart needs the client to judge the box's release |
+| A row stopped, throttled or in backoff with a deploy in flight can have the state's word cut from its strip at 80 columns, the deploy before it taking the room: when the row is stale (`1m old, stale: ` before it), its name is near 20 characters, or its phase is a long one (`stopping_old`). Its mark and STATE still say it, on the row below the strip | 2 | 5 | 1 | 10 | 2 | accepted |
+| Such a row's VERSION says only the version in flight (`stopped  → 9a1b2c3d4e5f`), so the table does not name the version that is stopped, throttled or in backoff, and the row can be read as the new version being the stopped one; the `→` marks it as on its way ("The TUI", below), and the strip and the app's screen name the stopped one | 2 | 4 | 3 | 24 | 1 (keep the running version in VERSION on these rows) | accepted over the bar, pending the owner (the skill's rule 4): VERSION said as a row in flight says it was the owner's chosen fix for #584's item 4 |
 
 Owed, from the reviews of the TUI's first part (#558; scored there), of
 their fixes, and of its second part; the others are fixed:
@@ -351,7 +353,8 @@ kept; two names that would be cut alike are shown longer, alike, until
 they differ, as far as the screen leaves room for STATE beside them;
 the whole name is what is opened, searched and printed. An app's
 screen shows its state and deploys; while a deploy is in flight its
-state names the version that serves as running, and a `deploying` line
+state names the current version as running (one stopped, throttled or
+in backoff by its row's word), and a `deploying` line
 under it the version in flight, its phase, when the deploy started and
 by whom (`4c2d9e7b1a05 soaking · started 25s ago (14:12 UTC) by …`;
 under "has no version yet: a deploy of it is in flight." before a first
