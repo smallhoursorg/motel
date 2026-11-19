@@ -16,7 +16,7 @@ import (
 // last row that shows says how many are not shown and that y shows the
 // whole answer, so no line is dropped unsaid.
 
-const moreSaid = " more lines: y shows the whole answer"
+const moreSaid = " more lines: y shows the answer, P prints it whole"
 
 // detailRows is the rows of the screen's details: from under the crumb
 // to the row above the line that opens the table or the tail.

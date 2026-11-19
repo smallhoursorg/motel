@@ -383,7 +383,7 @@ func fitRows(ls []model.Line, rows, w int) []model.Line {
 		return nil
 	}
 	n := len(ls) - rows + 1
-	more := model.Line{{T: termtext.From("… " + strconv.Itoa(n) + " more lines: y shows the whole answer"), C: model.Warn}}
+	more := model.Line{{T: termtext.From("… " + strconv.Itoa(n) + " more lines: y shows the answer, P prints it whole"), C: model.Warn}}
 	return append(ls[:rows-1:rows-1], more.Cut(w, door.Width))
 }
 
