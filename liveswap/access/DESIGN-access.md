@@ -210,6 +210,7 @@ names no app (`_` is outside the app grammar).
 |---|---|---|
 | `GET /_motel/whoami` | `box.whoami` | any declared person, granted or not |
 | `GET /_motel/apps` | `box.apps`, and `app.status` for each row's summary | any declared person: the apps they may view |
+| `GET /_motel/backups` | `box.backups` | a viewer of the box |
 | any other path, method or query under `/_motel/` | none | 404 once authenticated, the flat 401 before |
 
 A deploy token under `/_motel/` is judged against the global sources,
@@ -241,6 +242,7 @@ names a declared key, or the 404; an app's source's is the flat 401.
 | `box.push` | `POST /` | — | yes | never |
 | `box.whoami` | `GET /_motel/whoami` | 403, needs a declared key, for a token a global source accepts (one that only an app's own sources accept is the flat 401 under `/_motel/`) | the flat 401: liveswap's webhook, which serves `/_motel/`, does not know the box channel's source (the 403 only when it is a global liveswap source too) | any person |
 | `box.apps` | `GET /_motel/apps` | as for `box.whoami` | as for `box.whoami` | any person |
+| `box.backups` | `GET /_motel/backups` | as for `box.whoami` | as for `box.whoami` | a viewer of the box |
 
 A box grant covers every app. A pair the table does not hold is
 refused. Three things are structural: no person's cell holds an act; no
@@ -267,6 +269,14 @@ and that no 200 holds the name, canary or socket directory of an app
 the caller may not view; a row whose shape it does not know fails it.
 Its half on `box_webhook` does the same for that table.
 
+A box-wide read is made through a handle to the box: `GET
+/_motel/backups`'s function reads the backups only through a
+`boxHandle`, which only `allowBox` makes, after `Decide` allowed the
+action on the box (`TestOneBoxHandleMaker`). Its body names every
+app, and is the box's, not one app's: it passes the filter with no
+app's values (as the list's frame does: no filter may see two apps'
+values), and its shape and entropy layers.
+
 `GET /_motel/apps` is the one body about several apps, and it is made
 of rows that each keep to one app. The names are those `Views` covers;
 each row's summary is read through the handle `allowApp` makes for
@@ -291,6 +301,7 @@ other app.
 | 503 | a deploy token that verified for an app liveswap's `Start` has not installed within 5 s, or whose request ended first (#473); a person's read of such an app, or a list that names one | `{"error":"motel is starting and has not loaded this app yet; retry after 1 s"}`, with `Retry-After: 1` |
 | 200 | `GET /<app>` | `wire.Status`, the body a deploy token reads too. `deploying` is the deploy in flight: `version`, `deployed_by`, `started_at` (when the box took it: for a push, before its upload) and `phases`, those entered so far in order, the last one's `seconds` running to the answer; absent when none runs. It is set when the box takes a deploy (a rollback and a relaunch are deploys; the watchdog's restarts are not) and cleared in the step that sets `last_deploy`, so a read shows one or the other. It sits before `deploys` and `last_deploy`, and holds no `"phase"` key: the templates' `deploy.sh` reads the failing phase as the last `"phase"` in a failure body |
 | 200 | `GET /_motel/whoami` | `wire.WhoAmI`: `name`, `key` (its fingerprint), `roles` (the grants that apply from here, no address list shown), `box`, `version`, `protocol`, `token_expires_at` |
+| 200 | `GET /_motel/backups` | `wire.Backups`, which is `backups/status`'s `Result`: what `motel-backup status --json` says as any account on the box looks, the motel user's here (no warnings of the credential file, which only root's look reads), whether the backups are healthy, not, or could not be told (`could_not_tell`: on a box without backups, `backups are not set up: … is not there`; on a server that is not moteld, that it does not read them). One look every 10 s at most, shared by every person: a request in that time is given the answer kept, whose `at` says when it was decided. The box's own claim (docs/backups.md, "Look from your own machine") |
 | 200 | `GET /_motel/apps` | `wire.Apps`: the apps this config runs that the person may view, sorted by name, each an object, `wire.AppEntry`: `name`, then `summary` (`phase`, `running`, `current_version`, `watchdog`, the watchdog's state, `newest_deploy`, the status's first `deploys` entry, and `deploying`, the version of a deploy in flight), each value as `GET /<app>` gives it at the same moment; or, for a row the app's filter withheld, `error` in place of `summary`. A row the filter changed has its own `redacted_env`. No socket, pid, unit or command. A client reads an absent key as "not known" |
 
 No answer says "person": a later kind of declared key changes no field.
