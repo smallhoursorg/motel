@@ -112,14 +112,15 @@ func (s *Session) Overview(app string, now time.Time) OverviewView {
 		r.Cells = []termtext.Text{termtext.From(d.Version), termtext.From(d.Status), termtext.From(d.Phase), termtext.From(fin), termtext.From(took), Capped(d.By, 60)}
 		v.Deploys = append(v.Deploys, r)
 	}
+	flight := s.flightLines(a, st)
 	if st.CurrentVersion == "" {
 		if _, ok := inFlight(st); ok {
-			v.Note = append([]Line{{own(app + " has no version yet: a deploy of it is in flight.")}, deploying(st, now)}, lastDeploy(st.LastDeploy, now)...)
+			v.Note = append(append([]Line{{own(app + " has no version yet: a deploy of it is in flight.")}, deploying(st, now)}, flight...), lastDeploy(st.LastDeploy, now)...)
 			return v
 		}
 		v.Note = []Line{{own(app + " has no version yet. Its first deploy comes from CI. Nothing to show until then.")}}
 		if len(v.Deploys) > 0 || st.LastDeploy != nil {
-			v.Note = append([]Line{{own(app + " has no version yet: no deploy of it serves.")}}, lastDeploy(st.LastDeploy, now)...)
+			v.Note = append(append([]Line{{own(app + " has no version yet: no deploy of it serves.")}}, flight...), lastDeploy(st.LastDeploy, now)...)
 		}
 		return v
 	}
@@ -144,6 +145,7 @@ func (s *Session) Overview(app string, now time.Time) OverviewView {
 	if st.Deploying != nil || moving {
 		v.Fields = append(v.Fields, deploying(st, now))
 	}
+	v.Fields = append(v.Fields, flight...)
 	if wd := st.Watchdog; wd != nil {
 		// The client's check lets through the states it knows and its
 		// own words for one the box's filter hid; anything else would

@@ -75,6 +75,10 @@ type appData struct {
 	st    *Got[wire.Status]
 	err   error
 	errAt time.Time
+	// flight is the deploy the status held shows in flight, and ended
+	// the last one seen in flight that has since ended (follow).
+	flight *wire.DeployInFlight
+	ended  *ended
 }
 
 type recData struct {

@@ -14,10 +14,11 @@ same value, and a terminal does nothing. `version --json` and
 `key --json` print the client's own object.
 
 On a failure, stdout is the box's own body, made safe the same way, on
-exit 1 or 6, and on exit 5 when the 403's body was JSON. On any other
+exit 1 or 6, on exit 5 when the 403's body was JSON, and on exit 9 (the
+last status `status --follow` read). On any other
 failure (exit 2, 3, 4 or 8, or a 5 whose body was not JSON) it is
 `{"error":"…"}` holding the client's own sentence, the one stderr's
-last line prints after `motel: `. For exit 1, 2, 3, 4, 6 and 8, the
+last line prints after `motel: `. For exit 1, 2, 3, 4, 6, 8 and 9, the
 exit code says which of the two stdout is. For a 5, go by the object:
 the client's own has `error` alone, the sentence on stderr; the box's
 access check writes `needs` and `scope` beside its `error` (a plainer
@@ -31,6 +32,7 @@ motel key [--key <path>] [--name <you@example.com>]
 motel whoami                        who the box takes your key to be, and its roles from here
 motel apps                          the apps your key may view, one a line
 motel status <app> [--range 1h|24h] an app's status
+motel status <app> --follow         the deploy in flight, read until it ends; exits by its outcome
 motel deploys <app>                 its deploys, newest first
 motel deploys <app> <version>       one deploy's whole record
 motel box status                    the commit the box runs, its Caddyfile's digest, its key for secrets,
@@ -51,6 +53,24 @@ its phase once it has one, when the deploy started and by whom
 (`deploying    4c2d9e7b1a05 soaking, started 2026-11-19 14:12 UTC  by …`);
 its versions line marks the first version with that state when it is
 the one serving (`7c1e55d0a913 (running)`).
+
+`status --follow` prints the status, and with a deploy in flight reads
+it again every 5 s until the box no longer shows that deploy (the same
+version, taken at the same time), printing each phase once as the box
+lists it, with the time the box says it began (`14:12:03 UTC  soaking`):
+the box lists every phase so far, so none is missed between two reads,
+and the last ones come from the outcome's own list. Then it prints the
+outcome's record, as `deploys <app> <version>` does (a failure's error,
+exit, probe and log tail among it), and what serves (`now     7c1e55d0a913
+is running`), and exits 0 when the deploy succeeded, 9 when it failed,
+and 3 when the box's last deploy is not that deploy's (a push whose
+upload was never staged leaves none; so does another deploy that ended
+after it before the read). With no deploy in flight it prints the
+status and says so on stderr, exit 0; a box older than v0.8.0, which
+names no deploy in flight, exits 3. A read that fails ends it, with
+that read's exit and its sentence saying the deploy may still run.
+ctrl-c stops following, not the deploy, exit 130. With `--json` it
+prints only the last status read, the box's own answer.
 
 **Which box:** an app URL as `<app>`, else `--box`, `MOTEL_BOX`, the host
 of `MOTEL_URL`, or the box repository the shell is in (inside
@@ -132,8 +152,9 @@ box's: no header tells a gateway's from motel's); 2 nothing was
 sent (usage, no box or key, an RSA or ECDSA key); 3 could not tell (no answer, not
 moteld's answer, any 5xx, a 429 that stood); 4 not accepted (a 401 after one
 retry); 5 not allowed (403); 6 not found (404); 8 the certificate did not
-verify (the client never continues past one); 130 interrupted. 7 is held
-for a box too old for people's tokens.
+verify (the client never continues past one); 9 the deploy `status
+--follow` followed failed; 130 interrupted. 7 is held for a box too old
+for people's tokens.
 
 ## Getting it
 
@@ -348,8 +369,20 @@ state names the version that serves as running, and a `deploying` line
 under it the version in flight, its phase, when the deploy started and
 by whom (`4c2d9e7b1a05 soaking · started 25s ago (14:12 UTC) by …`;
 under "has no version yet: a deploy of it is in flight." before a first
-version serves); a deploy's record is laid out for
-reading a failure, its log tail last. The box screen shows the commit
+version serves), and a `phases` line under it the phases it has entered
+so far with the box's seconds, the last 4 (`… extracting 0.7s ›
+preparing 3.9s › starting 1.0s › soaking 18.0s`; a record lists them
+all). Following a deploy is staying on that screen: when a read no
+longer shows a deploy the session saw in flight (on any screen), an
+`ended` line in its place says how it ended and what serves
+(`4c2d9e7b1a05 failed in soaking · 3b8812aa0c4f serves · d opens its
+record`; `… succeeded · it serves`; `… ended with no outcome from the
+box`, by `status --follow`'s rule), and, while no other deploy runs, a
+`phases` line every phase it passed through, the one it failed in
+marked `✖`; it stays until a deploy is seen to begin. `d` there opens
+the newest deploy's record, which for a deploy that failed is its own
+(the line says so only then: a relaunch writes no record). A deploy's
+record is laid out for reading a failure, its log tail last. The box screen shows the commit
 the box runs, its Caddyfile's digest and its key for secrets, and, when
 the box says the Caddyfile is not the one that commit installed, a line
 under the digest that says so, as `motel box status`'s first line does.
@@ -424,7 +457,12 @@ operator, which `P` prints. ctrl-c is a key while the screen holds the terminal,
 SIGINT, SIGTERM or SIGHUP sent to the process, or the terminal closed under the screen, ends it as an interrupt, 130, nothing said.
 
 - **The rate.** A box allows a person 2 requests a second with a burst
-  of 60. The TUI keeps to 1.5 a second and 30 at once. The open app is
+  of 60. The TUI keeps to 1.5 a second and 30 at once. Following a
+  deploy costs no read of its own: it is the open app's. `status
+  --follow` reads once in 5 s, 0.2 a second, so one beside a TUI keeps a
+  person to 1.7; each person's reads count against their own 2, so
+  several people following one deploy cost the box 0.2 a second each.
+  The open app is
   read every 5 s; every other app takes its turn in the rest of the
   budget, every 30 s, or longer with more apps than that covers (about
   55 s for 60 apps, 3 minutes for 200), each at its own place in the
