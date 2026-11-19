@@ -65,6 +65,19 @@ func TestBackupsSays(t *testing.T) {
 		t.Errorf("the box screen's line at 60 columns: %q", box)
 	}
 
+	// A read that gets no answer keeps the answer before it, and the
+	// crumb says the last read failed (an 80x24 screen holds the crumb,
+	// and not the failure's line under the box's lines).
+	*now = now.Add(model.BoxEvery)
+	f.Set("backups", &model.Failure{Kind: model.FailNoAnswer, Message: "no answer"})
+	for range 3 {
+		step(t, s, f, now)
+	}
+	if s.BackupsSt == nil || !strings.HasSuffix(s.BackupsAsOf(*now).Text(), " · the last read failed") {
+		t.Errorf("after a read that got no answer: held %v, the crumb says %q", s.BackupsSt != nil, s.BackupsAsOf(*now).Text())
+	}
+	f.Set("backups", nil)
+
 	// A 403 drops the answer, holds the read, and says ctrl-r asks again.
 	*now = now.Add(model.BoxEvery)
 	f.Set("backups", &model.Failure{Kind: model.FailForbidden, Message: "deploy.example.com does not allow your key this: it needs the viewer role on the box."})
