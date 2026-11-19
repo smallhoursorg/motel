@@ -79,7 +79,7 @@ func rowOf(h *harness, label string) string {
 // TestFollowADeploy (#580): on an app's screen a deploy in flight lists
 // its phases so far, with the box's seconds; when a read no longer shows
 // it, the screen says how it ended, beside what serves, in its place,
-// and the phases it passed through, every one; d opens the newest
+// and the last four phases it passed through; d opens the newest
 // record, the failure's.
 func TestFollowADeploy(t *testing.T) {
 	for _, c := range []struct {
