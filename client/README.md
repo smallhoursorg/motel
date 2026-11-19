@@ -340,9 +340,11 @@ VERSION keep the running one and the strip say `deploying: soaking`.
 A row stopped, throttled or in backoff keeps that state and its mark
 (`✖`, `✖`, `▲`), and sorts by it, while a deploy that may mend it is
 in flight; VERSION says the version in flight as above, and the strip
-says the deploy after the row's reason (`stopped: 3b8812aa0c4f is not
-running; deploying 4c2d9e7b1a05: soaking`). Its app's screen says the
-same state, with the `deploying` line under it.
+says the deploy before the row's reason (`deploying 4c2d9e7b1a05:
+soaking; stopped: 3b8812aa0c4f is not running`): the strip is cut at
+the screen's width, and a reason after which it came would leave it
+out at 80 columns. Its app's screen says the same
+state, with the `deploying` line under it.
 A name longer than 20 characters is
 cut in its middle, in the table and the strip, its start and its end
 kept; two names that would be cut alike are shown longer, alike, until

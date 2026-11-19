@@ -381,11 +381,13 @@ func (s *Session) row(name string, now time.Time) (r AppRow) {
 	// A row stopped, throttled or in backoff keeps that state and its
 	// mark while a deploy that may mend it is in flight (it is what
 	// holds until the deploy ends, and the row sorts by it), and says
-	// the deploy after its reason. It is not moving: STATE does not say
-	// the deploy, and the app's screen says the state it names.
+	// the deploy before its reason: the strip is cut at the screen's
+	// width, and at 80 columns a reason (backoff's is 68 characters)
+	// leaves no room after it. It is not moving: STATE does not say the
+	// deploy, and the app's screen says the state it names.
 	broken := func(m Mark, state string, why ...Seg) {
 		if flying {
-			why = append(why, own("; "), deploy())
+			why = append(Line{deploy(), own("; ")}, why...)
 		}
 		set(m, state, why...)
 	}

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/smallhoursorg/motel/client/internal/termtext"
 	"github.com/smallhoursorg/motel/client/internal/tui/demo"
 	"github.com/smallhoursorg/motel/client/internal/tui/model"
 )
@@ -14,12 +15,14 @@ import (
 // throttled or in backoff (#584, item 4) is said on the apps screen.
 // The row keeps its state and its mark, so it sorts where it did, and
 // says the deploy as a row in flight does: VERSION the version in
-// flight, and its reason in the strip the deploy after it, in the
-// words of a row in flight. The app's screen still says the state the
-// row names, with the deploying line under it. A box older than
-// "deploying" names no version, and VERSION stays the running one; with
-// no deploy in flight, and for a first version in flight, the row is
-// as before.
+// flight, and its reason in the strip the deploy before it, in the
+// words of a row in flight, so that the strip, cut at the screen's
+// width, still says it at 80 columns and the state's word after it.
+// The app's screen still says the state the row names, with the
+// deploying line under it. A box older than "deploying" names no
+// version, and VERSION stays the running one (its app's screen has the
+// deploying line too); with no deploy in flight, and for a first
+// version in flight, the row is as before.
 func TestDeployToABrokenApp(t *testing.T) {
 	const (
 		running  = `"current_version": "7c1e55d0a913", "available_versions": ["7c1e55d0a913"]`
@@ -46,15 +49,15 @@ func TestDeployToABrokenApp(t *testing.T) {
 		screen string
 	}{
 		{"stopped", flying + `, "running": false, ` + running + `, ` + watching,
-			model.MarkBroken, "stopped", "→ 9a1b2c3d4e5f", stopped + "; deploying 9a1b2c3d4e5f: soaking (seen …)", "stopped 7c1e55d0a913"},
+			model.MarkBroken, "stopped", "→ 9a1b2c3d4e5f", "deploying 9a1b2c3d4e5f: soaking (seen …); " + stopped, "stopped 7c1e55d0a913"},
 		{"stopped, uploading", upload + `, "running": false, ` + running + `, ` + watching,
-			model.MarkBroken, "stopped", "→ 9a1b2c3d4e5f", stopped + "; deploying 9a1b2c3d4e5f (seen …)", "stopped 7c1e55d0a913"},
+			model.MarkBroken, "stopped", "→ 9a1b2c3d4e5f", "deploying 9a1b2c3d4e5f (seen …); " + stopped, "stopped 7c1e55d0a913"},
 		{"throttled", flying + `, "running": true, ` + running + `, ` + throttle,
-			model.MarkBroken, "throttled", "→ 9a1b2c3d4e5f", throttled + "; deploying 9a1b2c3d4e5f: soaking (seen …)", "throttled 7c1e55d0a913"},
+			model.MarkBroken, "throttled", "→ 9a1b2c3d4e5f", "deploying 9a1b2c3d4e5f: soaking (seen …); " + throttled, "throttled 7c1e55d0a913"},
 		{"backoff", flying + `, "running": true, ` + running + `, ` + backoff,
-			model.MarkLook, "backoff", "→ 9a1b2c3d4e5f", backedOff + "; deploying 9a1b2c3d4e5f: soaking (seen …)", "backoff 7c1e55d0a913"},
+			model.MarkLook, "backoff", "→ 9a1b2c3d4e5f", "deploying 9a1b2c3d4e5f: soaking (seen …); " + backedOff, "backoff 7c1e55d0a913"},
 		{"stopped, an older box", older + `, "running": false, ` + running + `, ` + watching,
-			model.MarkBroken, "stopped", "7c1e55d0a913", stopped + "; deploying: soaking (seen …)", "stopped 7c1e55d0a913"},
+			model.MarkBroken, "stopped", "7c1e55d0a913", "deploying: soaking (seen …); " + stopped, "stopped 7c1e55d0a913"},
 		{"stopped, nothing in flight", idle + `, "running": false, ` + running + `, ` + watching,
 			model.MarkBroken, "stopped", "7c1e55d0a913", stopped, "stopped 7c1e55d0a913"},
 		{"throttled, nothing in flight", idle + `, "running": true, ` + running + `, ` + throttle,
@@ -81,6 +84,12 @@ func TestDeployToABrokenApp(t *testing.T) {
 		if want := c.mark.Glyph() + " mailer       " + c.why; strip != want {
 			t.Errorf("%s: the strip says %q, want %q", c.name, strip, want)
 		}
+		// As the screen cuts it at 80 columns: the deploy, and the
+		// state's word after it.
+		if cut := (model.Line{model.Seg{T: termtext.From(strip)}}).Cut(80, runes).Text(); strings.Contains(c.body, `"soaking"`) &&
+			(!strings.Contains(cut, "deploying") || !strings.Contains(cut, ": soaking") || !strings.Contains(cut, c.state)) {
+			t.Errorf("%s: cut at 80 columns the strip says %q", c.name, cut)
+		}
 		// By attention it sorts by its own mark: before a row in flight
 		// (⟳) when broken or in backoff.
 		if got := v.Rows[0].Name; (c.mark < model.MarkMoving) != (got == "mailer") {
@@ -90,11 +99,15 @@ func TestDeployToABrokenApp(t *testing.T) {
 			continue
 		}
 		fields := textsOfLines(s.Overview("mailer", now).Fields)
+		if len(fields) == 0 {
+			t.Errorf("%s: the app's screen has no fields", c.name)
+			continue
+		}
 		deploying := false
 		for _, f := range fields {
 			deploying = deploying || strings.HasPrefix(f, "deploying ")
 		}
-		if !strings.HasPrefix(fields[0], "state       "+c.screen) || deploying != strings.Contains(c.body, `"deploying"`) {
+		if !strings.HasPrefix(fields[0], "state       "+c.screen) || deploying != strings.Contains(c.why, "deploying") {
 			t.Errorf("%s: the app's screen says %q", c.name, fields)
 		}
 	}
