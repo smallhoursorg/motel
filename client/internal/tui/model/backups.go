@@ -36,11 +36,19 @@ func (s *Session) BackupsAsOf(now time.Time) Line {
 func verdict(b wire.Backups) Line {
 	switch {
 	case b.CouldNotTell != "":
-		return Line{ownC("could not tell, the box says: ", Warn), quoted(b.CouldNotTell)}
+		return Line{ownC("could not tell", Warn), own(", the box says")}
 	case b.Healthy:
 		return Line{ownC("healthy", Good), own(", the box says")}
 	}
 	return Line{ownC("not healthy", Warn), own(", the box says")}
+}
+
+// couldNotTell is the box's why, quoted, under the verdict: laid on
+// rows that begin at the value's column (12), the rows after the first
+// two further in (Sentence), so no row of it begins where one of the
+// screen's own does (at 0 or 2), whatever the box wrote.
+func couldNotTell(why string, width int, cells Cells) []Line {
+	return Sentence(Line{own(strings.Repeat(" ", 12)), quoted(why)}, width, cells)
 }
 
 // BackupsView is the backups screen, its lines whole.
@@ -48,28 +56,33 @@ func (s *Session) BackupsView(now time.Time) []Line { return s.BackupsViewFit(no
 
 // BackupsViewFit is the backups screen laid to width cells; 0 leaves
 // each line one line. A line holding a box's value is cut to the
-// width, so a value never begins a row.
+// width, so a value never begins a row; but for a could not tell,
+// which is the client's sentence quoting the box, laid on rows of its
+// own under the verdict, each beginning at the value's column or past
+// it, where no row of the screen's own begins (couldNotTell).
 func (s *Session) BackupsViewFit(now time.Time, width int, cells Cells) []Line {
 	s.seen(now)
 	switch {
 	case s.BackupsSt == nil && s.BackupsErr != nil:
-		out := Sentence(Line{{T: Capped(failureText(s.BackupsErr), 4*LineMax)}}, width, cells)
-		if Forbidden(s.BackupsErr) || NotFound(s.BackupsErr) {
-			// Held until the person asks: say how, as an app's screen does.
-			out = append(out, s.askAgain(now))
+		l := Line{{T: Capped(failureText(s.BackupsErr), 4*LineMax)}}
+		if Forbidden(s.BackupsErr) {
+			// Held until the person asks, and a grant may come back: say
+			// how, as an app's screen does.
+			l = append(l, s.askAgain(now)...)
 		}
-		return out
+		return Sentence(l, width, cells)
 	case s.BackupsSt == nil:
 		return Sentence(Line{own("asking " + s.Host + " what it says of its backups…")}, width, cells)
 	}
 	b := s.BackupsSt.V
-	v := verdict(b)
 	// When the box decided, which its cache may have kept for up to 10 s
 	// before this answer: the crumb gives the answer's own age.
-	// The verdict is the client's sentence, which may quote the box's
-	// could not tell: laid on rows, as a failure's sentence is.
 	decided := Line{own("decided " + clock(b.At, now, true) + " UTC, " + since(b.At, now) + " · the box's claim")}
-	out := append(laid(width, cells, field("backups", v...)), cutTo(field("", decided...), width, cells))
+	out := []Line{cutTo(field("backups", verdict(b)...), width, cells)}
+	if b.CouldNotTell != "" {
+		out = append(out, couldNotTell(b.CouldNotTell, width, cells)...)
+	}
+	out = append(out, cutTo(field("", decided...), width, cells))
 	if len(b.Apps) > 0 {
 		out = append(out, nil)
 		out = append(out, s.backupRows(b, now, width, cells)...)

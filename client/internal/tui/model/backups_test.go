@@ -20,8 +20,8 @@ func joined(ls []model.Line) string {
 // it; a could not tell is laid on rows whole, and on the box screen's
 // line the answer's age and the way to the screen come before it, so a
 // cut at the window's edge cuts neither; a warning's text is not said
-// after its level twice; and a refusal, held until the person asks,
-// says how to ask.
+// after its level twice; and a 403, held until the person asks, says
+// how to ask, and a 404 (a moteld older than the read) does not.
 func TestBackupsSays(t *testing.T) {
 	s, f, now := session(t)
 	s.Engine.BackupsOpen(true, *now)
@@ -43,6 +43,19 @@ func TestBackupsSays(t *testing.T) {
 			t.Errorf("a row wider than 60: %q", l.Text())
 		}
 	}
+	// The box's why is on rows of its own, none beginning where one of
+	// the screen's own does: at the value's column or further in.
+	if len(v) < 4 || v[0].Text() != "backups     could not tell, the box says" {
+		t.Fatalf("the verdict: %q", v[0].Text())
+	}
+	for _, l := range v[1:] {
+		if strings.Contains(l.Text(), "decided ") {
+			break
+		}
+		if !strings.HasPrefix(l.Text(), strings.Repeat(" ", 12)) {
+			t.Errorf("a row of the box's why begins before the value's column: %q", l.Text())
+		}
+	}
 	if strings.Contains(text, "warning: the run said so") || !strings.Contains(text, "warning  the run said so") {
 		t.Errorf("a warning's line:\n%s", text)
 	}
@@ -57,7 +70,18 @@ func TestBackupsSays(t *testing.T) {
 	for range 3 {
 		step(t, s, f, now)
 	}
-	if text := joined(s.BackupsView(*now)); s.BackupsSt != nil || !strings.Contains(text, "viewer role on the box") || !strings.Contains(text, "ctrl-r asks again") {
+	if text := joined(s.BackupsView(*now)); s.BackupsSt != nil || !strings.Contains(text, "viewer role on the box. ctrl-r asks again.\n") {
 		t.Errorf("after a 403: held %v, the screen says:\n%s", s.BackupsSt != nil, text)
+	}
+	// A 404 is a moteld older than the read: asking again mends nothing.
+	s.Engine.Again(*now)
+	*now = now.Add(model.BoxEvery)
+	f.Set("backups", &model.Failure{Kind: model.FailNotFound, Message: `deploy.example.com answered 404; the box says: "not found"`})
+	s.Engine.Again(*now, model.Job{Kind: model.KBackups})
+	for range 3 {
+		step(t, s, f, now)
+	}
+	if text := joined(s.BackupsView(*now)); !strings.Contains(text, "answered 404") || strings.Contains(text, "ctrl-r") {
+		t.Errorf("after a 404 the screen says:\n%s", text)
 	}
 }
