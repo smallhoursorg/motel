@@ -157,15 +157,15 @@ What a first deploy that worked looks like, from the laptop:
   [Hardening](https://github.com/smallhoursorg/motel/blob/main/docs/hardening.md#3-an-administrator-if-you-want-one),
   whose `adm` group is what reads it; root reads it too.
 
-A re-run of every job in the same workflow run rebuilds the tarball,
-and the box refuses it with a 422: versions are immutable on the box,
-that commit's version is already there, and the rebuilt bytes are not
-the ones it runs (the box relaunches a running version only for the
-very same artifact). A re-run of the deploy job alone sends the
-tarball that run built, so the box relaunches it while it is the
-running version. Push a new commit to deploy again, or **Run
-workflow** with the running version as the rollback target to
-relaunch it as it is.
+A re-run of every job in the same workflow run rebuilds the tarball
+and replaces the release's asset with it, and the box refuses it with
+a 422: versions are immutable on the box, that commit's version is
+already there, and the rebuilt bytes are not the ones it runs (the
+box relaunches a running version only for the very same artifact). A
+re-run of the deploy job alone sends the run's last build again,
+which the box relaunches only if that build is the one it runs. Push
+a new commit to deploy again, or **Run workflow** with the running
+version as the rollback target to relaunch it as it is.
 
 ## When the code needs a new permission
 

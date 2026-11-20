@@ -1693,9 +1693,11 @@ running version](#relaunching-the-running-version)); with other bytes
 under that version it is a `422` — versions are immutable — so a
 re-run never deploys other bytes under a version the box has. The
 example workflows rebuild the tarball when every job is re-run, and
-`tar -czf` stamps it with the build time, so that re-run is the `422`;
-a re-run of their deploy job alone sends the published asset and its
-digest again, the same tarball. To relaunch the running version from
+`tar -czf` stamps it with the build time, so that re-run is the `422`
+(and the release's asset is replaced by the rebuilt one); a re-run of
+their deploy job alone sends the run's last build and its digest
+again, which relaunches the running version only if that build is the
+one it runs. To relaunch the running version from
 the Actions tab, **Run workflow** with it as the rollback target. A URL or push deploy that fails has its extracted
 release removed, so its version can be deployed again (a failed
 rollback leaves its on-disk release alone) — unless the 5xx body says
