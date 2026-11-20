@@ -395,7 +395,8 @@ for every box of the repository.
 With the box and the app repository out of step, a deploy is answered
 401 and the running version keeps serving; the step's output names
 the audience it asked for. So move each app in three steps, in this
-order:
+order. An app whose workflow sets `MOTEL_AUDIENCE` to a name no other
+box's block has already names its box, and needs none of them.
 
 1. **Add a block on the box.** In the app's block, add a copy of its
    `deploy_trust github` block with the box's deploy host as its
@@ -409,8 +410,8 @@ order:
    `ACTIONS_ID_TOKEN_REQUEST_URL` whole (the lines that set
    `audience` and the `curl` that asks for it) and the `"$audience"`
    in `refused()`. A workflow `env:` that sets `MOTEL_AUDIENCE` keeps
-   asking for that name: remove it, unless the name is already this
-   box's alone. Push; the deploy goes through the new block.
+   asking for that name: remove it. Push; the deploy goes through the
+   new block.
 3. **Remove the old block**, the one with the audience the old
    script asked for (`motel`, `hotserve` before v0.6.0, or the
    workflow's `MOTEL_AUDIENCE`), signed and pushed. A token for
