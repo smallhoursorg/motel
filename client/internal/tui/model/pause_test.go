@@ -261,3 +261,18 @@ func TestAppPhasesAfterThePause(t *testing.T) {
 		done[j.App] = now
 	}
 }
+
+// TestWatchIntervalNotesNoTime: asked with an answer's time from before
+// a time the reads' goroutine gave, the watch's interval and pause are
+// not taken for the clock set back: the pause begins Idle after the key.
+func TestWatchIntervalNotesNoTime(t *testing.T) {
+	e := model.NewEngine(t0)
+	e.SetWatch(model.WatchBox, t0)
+	at := t0.Add(time.Minute)
+	e.Touch(at)
+	e.WatchInterval(model.Job{Kind: model.KBoxAlerts}, at.Add(-time.Second))
+	e.WatchPaused(at.Add(-time.Second))
+	if e.Health(at.Add(model.Idle - 500*time.Millisecond)).Paused {
+		t.Error("paused before Idle after the key")
+	}
+}

@@ -62,10 +62,9 @@ func TestPausedStillWatches(t *testing.T) {
 // and who am I says why.
 func TestPausedHardwareKey(t *testing.T) {
 	crit := alertRow("cert_failed", "critical", t0.Add(-time.Hour))
-	h, tty := bellTTY(t, true, func(f *demo.Fake) { f.Body("box-alerts.json", boxAlerts(crit)) }, func(s *model.Session) {
-		s.Key.Hardware = true
-		s.TokenExpires = func() time.Time { return t0.Add(time.Hour) }
-	})
+	// The token's own life: it ends during the pause, and who am I still
+	// says why nothing is read.
+	h, tty := bellTTY(t, true, func(f *demo.Fake) { f.Body("box-alerts.json", boxAlerts(crit)) }, func(s *model.Session) { s.Key.Hardware = true })
 	h.away(model.Idle + time.Second)
 	before := len(h.fake.Calls)
 	h.fake.Body("box-alerts.json", boxAlerts(alertRow("disk_low", "warning", h.now), crit))
@@ -157,7 +156,7 @@ func TestMeSaysThePause(t *testing.T) {
 	}{
 		{"an agent key", "only the alerts are read, each at most once a minute, and it is signed for them", nil, nil},
 		{"a hardware key", "a hardware key is not asked for a touch while you are away, so the alerts are not read then", func(s *model.Session) { s.Key.Hardware = true }, nil},
-		{"no grant", "signed again a minute before it ends, and only while you use the screen", nil, func(f *demo.Fake) {
+		{"no grant, a hardware key", "signed again a minute before it ends, and only while you use the screen", func(s *model.Session) { s.Key.Hardware = true }, func(f *demo.Fake) {
 			f.Body("whoami.json", `{"name":"alice@example.com","key":"`+demo.Key.Fingerprint+`","roles":[],"box":"deploy.example.com","version":"v0.7.0","protocol":1}`)
 		}},
 	} {
@@ -171,7 +170,7 @@ func TestMeSaysThePause(t *testing.T) {
 		for _, l := range h.s.MeView(h.now) {
 			me.WriteString(l.Text() + " ")
 		}
-		if got := strings.Join(strings.Fields(me.String()), " "); !strings.Contains(got, c.want) || c.name == "no grant" && strings.Contains(got, "only the alerts") {
+		if got := strings.Join(strings.Fields(me.String()), " "); !strings.Contains(got, c.want) || c.name == "no grant, a hardware key" && strings.Contains(got, "the alerts are") {
 			t.Errorf("%s: who am I says:\n%s", c.name, got)
 		}
 	}

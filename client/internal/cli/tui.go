@@ -42,12 +42,12 @@ const screenLong = "motel alone shows them on screens in the terminal, over the 
 	"terminal's bell rings when a new alert arrives (MOTEL_BELL=off turns it off).\n" +
 	"It only reads, well inside the box's limit of 2 requests a second and 60 at\n" +
 	"once: up to 30 at once to start, then at most 1.5 a second. After ten minutes\n" +
-	"with no key pressed it reads only the alerts, each at most once a minute; with a\n" +
-	"hardware key it reads nothing then, so no touch is asked for while you are\n" +
-	"away. It signs one token for ten minutes at a time, so a hardware key is\n" +
-	"touched about every nine minutes while you use it, a signature that takes\n" +
-	"over a minute stops the reads (r asks again), and it never asks for a\n" +
-	"passphrase or a PIN: a key with a passphrase must be in the agent (ssh-add),\n" +
+	"with no key pressed it reads only the alerts the title bar counts, each at most\n" +
+	"once a minute; with a hardware key it reads nothing then, so no touch is asked\n" +
+	"for while you are away. It signs one token for ten minutes at a time, so a\n" +
+	"hardware key is touched about every nine minutes while you use it, a signature\n" +
+	"that takes over a minute stops the reads (r asks again), and it never asks for\n" +
+	"a passphrase or a PIN: a key with a passphrase must be in the agent (ssh-add),\n" +
 	"and a hardware key that requires its PIN cannot be used there yet. ? lists the\n" +
 	"keys; c shows the command for a screen that reads the box, y the box's answer\n" +
 	"as JSON. It is asked with your own key only, and takes no --json.\n" +

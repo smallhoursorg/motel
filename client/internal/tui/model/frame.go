@@ -668,6 +668,9 @@ func (s *Session) freshness(now time.Time) Line {
 	return Line{own("live · " + ago)}
 }
 
+// hardwareAway is why a hardware key's TUI reads nothing while paused.
+const hardwareAway = "a hardware key is not asked for a touch while you are away, so the alerts are not read then"
+
 // MeView is who am I, its lines whole.
 func (s *Session) MeView(now time.Time) []Line { return s.MeViewFit(now, 0, nil) }
 
@@ -710,15 +713,20 @@ func (s *Session) MeViewFit(now time.Time, width int, cells Cells) []Line {
 			if left := exp.Sub(now); left > 0 {
 				again := "             signed again a minute before it ends, and only while you use the screen"
 				switch {
+				case s.watch.mode == WatchNone:
 				case s.Key.Hardware:
-					again += ": a hardware key is not asked for a touch while you are away, so the alerts are not read then"
-				case s.watch.mode != WatchNone:
+					again += ": " + hardwareAway
+				default:
 					again = "             signed again a minute before it ends; after ten idle minutes only the alerts are read, each at most once a minute, and it is signed for them"
 				}
 				out = append(out, laid(width, cells, field("token", own("good until "+hms(exp)+" UTC ("+Ago(left)+" left)")),
 					Line{own(again)})...)
 			} else {
-				out = append(out, Sentence(field("token", own("expired at "+hms(exp)+" UTC; signed again on the next read")), width, cells)...)
+				l := "expired at " + hms(exp) + " UTC; signed again on the next read"
+				if s.Key.Hardware && s.watch.mode != WatchNone {
+					l += ", once you use the screen: " + hardwareAway
+				}
+				out = append(out, Sentence(field("token", own(l)), width, cells)...)
 			}
 		}
 	}

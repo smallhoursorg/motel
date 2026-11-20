@@ -583,10 +583,12 @@ func (e *Engine) boxWatchEvery(now time.Time) time.Duration {
 // box's alerts every WatchEvery, the open app's every AlertsEvery,
 // another app's at appAlertsEvery; each PausedWatchEvery or more while
 // paused.
+// It notes no time: it is asked from the UI's goroutine with an
+// answer's time, which may be before one the reads' goroutine gave, and
+// would be taken for the clock set back.
 func (e *Engine) WatchInterval(j Job, now time.Time) time.Duration {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	e.seen(now)
 	switch {
 	case j.Kind == KBoxAlerts:
 		return e.boxWatchEvery(now)
@@ -597,11 +599,11 @@ func (e *Engine) WatchInterval(j Job, now time.Time) time.Duration {
 }
 
 // WatchPaused says whether the watch's reads are paused at now: no key
-// for Idle, and a hardware key (or no watch), so nothing is read.
+// for Idle, and a hardware key (or no watch), so nothing is read. It
+// notes no time, as WatchInterval.
 func (e *Engine) WatchPaused(now time.Time) bool {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	e.seen(now)
 	return e.idleAt(now) && !e.readsThroughPause()
 }
 
