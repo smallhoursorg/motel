@@ -778,7 +778,8 @@ SIGINT, SIGTERM or SIGHUP sent to the process, or the terminal closed under the 
   told), and not what a silence or the deploy mute holds, nor an alert
   of severity `info`; `✖ 500+` when the box held more than it sent.
   With none firing nothing is drawn; with a box that has no monitor, a
-  dim `no monitor` where the long form fits; before the first answer
+  dim `no monitor` where the long form fits (once that answer is old,
+  as an old count of none: a monitor may have been added since); before the first answer
   `alerts…`. Where the count is not known (its read refused: a 403 is
   asked again when whoami next lists the role, a 404 by ctrl-r on a
   screen that shows the read (`:alerts`, the box screen, an app's

@@ -131,7 +131,9 @@ func (s *Session) Mark(now time.Time) MarkForms {
 		return marks(Plain, "alerts…", "alerts…", "…", "…")
 	case f.Why != Known:
 		return marks(Warn, "alerts not known", "alerts ?", "?", "?")
-	case f.Off:
+	case f.Off && !f.Old:
+		// An old answer of no monitor is an old count of none, below: a
+		// monitor may have been added since.
 		return MarkForms{Long: Line{ownC("no monitor", Dim)}}
 	case f.N == 0 && f.More && f.Old:
 		return marks(Plain, "0+ firing as of "+Ago(now.Sub(f.At))+" ago", "0+?", "0+?", "?")

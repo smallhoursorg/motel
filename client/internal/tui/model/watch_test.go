@@ -997,3 +997,22 @@ func TestWatchAppsRelisted(t *testing.T) {
 	}
 	firing(t, s, *now, "shop back, read", 2, 0, false)
 }
+
+// TestWatchOffOld: an answer of no monitor that is old (the pause, a
+// read that failed since) says its count is old, as none firing does:
+// a monitor may have been added since.
+func TestWatchOffOld(t *testing.T) {
+	s, f, now := watcher(t)
+	f.Body("box-alerts.json", `{"monitor":"off","alerts":[],"silences":[]}`)
+	for range 3 {
+		step(t, s, f, now)
+	}
+	if m := s.Mark(*now); m.Long.Text() != "no monitor" {
+		t.Fatalf("fresh: %q", m.Long.Text())
+	}
+	f.Set("box-alerts", &model.Failure{Kind: model.FailNoAnswer, Message: "no"})
+	watchRead(t, s, f, now)
+	if m := s.Mark(*now); m.Long.Text() != "0 firing as of 15s ago" || m.Short.Text() != "0?" {
+		t.Errorf("after a read that failed: %q, %q", m.Long.Text(), m.Short.Text())
+	}
+}
