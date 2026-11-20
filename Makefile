@@ -17,10 +17,11 @@ PKGS ?= ./... ./backups/... ./box/... ./client/... ./liveswap/... ./notify/... .
 # and its single quotes escaped for the shell.
 RUN ?=
 
-# PKGS, RUN or an e2e lane's splits or suites left in the environment
-# narrow a run as on the command line, but unseen, and a narrowed run
-# passes: such a run ends by naming them. An empty PKGS, or an empty
-# list of splits or suites, is refused: it would run next to nothing.
+# MODULES, PKGS, RUN or an e2e lane's splits or suites left in the
+# environment narrow a run as on the command line, but unseen, and a
+# narrowed run passes: such a run ends by naming them. An empty
+# MODULES or PKGS, or an empty list of splits or suites, is refused:
+# it would run next to nothing.
 # $(call narrowed_note,<the variables the target reads>).
 env_narrowed = $(strip $(foreach v,$(1),$(if $(and $(filter environment,$(origin $(v))),$(value $(v))),$(v))))
 narrowed_note = $(if $(call env_narrowed,$(1)),@echo "════ make $@: $(call env_narrowed,$(1)) from the environment: only what it names ran ════")
@@ -100,7 +101,9 @@ vet: ## go vet, both tag sets
 	$(call narrowed_note,PKGS)
 
 tidy: ## go mod tidy in each of MODULES
+	$(if $(strip $(MODULES)),,$(error MODULES is empty: name a module, or leave it unset))
 	for m in $(MODULES); do $(COMPOSE) run --rm -w /src/$$m dev go mod tidy || exit 1; done
+	$(call narrowed_note,MODULES)
 
 # The PR-CI half of tidy: `go mod tidy -diff` writes nothing, prints
 # the diff tidy would make and exits non-zero when there is one, so a
@@ -108,17 +111,21 @@ tidy: ## go mod tidy in each of MODULES
 # It checks each module's go.mod/go.sum only: go.work is ignored and
 # go.work.sum is not checked (that would be a separate check).
 tidy-check: ## fails if go mod tidy would change a module's go.mod/go.sum
+	$(if $(strip $(MODULES)),,$(error MODULES is empty: name a module, or leave it unset))
 	for m in $(MODULES); do $(COMPOSE) run --rm -T -w /src/$$m dev go mod tidy -diff || exit 1; done
+	$(call narrowed_note,MODULES)
 
 # Both tag sets, as for vet: a bare run never compiles the
 # integration-tagged files, so neither the linters nor gofmt see them.
 # A single `run.build-tags: [integration]` in .golangci.yml would not
 # do: it drops the `!integration` goleak TestMain files instead.
 lint: ## golangci-lint (gofmt-gated), both tag sets; MODULES= the modules you touched
+	$(if $(strip $(MODULES)),,$(error MODULES is empty: name a module, or leave it unset))
 	for m in $(MODULES); do \
 		$(COMPOSE) run --rm -w /src/$$m lint golangci-lint run || exit 1; \
 		$(COMPOSE) run --rm -w /src/$$m lint golangci-lint run --build-tags integration || exit 1; \
 	done
+	$(call narrowed_note,MODULES)
 
 # Real fuzzing of the untrusted-input surfaces (seed corpora already
 # run inside `make test`). One target at a time — Go allows a single
@@ -180,7 +187,9 @@ fuzz: ## fuzz the untrusted-input surfaces (FUZZTIME=2m per target, from the env
 # also runs this on a weekly cron. Accepted (unreachable, not yet
 # fixable) advisories are alert_dismissals in .github/pin-watch.yml.
 vulncheck: ## govulncheck, each of MODULES
+	$(if $(strip $(MODULES)),,$(error MODULES is empty: name a module, or leave it unset))
 	$(COMPOSE) run --rm dev sh .github/scripts/vulncheck.sh $(MODULES)
+	$(call narrowed_note,MODULES)
 
 # The manifest rules of pin-watch.py (.github/scripts/pin_watch_test.py),
 # in the same python image as usage-check, which depends on it so CI's
@@ -556,15 +565,15 @@ e2e-backup: ## the backup suites, a box each; BACKUP_SUITES= setup backup units 
 	logs=$$(mktemp -d); i=0; \
 	for s in $(BACKUP_SUITES); do \
 		i=$$((i + 1)); \
-		( t0=$$(date +%s); $(COMPOSE) exec -T --index $$i e2e-backup-box timeout $(SUITE_LIMIT) /bin/sh /suite-$$s.sh >$$logs/$$s.log 2>&1; echo "$$? $$(($$(date +%s) - t0))" >$$logs/$$s.rc ) & \
+		( t0=$$(date +%s); $(COMPOSE) exec -T --index $$i e2e-backup-box timeout $(SUITE_LIMIT) /bin/sh /suite-$$s.sh >$$logs/$$i.log 2>&1; echo "$$? $$(($$(date +%s) - t0))" >$$logs/$$i.rc ) & \
 	done; \
 	wait; \
 	status=0; i=0; \
 	for s in $(BACKUP_SUITES); do \
 		i=$$((i + 1)); \
-		rc=; took=; read rc took <$$logs/$$s.rc || rc=unknown; \
+		rc=; took=; read rc took <$$logs/$$i.rc || rc=unknown; \
 		echo "════ $$s suite (box $$i, $${took:-?}s) ════"; \
-		cat $$logs/$$s.log; \
+		cat $$logs/$$i.log; \
 		if [ "$$rc" = 124 ]; then echo "════ $$s suite ended at SUITE_LIMIT ($(SUITE_LIMIT)s) ════"; fi; \
 		if [ "$$rc" != 0 ]; then \
 			status=1; \
