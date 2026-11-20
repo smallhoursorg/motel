@@ -76,6 +76,7 @@ func readApps(ctx context.Context, _ *Session, c Client, _ Job) (func(*Session, 
 		g.At = at
 		s.List, s.ListErr = &g, nil
 		s.Engine.SetApps(g.V, at)
+		s.watchList()
 	}, err
 }
 

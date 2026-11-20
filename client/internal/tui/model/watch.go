@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"slices"
 	"strings"
 	"time"
@@ -113,9 +114,12 @@ type watchSrc struct {
 // is a new start, a severity change a new alert; Alertmanager keeps the
 // earliest start of one held across moteld's restarts. A row the box's
 // filter withheld has no name or instance: its key is its app, its
-// severity and its start, which hold while it stays withheld.
+// severity and its start, which hold while it stays withheld. The
+// fields are the box's text, any byte in them: the key is them encoded
+// as a JSON list, so no two lists of fields make one key.
 func alertKey(a wire.BoxAlert) string {
-	return strings.Join([]string{a.Name, a.App, a.Instance, a.Severity, a.StartsAt.UTC().Format(time.RFC3339Nano)}, "\x00")
+	b, _ := json.Marshal([]string{a.Name, a.App, a.Instance, a.Severity, a.StartsAt.UTC().Format(time.RFC3339Nano)}) // strings: nothing to fail
+	return string(b)
 }
 
 // counted says whether the watch counts a: one the alerts screen marks
@@ -210,19 +214,43 @@ func (s *Session) follow(now time.Time) {
 // watching says whether j is the watch's read: a refusal of it goes in
 // the mark, not in the title bar's word.
 func (s *Session) watching(j Job) bool {
-	return j.Kind == KBoxAlerts && s.watch.mode == WatchBox || j.Kind == KAlerts && s.watch.mode == WatchApps && slices.Contains(s.Names(), j.App)
+	return j.Kind == KBoxAlerts && s.watch.mode == WatchBox || j.Kind == KAlerts && s.watch.mode == WatchApps && slices.Contains(s.watched(), j.App)
 }
 
 // watched is the reads the watch counts now: "" for the box's alerts,
-// or each listed app's name; nil when it counts none.
+// or each listed app whoami lists a grant on (a grant removed counts at
+// whoami's answer, not at the list's next); nil when it counts none.
 func (s *Session) watched() []string {
 	switch s.watch.mode {
 	case WatchBox:
 		return []string{""}
 	case WatchApps:
-		return s.Names()
+		var out []string
+		for _, n := range s.Names() {
+			if s.Me != nil && slices.ContainsFunc(s.Me.V.Roles, func(r wire.RoleHeld) bool { return r.Scope == "app:"+n }) {
+				out = append(out, n)
+			}
+		}
+		return out
 	}
 	return nil
+}
+
+// watchList is the apps list answered: an app no longer listed leaves
+// the watch, with what arrived on it, so one listed again starts from a
+// first answer.
+func (s *Session) watchList() {
+	names := s.Names()
+	for n := range s.watch.srcs {
+		if n != "" && !slices.Contains(names, n) {
+			delete(s.watch.srcs, n)
+		}
+	}
+	for k := range s.alarm.unseen {
+		if k.src != "" && !slices.Contains(names, k.src) {
+			delete(s.alarm.unseen, k)
+		}
+	}
 }
 
 // unseen is how many of what arrived after since are not yet seen, of

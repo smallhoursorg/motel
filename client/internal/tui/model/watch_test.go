@@ -911,3 +911,89 @@ func TestWatchMoreOld(t *testing.T) {
 		t.Errorf("the mark says %q, %q", m.Long.Text(), m.Tiny.Text())
 	}
 }
+
+// TestAlertKeysApart: the box's fields may hold any byte: two alerts
+// whose fields would join alike (a NUL, a backslash) are two, and the
+// second is new.
+func TestAlertKeysApart(t *testing.T) {
+	for _, pair := range [][2]string{
+		{`{"name":"a\u0000b","app":"c","severity":"warning","summary":"s","starts_at":"2026-11-15T13:00:00Z","state":"active"}`,
+			`{"name":"a","app":"b\u0000c","severity":"warning","summary":"s","starts_at":"2026-11-15T13:00:00Z","state":"active"}`},
+		{`{"name":"a\\","app":"\\b","severity":"warning","summary":"s","starts_at":"2026-11-15T13:00:00Z","state":"active"}`,
+			`{"name":"a\\\\","app":"b","severity":"warning","summary":"s","starts_at":"2026-11-15T13:00:00Z","state":"active"}`},
+	} {
+		s, f, now := watcher(t)
+		f.Body("box-alerts.json", alerts(false, pair[0]))
+		for range 3 {
+			step(t, s, f, now)
+		}
+		f.Body("box-alerts.json", alerts(false, pair[1], pair[0]))
+		watchRead(t, s, f, now)
+		firing(t, s, *now, pair[1], 2, 1, true)
+	}
+}
+
+// TestWatchAppsScopes: a grant on an app that whoami no longer lists
+// leaves the count at whoami's answer, before the list is read again.
+func TestWatchAppsScopes(t *testing.T) {
+	s, f, now := appPerson(t)
+	for range 6 {
+		step(t, s, f, now)
+	}
+	if fw := s.Firing(*now); fw.N != 1 {
+		t.Fatalf("blog's alert: %+v", fw)
+	}
+	f.Body("whoami.json", `{"name":"bob@example.com","key":"`+demo.Key.Fingerprint+`","roles":[{"role":"viewer","scope":"app:shop"}],"box":"deploy.example.com","version":"v0.7.0","protocol":1}`)
+	*now = now.Add(model.AgainAfter)
+	s.Engine.Again(*now, model.Job{Kind: model.KWhoAmI})
+	for range 30 {
+		if step(t, s, f, now).Kind == model.KWhoAmI {
+			break
+		}
+	}
+	if fw := s.Firing(*now); fw.Why != model.Known || fw.N != 0 {
+		t.Errorf("blog's grant gone, the list not read again: %+v", fw)
+	}
+}
+
+// TestWatchAppsRelisted: an app that leaves the list and comes back is
+// watched from a first answer: what it held before is neither counted
+// before its read nor taken for its baseline, and what arrived on it
+// unseen is gone.
+func TestWatchAppsRelisted(t *testing.T) {
+	s, f, now := appPerson(t)
+	for range 6 {
+		step(t, s, f, now)
+	}
+	f.Body("alerts/shop.json", `{"monitor":"on","alerts":[`+alert("app_memory_high", "critical", "active", *now, "")+`]}`)
+	*now = now.Add(model.AppWatchEvery)
+	for range 6 {
+		step(t, s, f, now)
+	}
+	if fw := s.Firing(*now); fw.N != 2 || fw.New != 1 {
+		t.Fatalf("a new alert in shop: %+v", fw)
+	}
+	list := func(body string) {
+		f.Body("apps.json", body)
+		*now = now.Add(model.ListAgainAfter)
+		s.Engine.Again(*now, model.Job{Kind: model.KApps})
+		for range 30 {
+			if step(t, s, f, now).Kind == model.KApps {
+				return
+			}
+		}
+		t.Fatal("the list was not read")
+	}
+	list(`{"apps":[{"name":"blog"}]}`)
+	f.Body("alerts/shop.json", `{"monitor":"on","alerts":[`+alert("errors_high", "warning", "active", *now, "")+`]}`)
+	list(`{"apps":[{"name":"blog"},{"name":"shop"}]}`)
+	if fw := s.Firing(*now); fw.Why != model.NotAsked {
+		t.Errorf("shop back, not yet read: %+v", fw)
+	}
+	for range 30 {
+		if j := step(t, s, f, now); j.Kind == model.KAlerts && j.App == "shop" {
+			break
+		}
+	}
+	firing(t, s, *now, "shop back, read", 2, 0, false)
+}
