@@ -180,3 +180,84 @@ func TestAppWatchBackFromThePause(t *testing.T) {
 	}
 	t.Error("the open app's alerts were not read after the key")
 }
+
+// TestPausedWordReads: the paused word says the alerts are still read
+// only while a watch's read is made and answers: none with no app
+// listed; one app's alerts refused leaves the others read; a box's
+// alerts refused, none.
+func TestPausedWordReads(t *testing.T) {
+	idle := t0.Add(model.Idle)
+	e := model.NewEngine(t0)
+	e.SetWatch(model.WatchApps, t0)
+	if e.Health(idle).WatchRead {
+		t.Error("no app listed: said read")
+	}
+	e = model.NewEngine(t0)
+	e.SetWatch(model.WatchApps, t0)
+	e.SetApps(names(3), t0)
+	for _, a := range names(3) {
+		j := model.Job{Kind: model.KAlerts, App: a}
+		for range 50 {
+			got, ok, _ := e.Take(t0)
+			if !ok {
+				break
+			}
+			var err error
+			if got == j && a == "app-0" {
+				err = &model.Failure{Kind: model.FailForbidden, Message: "no"}
+			}
+			e.Done(got, t0, err)
+			if got == j {
+				break
+			}
+		}
+	}
+	if !e.Health(idle).WatchRead {
+		t.Error("one app's alerts refused, two read: not said read")
+	}
+	e = model.NewEngine(t0)
+	e.SetWatch(model.WatchBox, t0)
+	for range 10 {
+		j, ok, _ := e.Take(t0)
+		if !ok {
+			break
+		}
+		var err error
+		if j.Kind == model.KBoxAlerts {
+			err = &model.Failure{Kind: model.FailForbidden, Message: "no"}
+		}
+		e.Done(j, t0, err)
+	}
+	if e.Health(idle).WatchRead {
+		t.Error("the box's alerts refused: said read")
+	}
+}
+
+// TestAppPhasesAfterThePause: an apps list applied just after the pause
+// began lays each app's alerts in the paused minute's cycle; back at
+// the keys, each is read again within the 30 s cycle, not up to a
+// minute on.
+func TestAppPhasesAfterThePause(t *testing.T) {
+	e := model.NewEngine(t0)
+	e.SetWatch(model.WatchApps, t0)
+	now := t0.Add(model.Idle + time.Second)
+	e.SetApps(names(5), now)
+	e.Touch(now)
+	done := map[string]time.Time{}
+	for end := now.Add(2 * time.Minute); now.Before(end); {
+		e.Touch(now)
+		j, ok, wait := e.Take(now)
+		if !ok {
+			now = now.Add(max(wait, 100*time.Millisecond))
+			continue
+		}
+		e.Done(j, now, nil)
+		if j.Kind != model.KAlerts {
+			continue
+		}
+		if last, ok := done[j.App]; ok && now.Sub(last) > model.AppWatchEvery+time.Second {
+			t.Errorf("%s's alerts read %s apart at the keys", j.App, now.Sub(last))
+		}
+		done[j.App] = now
+	}
+}

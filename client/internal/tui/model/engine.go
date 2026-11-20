@@ -383,9 +383,10 @@ func (e *Engine) nextSlot(en *entry, now time.Time) time.Time {
 	return slot(en, now, e.background())
 }
 
-// slot is the next time after now at en's phase in a cycle of every.
+// slot is the next time after now at en's phase in a cycle of every:
+// a phase laid for a longer cycle (the pause's) is taken within this one.
 func slot(en *entry, now time.Time, every time.Duration) time.Time {
-	base := now.Truncate(every).Add(en.phase)
+	base := now.Truncate(every).Add(en.phase % every)
 	for !base.After(now) {
 		base = base.Add(every)
 	}
@@ -619,15 +620,21 @@ func (e *Engine) idleAt(t time.Time) bool { return t.Sub(e.touched) >= Idle }
 // readsThroughPause says whether the watch's reads go on while paused.
 func (e *Engine) readsThroughPause() bool { return !e.hardware && e.watch != WatchNone }
 
-// watchFailing says whether the newest read of one of the watch's
-// reads failed.
-func (e *Engine) watchFailing() bool {
+// watchAnswers says whether the watch's reads are made and answer: one
+// at least is not held (a refusal), and the newest read of none of
+// those failed.
+func (e *Engine) watchAnswers() bool {
+	n := 0
 	for j, en := range e.jobs {
-		if e.watchJob(j) && (en.misses > 0 || en.held) {
-			return true
+		switch {
+		case !e.watchJob(j) || en.held:
+		case en.misses > 0:
+			return false
+		default:
+			n++
 		}
 	}
-	return false
+	return n > 0
 }
 
 // watchJob says whether j is the watch's read now.
@@ -1268,7 +1275,7 @@ type Health struct {
 	// Back is set once, on the first answer after a run of none.
 	Back bool
 	// WatchRead: paused, and the watch's reads go on, the newest of
-	// each answered. While paused they are the only reads, so one that
+	// each answered (one refused aside; one at least is read). While paused they are the only reads, so one that
 	// fails alone begins no run of no answer: this is what says it.
 	WatchRead bool
 	// Waiting is how long the box has been waited for: since the read in
@@ -1284,7 +1291,7 @@ func (e *Engine) Health(now time.Time) Health {
 	defer e.mu.Unlock()
 	e.seen(now)
 	h := Health{Stop: e.stopped, Paused: e.idleAt(now), Misses: e.misses, Back: e.recovering}
-	h.WatchRead = h.Paused && e.readsThroughPause() && !e.watchFailing()
+	h.WatchRead = h.Paused && e.readsThroughPause() && e.watchAnswers()
 	e.recovering = false
 	if e.misses > 0 {
 		// The next read, as Take would make it: the retry, or the first
