@@ -122,6 +122,12 @@ func downloadArtifact(ctx context.Context, opts downloadOpts) (string, error) {
 func pinArtifactURL(rawURL string, allowInsecure bool, allowlist []artifactAllowEntry) (string, error) {
 	u, err := url.Parse(rawURL)
 	if err != nil {
+		// Its reason alone: a *url.Error quotes the whole URL, query
+		// and all.
+		var ue *url.Error
+		if errors.As(err, &ue) {
+			err = ue.Err
+		}
 		return "", validationError{msg: fmt.Sprintf("invalid artifact url: %v", err), said: "invalid artifact url"}
 	}
 	switch u.Scheme {

@@ -125,7 +125,6 @@ func TestDownloadPayloadRefusalsAreValidationErrors(t *testing.T) {
 func TestPinArtifactURLSaidQuotesNoURL(t *testing.T) {
 	const words = "URGENT-call-evil.example"
 	for name, rawURL := range map[string]string{
-		"unparseable url": "https://exa mple.com/" + words,
 		"weird scheme":    "ftp://example.com/" + words,
 		"plain http":      "http://127.0.0.1/" + words,
 		"not allowlisted": "https://evil.example/" + words,
@@ -141,6 +140,14 @@ func TestPinArtifactURLSaidQuotesNoURL(t *testing.T) {
 		if vErr.said == "" || strings.Contains(vErr.said, words) {
 			t.Errorf("%s: said = %q, want the refusal without the url", name, vErr.said)
 		}
+	}
+	// An unparseable URL is refused with url.Parse's reason alone, in
+	// the 422 too: its error quotes the whole URL, a presigned query's
+	// secret with it.
+	_, err := pinArtifactURL("https://exa mple.com/a.tgz?X-Amz-Signature="+words, false, mustAllowlist(t, "127.0.0.1"))
+	var vErr validationError
+	if !errors.As(err, &vErr) || vErr.msg != `invalid artifact url: invalid character " " in host name` || vErr.said != "invalid artifact url" {
+		t.Fatalf("unparseable url: msg %q, said %q (%v)", vErr.msg, vErr.said, err)
 	}
 }
 

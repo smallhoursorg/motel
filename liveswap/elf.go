@@ -40,8 +40,8 @@ type preflightError struct{ msg, said string }
 func (e *preflightError) Error() string { return e.msg }
 
 // commandsFile stands in a refusal's said for the path of the file a
-// command names.
-const commandsFile = "the command's file"
+// command or a pre_start runs; the refusal's prefix says which.
+const commandsFile = "the file it runs"
 
 // elfMachines maps e_machine to the Go architecture name a box reports
 // as runtime.GOARCH, and the machine's own name for the message.
