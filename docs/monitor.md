@@ -687,7 +687,8 @@ A person with the viewer role on the app or on the box
 ([people.md](people.md)) reads its numbers over the last hour, day, 7
 days or 14 days with `motel metrics <app> --range 1h|24h|7d|14d`, and
 `motel` alone draws them: `g` on an app's screen, `t` for another
-window. Each is a point a step (a minute over the hour, 5 minutes over
+window. This is on each release after v0.8.0; a box at v0.8.0 answers
+the read `404`. Each is a point a step (a minute over the hour, 5 minutes over
 the day, 30 over 7 days, an hour over 14), the newest of the last whole
 step, so up to an hour old over 14 days: the memory (each step's
 highest push), the CPU, and for an app behind `observe` its requests a
