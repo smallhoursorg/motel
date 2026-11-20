@@ -412,7 +412,8 @@ Properties that matter to the model:
   snapshot: it is the place secrets are meant to go, and unlike the argv
   it answers no question about what is running. Artifact URLs *are*
   redacted before logs/errors (`redactURL`, liveswap/download.go), so
-  query signatures do not leak.
+  query signatures do not leak, but for a `url` that does not parse
+  (owed: liveswap/DESIGN-liveswap.md, "Owed").
   A viewer reads most of this too, through the same filter: `GET /<app>`
   is the body a deploy token reads (liveswap/access/DESIGN-access.md,
   "The answers"), for one app with the viewer role on it, for every app
@@ -1265,12 +1266,15 @@ scope for the runtime model, in scope for release signing (roadmap).
 - **T8 — A person's key, stolen, with a role on the box.** As T7, for
   every app and the box's status: the commit, the host, the
   Caddyfile's digest, the box's key for secrets; and the box-wide reads:
-  the backups' status as any account looks at them, every alert and
-  silence (a silence's creator and comment included) and every rule.
+  the backups' status as any account looks at them, every alert but the
+  heartbeat, the test alert, the deploy mute and the people
+  announcements (so not those its own use set off), every active or
+  pending silence (its creator and comment included) and every rule.
   This is the operator's viewing key, and the one an address list is
   most worth having on. It reads what the box webhooks answer through
-  the same filtered bodies, and nothing root alone reads (the journal,
-  the backup repository and its credential, the admin socket).
+  the same filtered bodies, and nothing the webhooks do not answer: not
+  the journal, the backup repository and its credential, or the admin
+  socket.
 
 For **T2**: deploy-arbitrary-code (a push is contained by nothing but
 the claim scope; a pull additionally by the allowlist); deliberate

@@ -9,8 +9,11 @@ so security reports are taken seriously and handled with priority.
 The package also installs root units, each with a bounded set of
 capabilities: the box applier (`motel-box-apply.service`), which
 installs a signed config push, and the backups (`motel-backup.service`,
-and its restore drill); `moteld monitor setup --metrics` adds one more,
-`motel-metrics-netns.service`, the metrics store's network namespace.
+and its restore drill). `moteld monitor setup` adds root work with no
+capability bound: the `chmod` line of Alertmanager's drop-in, and with
+`--metrics` `motel-metrics-netns.service`, which makes the metrics
+store's network namespace, and the `chmod` and `systemctl` lines of
+the store's drop-in.
 
 ## Reporting a vulnerability
 
