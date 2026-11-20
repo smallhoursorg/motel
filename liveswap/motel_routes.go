@@ -33,6 +33,7 @@ type motelRoute struct {
 var motelRoutes = []motelRoute{
 	{motelPrefix + "/whoami", access.BoxWhoami, (*Handler).whoami},
 	{motelPrefix + "/apps", access.BoxApps, (*Handler).apps},
+	{motelPrefix + "/backups", access.BoxBackups, (*Handler).backups},
 }
 
 // findMotelRoute is the request's row, or nil: any other method, path
@@ -53,6 +54,9 @@ func findMotelRoute(r *http.Request) *motelRoute {
 // person's (p), or a global deploy source's (p nil). A path with no row
 // is a 404 for every caller, once authenticated.
 func (h *Handler) serveMotel(w http.ResponseWriter, r *http.Request, who access.Principal, p *Person) error {
+	if rt, name := findMotelAppRoute(r); rt != nil {
+		return h.serveMotelApp(w, r, who, p, rt, name)
+	}
 	rt := findMotelRoute(r)
 	if rt == nil {
 		return RespondJSON(w, http.StatusNotFound, wire.Error{Error: "not found"}, nil)

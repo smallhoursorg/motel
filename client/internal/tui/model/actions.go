@@ -25,6 +25,8 @@ var Actions = []Action{
 	{KStatus, "status <app>", "an app's row and screen", readStatus},
 	{KDeploy, "deploys <app> <version>", "a deploy's record", readDeploy},
 	{KBox, "box status", "the box screen", readBox},
+	{KBackups, "backup status", "the backups screen, and its line on the box screen", readBackups},
+	{KAlerts, "monitor alerts --app <app>", "the alerts on an app's screen", readAlerts},
 }
 
 // ActionFor is the action that reads k.
@@ -80,8 +82,9 @@ func readStatus(ctx context.Context, _ *Session, c Client, j Job) (func(*Session
 			a.err, a.errAt = err, at
 			if Forbidden(err) || NotFound(err) {
 				// The box's last word on it is a refusal: what was held of
-				// it goes, so no later failure can bring it back.
-				a.st, a.flight, a.ended = nil, nil, nil
+				// it goes, its alerts too, and the deploy seen in flight, so
+				// no later failure can bring them back.
+				a.st, a.alerts, a.flight, a.ended = nil, nil, nil, nil
 			}
 			return
 		}
@@ -113,6 +116,41 @@ func readDeploy(ctx context.Context, _ *Session, c Client, j Job) (func(*Session
 		}
 		g.At = at
 		r.d, r.err = &g, nil
+	}, err
+}
+
+func readAlerts(ctx context.Context, _ *Session, c Client, j Job) (func(*Session, time.Time), error) {
+	g, err := c.Alerts(ctx, j.App)
+	return func(s *Session, at time.Time) {
+		a := s.app(j.App)
+		if err != nil {
+			a.alertsErr = err
+			if Forbidden(err) || NotFound(err) {
+				// Dropped, as a status's is (readStatus): a box older than
+				// the read answers 404.
+				a.alerts = nil
+			}
+			return
+		}
+		g.At = at
+		a.alerts, a.alertsErr = &g, nil
+	}, err
+}
+
+func readBackups(ctx context.Context, _ *Session, c Client, _ Job) (func(*Session, time.Time), error) {
+	g, err := c.Backups(ctx)
+	return func(s *Session, at time.Time) {
+		if err != nil {
+			s.BackupsErr = err
+			if Forbidden(err) || NotFound(err) {
+				// Dropped, as a status's is (readStatus): a box older than
+				// the read answers 404.
+				s.BackupsSt = nil
+			}
+			return
+		}
+		g.At = at
+		s.BackupsSt, s.BackupsErr = &g, nil
 	}, err
 }
 

@@ -2,7 +2,8 @@
 // shows sample data with no box, and the fake client its tests run
 // against. Its fixtures are bodies as a box writes them, with times
 // written as "@-12m" (twelve minutes before the fake's clock at its
-// first read) so that ages read as they would, and grow as a box's do.
+// first read, or, in a body a test set, when it was set) so that ages
+// read as they would, and grow as a box's do.
 package demo
 
 import (
@@ -34,16 +35,18 @@ type Fake struct {
 	Delay time.Duration
 
 	mu sync.Mutex
-	// Errs makes a read fail: keyed "whoami", "apps", "box", an app's
-	// name, or "<app>@<version>".
+	// Errs makes a read fail: keyed "whoami", "apps", "box", "backups", an app's
+	// name, "<app>@<version>", or "alerts:<app>".
 	Errs map[string]error
 	// Bodies replaces a fixture's body, keyed by its path in fixtures/.
 	Bodies map[string]string
 	Calls  []Call
 	// anchor is the fake's clock at its first read, which the fixtures'
-	// times are read against: a box's times stay put from one read to
-	// the next, so the deploy in flight is the same deploy at each.
+	// times are read against, and set when each body set was set, which
+	// its times are: a box's times stay put from one read to the next,
+	// so the deploy in flight is the same deploy at each.
 	anchor time.Time
+	set    map[string]time.Time
 }
 
 // Call is one read the fake answered.
@@ -74,6 +77,12 @@ func (f *Fake) Body(path, body string) {
 		f.Bodies = map[string]string{}
 	}
 	f.Bodies[path] = body
+	if f.set == nil {
+		f.set = map[string]time.Time{}
+	}
+	if f.Now != nil {
+		f.set[path] = f.Now()
+	}
 }
 
 var token = regexp.MustCompile(`"@(-?[0-9]+)([smhd])"`)
@@ -97,9 +106,12 @@ func (f *Fake) load(ctx context.Context, j model.Job, key, path string, v any) (
 	if f.anchor.IsZero() {
 		f.anchor = now
 	}
-	anchor := f.anchor
 	err := f.Errs[key]
 	body, replaced := f.Bodies[path]
+	anchor := f.anchor
+	if at, ok := f.set[path]; ok && replaced {
+		anchor = at
+	}
 	f.mu.Unlock()
 	if err != nil {
 		return nil, err
@@ -172,6 +184,31 @@ func (f *Fake) Deploy(ctx context.Context, app, version string) (model.Got[wire.
 func (f *Fake) BoxStatus(ctx context.Context) (model.Got[wire.BoxStatus], error) {
 	var g model.Got[wire.BoxStatus]
 	b, err := f.load(ctx, model.Job{Kind: model.KBox}, "box", "box.json", &g.V)
+	g.Body = b
+	return g, err
+}
+
+// Backups answers backups.json.
+func (f *Fake) Backups(ctx context.Context) (model.Got[wire.Backups], error) {
+	var g model.Got[wire.Backups]
+	b, err := f.load(ctx, model.Job{Kind: model.KBackups}, "backups", "backups.json", &g.V)
+	g.Body = b
+	return g, err
+}
+
+// Alerts answers alerts/<app>.json, or no alert held for an app with
+// none: every app of the fixtures is on a box with a monitor.
+func (f *Fake) Alerts(ctx context.Context, app string) (model.Got[wire.Alerts], error) {
+	var g model.Got[wire.Alerts]
+	j := model.Job{Kind: model.KAlerts, App: app}
+	path := "alerts/" + app + ".json"
+	f.mu.Lock()
+	_, replaced := f.Bodies[path]
+	f.mu.Unlock()
+	if _, err := fs.Stat(fixtures, "fixtures/"+path); err != nil && !replaced {
+		f.Body(path, `{"monitor":"on","alerts":[]}`)
+	}
+	b, err := f.load(ctx, j, "alerts:"+app, path, &g.V)
 	g.Body = b
 	return g, err
 }

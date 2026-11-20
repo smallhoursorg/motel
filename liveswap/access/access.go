@@ -12,10 +12,10 @@
 // do before Decide existed, so on an app's path and on the box's own
 // Decide refuses nothing that its authentication accepted; under
 // /_motel/ it refuses a global source's token the people's routes
-// (liveswap/DESIGN-liveswap.md, "Who may take which action"). A person may read: an app's status and deploys where
-// a grant covers the app, the box's status with a grant on the box, and
-// who they are and which apps they may view whatever their grants
-// (DESIGN-access.md).
+// (liveswap/DESIGN-liveswap.md, "Who may take which action"). A person may read: an app's status, deploys and alerts where
+// a grant covers the app, the box's status and its backups' with a
+// grant on the box, and who they are and which apps they may view
+// whatever their grants (DESIGN-access.md).
 package access
 
 import (
@@ -41,11 +41,15 @@ const (
 	BoxPush         Action = "box.push"          // POST /
 	BoxWhoami       Action = "box.whoami"        // GET /_motel/whoami
 	BoxApps         Action = "box.apps"          // GET /_motel/apps
+	BoxBackups      Action = "box.backups"       // GET /_motel/backups
+	AppAlerts       Action = "app.alerts"        // GET /_motel/apps/<app>/alerts
 )
 
-// MotelActions are the box actions liveswap_webhook serves under
-// /_motel/, beside the apps' routes; box_webhook serves the others.
-var MotelActions = []Action{BoxWhoami, BoxApps}
+// MotelActions are the actions liveswap_webhook serves under /_motel/,
+// beside the apps' routes: box actions, and app actions on the app the
+// path names after /_motel/apps/. box_webhook serves the other box
+// actions.
+var MotelActions = []Action{BoxWhoami, BoxApps, BoxBackups, AppAlerts}
 
 // Kind is which sort of principal a verified token stands for.
 type Kind int
@@ -99,6 +103,8 @@ var allowed = []cell{
 	{Person, BoxStatus},
 	{Person, BoxWhoami},
 	{Person, BoxApps},
+	{Person, BoxBackups},
+	{Person, AppAlerts},
 }
 
 // Forbidden is Decide's refusal of a principal the box verified, for
@@ -143,8 +149,13 @@ func Decide(p Principal, a Action, resource string) error {
 	if !slices.Contains(allowed, cell{p.Kind, a}) {
 		if slices.Contains(MotelActions, a) && (p.Kind == AppDeployer || p.Kind == BoxChannel) {
 			// A deploy token is told what it would take: no deploy
-			// source may ask who anyone is.
-			return &Forbidden{Needs: "key", Scope: "box"}
+			// source may ask who anyone is, or read a person's reads of
+			// an app.
+			scope := "box"
+			if strings.HasPrefix(string(a), "app.") {
+				scope = "app"
+			}
+			return &Forbidden{Needs: "key", Scope: scope}
 		}
 		return fmt.Errorf("principal kind %d may not take %s", p.Kind, a)
 	}
@@ -185,11 +196,11 @@ func decidePerson(p Principal, a Action, resource string) error {
 		return &Forbidden{Needs: "deployer", Scope: scope}
 	}
 	switch a {
-	case AppStatus, AppDeployRecord:
+	case AppStatus, AppDeployRecord, AppAlerts:
 		if !p.Views.Covers(resource) {
 			return &Forbidden{Needs: "viewer", Scope: "app"}
 		}
-	case BoxStatus:
+	case BoxStatus, BoxBackups:
 		if p.Views == nil || !p.Views.Box {
 			return &Forbidden{Needs: "viewer", Scope: "box"}
 		}
