@@ -233,6 +233,13 @@ func TestARunRefusesWhatSetupRefusesWithSetupsWords(t *testing.T) {
 				panic(err)
 			}
 		}, "the credential file %ENVFILE% is open to others than root (mode 0640)"},
+		// A directory others may write, whose writer could put another
+		// file in the credential file's place.
+		{"a credential file in a directory only root may write", func(b *box) {
+			if err := os.Chmod(filepath.Dir(b.cfg.EnvFile), 0o777); err != nil {
+				panic(err)
+			}
+		}, fmt.Sprintf("is uid %d's, mode 0777: it has to be root's and writable by nobody else, or someone else could put another file in the credential file's place: chown root:root ", os.Getuid())},
 		// Another account's file, whatever its mode: its owner may change
 		// it, or open it to anyone.
 		{"a credential file that is root's", func(b *box) { credentialOwner = uint32(os.Getuid()) + 1 },

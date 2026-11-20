@@ -26,6 +26,7 @@ import (
 	"github.com/smallhoursorg/motel/backups/plan"
 	"github.com/smallhoursorg/motel/backups/record"
 	"github.com/smallhoursorg/motel/backups/unit"
+	"golang.org/x/sys/unix"
 )
 
 // Terminal is the operator at a terminal: what setup asks, with echo
@@ -603,9 +604,11 @@ var credentialOwner = uint32(0)
 // CredentialRootsAlone says why the credential file at name, as fi
 // (its open descriptor's stat) describes it, is not root's alone, or
 // nil: that it belongs to root and nobody else may read, write or run
-// it — what ssh asks of a private key. The file holds the repository's
-// password and the storage key, and the motel uid must never read them.
-// Said with the command that puts it right, as root; setup writes it so.
+// it — what ssh asks of a private key — and that its directory is
+// root's and writable by nobody else, whose writer could put another
+// file in its place. The file holds the repository's password and the
+// storage key, and the motel uid must never read or replace them. Said
+// with the command that puts it right, as root; setup makes both so.
 func CredentialRootsAlone(name string, fi fs.FileInfo) error {
 	st, ok := fi.Sys().(*syscall.Stat_t)
 	if !ok {
@@ -616,6 +619,14 @@ func CredentialRootsAlone(name string, fi fs.FileInfo) error {
 		return fmt.Errorf("the credential file %s belongs to uid %d, not root, and it holds the repository's password and the storage key: chown root:root %s && chmod 0600 %s, as root", name, st.Uid, name, name)
 	case st.Mode&0o077 != 0:
 		return fmt.Errorf("the credential file %s is open to others than root (mode %04o), and it holds the repository's password and the storage key: chmod 0600 %s, as root", name, st.Mode&0o7777, name)
+	}
+	dir := filepath.Dir(name)
+	var d unix.Stat_t
+	if err := unix.Stat(dir, &d); err != nil {
+		return fmt.Errorf("the credential file's directory %s could not be looked at: %w", dir, err)
+	}
+	if d.Uid != credentialOwner || d.Mode&0o022 != 0 {
+		return fmt.Errorf("the credential file's directory %s is uid %d's, mode %04o: it has to be root's and writable by nobody else, or someone else could put another file in the credential file's place: chown root:root %s && chmod 0755 %s, as root", dir, d.Uid, d.Mode&0o7777, dir, dir)
 	}
 	return nil
 }
