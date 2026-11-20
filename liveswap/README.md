@@ -1573,46 +1573,83 @@ What's yours to handle:
 
 ### GitHub Actions
 
-No deploy secret to store — the job mints an OIDC token per run
+No deploy secret to store — the deploy job mints an OIDC token per run
 (matching a `deploy_trust github { audience motel; claim repository
-your-org/blog; claim ref refs/heads/main }` block on the box):
+your-org/blog; claim ref refs/heads/main }` block on the box). Three
+jobs, so that the box only ever holds a token that reads the
+repository: the build runs the repository's code and its tools with a
+read token, the release job alone may write (it runs none of that
+code), and the deploy job, which talks to the box, reads:
 
 ```yaml
 permissions:
-  id-token: write               # required to mint the OIDC token
-  contents: write               # (for the release upload below)
+  contents: read
 
-steps:
-- name: Build artifact
-  run: |
-    npm ci && npm run build
-    tar -czf blog.tar.gz -C dist .
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    outputs:
+      sha256: ${{ steps.build.outputs.sha256 }}
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+    - name: Build artifact
+      id: build
+      run: |
+        npm ci && npm run build
+        tar -czf blog.tar.gz -C dist .
+        sha=$(sha256sum blog.tar.gz)
+        echo "sha256=${sha%% *}" >> "$GITHUB_OUTPUT"
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: blog
+        path: blog.tar.gz
+        retention-days: 1
 
-- name: Upload release
-  id: release
-  uses: softprops/action-gh-release@v2
-  with:
-    tag_name: build-${{ github.run_number }}
-    files: blog.tar.gz
+  release:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write             # the release upload
+    outputs:
+      asset_url: ${{ fromJSON(steps.release.outputs.assets)[0].url }}
+    steps:
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      with:
+        name: blog
+    - name: Upload release
+      id: release
+      uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+      with:
+        tag_name: build-${{ github.run_number }}
+        files: blog.tar.gz
 
-- name: Deploy
-  env:
-    ASSET_URL: ${{ fromJSON(steps.release.outputs.assets)[0].url }}
-    GH_TOKEN: ${{ github.token }}
-  run: |
-    JWT=$(curl -fsS -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-      "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=motel" | jq -er .value)
-    echo "::add-mask::$JWT"
-    SHA256=$(sha256sum blog.tar.gz | cut -d' ' -f1)
-    curl --fail-with-body --max-time 900 -X POST \
-      -H "Authorization: Bearer $JWT" \
-      -d '{
-        "url": "'"$ASSET_URL"'",
-        "version": "build-${{ github.run_number }}",
-        "auth_header": "token '"$GH_TOKEN"'",
-        "sha256": "'"$SHA256"'"
-      }' \
-      https://deploy.example.com/blog
+  deploy:
+    needs: [build, release]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read              # the token the box fetches the asset with
+      id-token: write             # required to mint the OIDC token
+    steps:
+    - name: Deploy
+      env:
+        ASSET_URL: ${{ needs.release.outputs.asset_url }}
+        SHA256: ${{ needs.build.outputs.sha256 }}
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        JWT=$(curl -fsS -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+          "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=motel" | jq -er .value)
+        echo "::add-mask::$JWT"
+        curl --fail-with-body --max-time 900 -X POST \
+          -H "Authorization: Bearer $JWT" \
+          -d '{
+            "url": "'"$ASSET_URL"'",
+            "version": "build-${{ github.run_number }}",
+            "auth_header": "token '"$GH_TOKEN"'",
+            "sha256": "'"$SHA256"'"
+          }' \
+          https://deploy.example.com/blog
 ```
 
 `ASSET_URL` is the uploaded asset's API URL
@@ -1622,13 +1659,16 @@ hosts match exactly, and `github.com/your-org/` does not admit it.
 (`jq -er` fails the step if the mint returned nothing, instead of
 sending an empty bearer and blaming `deploy_trust`.)
 
-`SHA256` is the digest of the tarball this job built, taken from the
-runner's own copy: the box refuses the asset unless it hashes to the
-same, so nothing between the upload and the deploy can swap it.
+`SHA256` is the digest of the tarball the build job built, taken from
+the runner's own copy: the box refuses the asset unless it hashes to
+the same, so nothing between the build and the deploy can swap it.
 
 (`auth_header` is a separate, artifact-download credential — the token
 that reads a private release asset — not the deploy token. It is the
-job's own token, which expires when the job ends.)
+deploy job's own token, which reads the repository and nothing more,
+and expires when that job ends. Sent from a job with `contents:
+write`, it would let whoever controls the box write to the repository
+until then.)
 
 (For public repos, the plain `browser_download_url`
 (`https://github.com/your-org/blog/releases/download/<tag>/blog.tar.gz`)
@@ -1647,10 +1687,11 @@ relaunches the running version from its disk ([Relaunching the
 running version](#relaunching-the-running-version)); with other bytes
 under that version it is a `422` — versions are immutable — so a
 re-run never deploys other bytes under a version the box has. The
-example workflows rebuild the tarball on a re-run, and `tar -czf`
-stamps it with the build time, so their re-run is the `422`; to
-relaunch the running version from the Actions tab, **Run workflow**
-with it as the rollback target. A URL or push deploy that fails has its extracted
+example workflows rebuild the tarball when every job is re-run, and
+`tar -czf` stamps it with the build time, so that re-run is the `422`;
+a re-run of their deploy job alone sends the published asset and its
+digest again, the same tarball. To relaunch the running version from
+the Actions tab, **Run workflow** with it as the rollback target. A URL or push deploy that fails has its extracted
 release removed, so its version can be deployed again (a failed
 rollback leaves its on-disk release alone) — unless the 5xx body says
 `release <version> left

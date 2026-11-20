@@ -315,7 +315,7 @@ outcome() { # the http_status of a complete last line; else 200 for a whole sing
 refused() {
 	echo "the box refused this token. Most often its deploy_trust for this app does not accept:"
 	if [ -n "$minted" ]; then
-		printf '  %-18s%s\n' 'audience' "${MOTEL_AUDIENCE:-motel}" 'claim repository' "${GITHUB_REPOSITORY:-?}" 'claim ref' "${GITHUB_REF:-?}"
+		printf '  %-19s%s\n' 'audience' "${MOTEL_AUDIENCE:-motel}" 'claim repository' "${GITHUB_REPOSITORY:-?}" 'claim ref' "${GITHUB_REF:-?}" 'claim workflow_ref' "${GITHUB_WORKFLOW_REF:-?}"
 	else
 		echo "  the key this token was minted with (deploy_trust local { public_key ... })"
 		echo "  the audience, subject or claim it pins, against what moteld deploy-token was given"

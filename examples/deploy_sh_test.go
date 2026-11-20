@@ -318,6 +318,7 @@ func TestDeployShSaysWhatARefusedRunMustBeTrustedFor(t *testing.T) {
 	summary := filepath.Join(t.TempDir(), "summary.md")
 	out, code := deploySh(t, srv,
 		"GITHUB_ACTIONS=true", "GITHUB_REPOSITORY=org/blog", "GITHUB_REF=refs/heads/main",
+		"GITHUB_WORKFLOW_REF=org/blog/.github/workflows/deploy.yml@refs/heads/main",
 		"ACTIONS_ID_TOKEN_REQUEST_URL="+srv.URL+"/token?api-version=1", "ACTIONS_ID_TOKEN_REQUEST_TOKEN=run",
 		"MOTEL_TOKEN=", "GITHUB_STEP_SUMMARY="+summary)
 	if code != 1 {
@@ -325,9 +326,10 @@ func TestDeployShSaysWhatARefusedRunMustBeTrustedFor(t *testing.T) {
 	}
 	for _, want := range []string{
 		"::add-mask::minted-motel",
-		"audience          motel",
-		"claim repository  org/blog",
-		"claim ref         refs/heads/main",
+		"audience           motel",
+		"claim repository   org/blog",
+		"claim ref          refs/heads/main",
+		"claim workflow_ref org/blog/.github/workflows/deploy.yml@refs/heads/main",
 		"journalctl -u moteld",
 		"::error title=motel%3A demo v1 failed::invalid or missing deploy token (Authorization: Bearer <jwt>); the log says what the box must trust",
 	} {
@@ -339,7 +341,7 @@ func TestDeployShSaysWhatARefusedRunMustBeTrustedFor(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(got), "claim repository  org/blog") {
+	if !strings.Contains(string(got), "claim repository   org/blog") {
 		t.Errorf("job summary lacks the checklist:\n%s", got)
 	}
 }
