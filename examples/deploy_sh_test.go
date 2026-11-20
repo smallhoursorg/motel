@@ -206,7 +206,10 @@ func deployShIn(t *testing.T, srv *httptest.Server, dir string, args []string, e
 	if _, err := os.Stat(script); err != nil {
 		t.Fatal(err)
 	}
-	// A bound, so a script that hangs fails its test, not the run.
+	// A bound, so a script stuck in its own shell (a slow expansion, a
+	// loop) fails its test, not the run. It kills sh alone: a child
+	// still holding the output pipe (a stalled curl) is left to go
+	// test's -timeout.
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "sh", append([]string{script}, args...)...)
