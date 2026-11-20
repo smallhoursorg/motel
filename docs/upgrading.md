@@ -671,9 +671,12 @@ down while it does.
 
 ## Removing the package
 
-`apt remove moteld` stops the box: the backup timers and any backup
-run, moteld, and the box applier's path unit, and then the `motel`
-user's service manager, which stops every app. moteld is disabled, the
+`apt remove moteld` stops the box: the backup timers and the backup
+and drill services, moteld, and the box applier's path unit, and then
+the `motel` user's service manager, which stops every app. A
+`motel-backup` command started from a shell (a run, a restore at its
+prompt) holds the run lock and is left to run with its program gone,
+named on the terminal: let it end before you remove the package. moteld is disabled, the
 path unit and the backup timers are masked until the package is
 installed again, and the `motel` user no longer lingers: the package's
 own files go, with the drop-ins and the linger its install made and the
