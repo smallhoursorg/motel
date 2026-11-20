@@ -548,7 +548,9 @@ func TestRenderRoutesWithAmtool(t *testing.T) {
 // TestRenderFollowsNoRedirect reads in the YAML, asked of Alertmanager,
 // whose next release could merge http_config differently.
 func TestAlertmanagerFollowsNoRedirect(t *testing.T) {
-	amtool(t) // the package that ships amtool ships the daemon too
+	// Debian ships both in one package; it skips without either, and
+	// e2e/metrics/run.sh fails a skip.
+	amtool(t)
 	bin, err := exec.LookPath("prometheus-alertmanager")
 	if err != nil {
 		t.Skip("prometheus-alertmanager is not installed (Debian: prometheus-alertmanager)")
@@ -662,7 +664,12 @@ func TestAlertmanagerFollowsNoRedirect(t *testing.T) {
 		}
 		return n
 	}
-	want := float64(1 + len(r.order)) // the alerts posted, one notification each
+	// One notification for each alert posted; the Watchdog's only with
+	// a heartbeat, which the full block has.
+	want := float64(len(r.order))
+	if r.heartbeat != "" {
+		want++
+	}
 	for deadline := time.Now().Add(30 * time.Second); failed() < want && !followed(); {
 		if time.Now().After(deadline) {
 			mu.Lock()
