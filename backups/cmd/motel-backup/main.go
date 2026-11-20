@@ -445,25 +445,20 @@ func showStatus(ctx context.Context, asJSON bool) error {
 }
 
 // credentialWarnings is what status, as root, says of the credential
-// file at path: first what a run refuses of whose it is and its mode,
-// in the run's words, asked of the file it opened; then envWarnings of
+// file at path, read as a run reads it (a FIFO in its place is refused,
+// not waited on): first what a run refuses of whose it is and its mode,
+// in the run's words, asked of the file it read; then envWarnings of
 // its bytes.
 func credentialWarnings(path string) []string {
-	f, err := os.Open(path) //nolint:gosec // root's own file, a constant of the installation
+	raw, fi, err := engine.ReadRegular(path)
 	if err != nil {
 		return envWarnings(path, nil, err)
 	}
-	defer func() { _ = f.Close() }()
 	var out []string
-	if fi, err := f.Stat(); err != nil {
-		return envWarnings(path, nil, err)
-	} else if fi.Mode().IsRegular() {
-		if err := engine.CredentialRootsAlone(path, fi); err != nil {
-			out = append(out, err.Error())
-		}
+	if err := engine.CredentialRootsAlone(path, fi); err != nil {
+		out = append(out, err.Error())
 	}
-	raw, err := io.ReadAll(f)
-	return append(out, envWarnings(path, raw, err)...)
+	return append(out, envWarnings(path, raw, nil)...)
 }
 
 // envWarnings is what status, as root, says of the credential file at

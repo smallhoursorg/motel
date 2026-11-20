@@ -574,11 +574,12 @@ func b2Region(repo string) string {
 	return b2RegionOf(s3Authority(repo))
 }
 
-// readRegular reads a file that is a regular one, following a link as
+// ReadRegular reads a file that is a regular one, following a link as
 // the manager does, and opened O_NONBLOCK so that a FIFO is refused, not
-// waited on. What it returns beside the bytes is the open file's own
-// stat, so that a caller asks the file it read, not the name again.
-func readRegular(name string) ([]byte, fs.FileInfo, error) {
+// waited on: how a run reads the credential file, and status as root.
+// What it returns beside the bytes is the open file's own stat, so that
+// a caller asks the file it read, not the name again.
+func ReadRegular(name string) ([]byte, fs.FileInfo, error) {
 	f, err := os.OpenFile(name, os.O_RDONLY|syscall.O_NONBLOCK, 0) //nolint:gosec // root's own file, a constant of the installation
 	if err != nil {
 		return nil, nil, err
@@ -630,7 +631,7 @@ func CredentialRootsAlone(name string, fi fs.FileInfo) error {
 // regular file: a FIFO in its place would otherwise hold the run, and
 // its lock, for ever.
 func repositoryInUse(envFile string) error {
-	raw, fi, err := readRegular(envFile)
+	raw, fi, err := ReadRegular(envFile)
 	if err != nil {
 		return fmt.Errorf("the credential file %s could not be read: %w", envFile, err)
 	}
