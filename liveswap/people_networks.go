@@ -344,30 +344,39 @@ func (k *PeopleNetworks) seen(reg *access.Registry, fp, person string, addr neti
 	}
 	// Told outside the lock (the journal, notify's engine), then
 	// written: a crash between the two tells it again, never not at all.
-	// Deferred, so an announcer that panics leaves no stop waiting.
+	// Deferred, so an announcer that panics (the http server recovers
+	// the request) leaves no stop waiting, and the network untold.
 	k.telling++
 	a := k.announcer
 	k.mu.Unlock()
+	told := false
 	defer func() {
 		k.mu.Lock()
-		k.toldLocked(fp, net)
+		k.toldLocked(fp, net, told)
 		k.telling--
 		k.mu.Unlock()
 	}()
 	k.announce(logger, a, Announcement{Name: EventPersonNewNetwork, Person: person, Key: fp, From: networkText(net), First: first})
+	told = true
 }
 
-// toldLocked marks key fp's network net told, and has it written. A
-// network dropped meanwhile (its key removed, or cut by the networks
-// a key keeps) is not written.
-func (k *PeopleNetworks) toldLocked(fp string, net netip.Prefix) {
+// toldLocked marks key fp's network net told, and has it written; or,
+// its announcement cut short (told false), forgets it, so its next use
+// tells it. A network dropped meanwhile (its key removed, or cut by the
+// networks a key keeps) is not written.
+func (k *PeopleNetworks) toldLocked(fp string, net netip.Prefix, told bool) {
 	kn := k.keys[fp]
 	if kn == nil {
 		return
 	}
-	if i := slices.IndexFunc(kn.nets, func(s seenNetwork) bool { return s.net == net && s.untold }); i >= 0 {
+	i := slices.IndexFunc(kn.nets, func(s seenNetwork) bool { return s.net == net && s.untold })
+	switch {
+	case i < 0:
+	case told:
 		kn.nets[i].untold = false
 		k.changedLocked(true)
+	default:
+		kn.nets = slices.Delete(kn.nets, i, i+1)
 	}
 }
 
@@ -498,9 +507,9 @@ func (k *PeopleNetworks) changedLocked(urgent bool) {
 // was due. It waits for the new networks' announcements being made too
 // (a request's, or a read's held uses), each written once told, so none
 // is cut off by the exit. (An outside-list's is a request's alone, which
-// the http app's graceful stop waits for, and is never written.) A write that hangs is left to itself past the wait; while
-// writes fail, the minute's retry is left as it is and a stop waits
-// for no write.
+// the http app's graceful stop waits for, and is never written.) A
+// write that hangs is left to itself past the wait; while writes fail,
+// the minute's retry is left as it is and a stop waits for no write.
 func FlushPeopleNetworks() { sharedNetworks.flushWithin(networksStopWait) }
 
 func (k *PeopleNetworks) flushWithin(wait time.Duration) {
@@ -679,7 +688,7 @@ func (k *PeopleNetworks) loaded(b []byte, readErr error) {
 	}
 	k.mu.Lock()
 	for _, u := range anns {
-		k.toldLocked(u.ann.Key, u.net)
+		k.toldLocked(u.ann.Key, u.net, true)
 	}
 	if changed || reordered {
 		k.changedLocked(changed)

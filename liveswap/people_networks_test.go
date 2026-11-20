@@ -907,6 +907,21 @@ func TestNetworksStopWaitsForTheTelling(t *testing.T) {
 		if took := time.Since(began); took > time.Second {
 			t.Errorf("a stop waited %s after an announcer panicked", took)
 		}
+		// Not told, so neither kept nor written: its next use tells it.
+		if n := k.nets(fp); slices.Contains(n, gatedNetwork) {
+			t.Errorf("kept %v", n)
+		}
+		if b, err := os.ReadFile(k.file); err != nil || strings.Contains(string(b), gatedNetwork) {
+			t.Errorf("written %q, %v", b, err)
+		}
+		h := &heard{}
+		k.mu.Lock()
+		k.announcer = h
+		k.mu.Unlock()
+		k.seen(people.reg, fp, "alice", addr("203.0.113.10"), zap.NewNop())
+		if got := h.take(); len(got) != 1 || got[0].From != gatedNetwork {
+			t.Errorf("its next use: told %+v", got)
+		}
 	})
 }
 
