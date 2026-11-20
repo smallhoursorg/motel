@@ -451,7 +451,8 @@ kept; two names that would be cut alike are shown longer, alike, until
 they differ, as far as the screen leaves room for STATE beside them;
 the whole name is what is opened, searched and printed. An app's
 screen shows its state and deploys, and under its state (and under
-the deploy's lines below, when it has them) its alerts,
+the deploy's lines below, when it has them; for an app with no
+version yet, after its `deployed` line) its alerts,
 read while the screen is open (under their count the command that
 lists them whole, `motel monitor alerts --box <host> --app <app>`,
 since the screen's `y` and `P` give the status; then the first three,
