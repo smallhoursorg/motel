@@ -675,9 +675,10 @@ down while it does.
 run, moteld, and the box applier's path unit, and then the `motel`
 user's service manager, which stops every app. moteld is disabled, the
 path unit and the backup timers are masked until the package is
-installed again, and the `motel` user no longer lingers. The
-package's own files go; nothing else is deleted, `/etc/motel/Caddyfile`
-included.
+installed again, and the `motel` user no longer lingers: the package's
+own files go, with the drop-ins and the linger its install made and the
+backup timers' stamps, so that a reinstall does not take a backup and
+a drill as missed and run both at once. Nothing else is deleted, `/etc/motel/Caddyfile` included.
 
 `apt purge moteld` then deletes what the package made and nothing else
 holds: `/etc/motel/Caddyfile` (a symlink there is kept, and named), the
@@ -687,8 +688,12 @@ starter's record in `/var/lib/motel-package`, the box applier's tree in
 keeps, and says so on the terminal:
 
 - the box's key for secrets and the env files decrypted with it,
-  `/etc/motel/age` and `/etc/motel/secrets`, so `/etc/motel` stays: the
-  key is the one way to read the secrets in the box's repository;
+  `/etc/motel/age`, `/etc/motel/age.pub` and `/etc/motel/secrets`, so
+  `/etc/motel` stays: the key is the one way to read the secrets in the
+  box's repository;
+- the Caddyfile and the applier's tree, when a run of the applier still
+  holds its lock after 30 s, and that tree when something is mounted
+  at or under it;
 - the backup repository's credential, `/etc/motel-backup/repository.env`:
   its password is the one way to read the backups already made;
 - a non-empty `/var/lib/motel-backup/staging` or `restore`, which holds

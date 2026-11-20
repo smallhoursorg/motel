@@ -38,9 +38,9 @@ What the laptop needs, on this page and the ones after it:
   where a step shows a `gh` command, GitHub's web pages do the same,
   and the step says where.
 - `age`, once the box has secrets ([Secrets](secrets.md)).
-- To run the box repository's `make check` yourself, Linux, with a
-  `moteld` on `PATH` (its `bin/install-moteld` installs the release's,
-  with `sudo`): there is no macOS build. From a Mac, the repository's
+- To run the box repository's `make check` yourself, Linux, with the
+  release's `moteld` on `PATH`, from the tarball on its releases page:
+  there is no macOS build. From a Mac, the repository's
   workflow runs it on every push and pull request.
 - The laptop client, `motel`, only to read the box over HTTPS
   ([Giving a person access](people.md)). No release up to v0.8.0
@@ -75,11 +75,12 @@ minute. At the provider:
 2. **TCP 80 and 443** must be reachable from the internet, and
    **UDP 443** too for HTTP/3. If the provider has a firewall, allow
    all three from anywhere; on one where each rule names a protocol,
-   such as Hetzner Cloud's, that is a rule for each. Allow 22 from
-   your own address, and deny the rest: motel listens on no other
-   port, but an app may open one of its own, and the provider's
-   firewall is what keeps it shut. A provider with no firewall leaves
-   every such port open ([Hardening the box](hardening.md), step 2).
+   such as Hetzner Cloud's, that is a rule for each. Allow 22 too
+   ([Hardening the box](hardening.md) narrows it to your own address),
+   and deny the rest: motel listens on no other port, but an app may
+   open one of its own, and the provider's firewall is what keeps it
+   shut. On a provider with none, only a firewall on the box itself
+   would, which these pages do not set up.
    Leaving UDP 443 closed is a fine choice: everything works, and
    browsers fall back to HTTP/2 over TCP without saying so. The end of
    step 3 checks it.

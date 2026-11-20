@@ -56,7 +56,9 @@ box {
   numbers, and its numbers over time. `grant <name> viewer box` lets them read every app,
   the box's own status, what the box says of its backups, every
   alert and silence the box's Alertmanager holds, and every rule the box
-  alerts on with every number.
+  alerts on with every number. On a box at v0.8.0 either grant reads
+  status and deploys alone: the alerts, rules, numbers over time and
+  backups are on each release after it ([below](#what-they-reach)).
 - A `signer` line's ed25519 key is already that signer's key as a
   person: `alice` above needs no `person` line, only a `grant`. Once
   the block names anyone in a `person` or `grant` line, every signer
@@ -86,9 +88,9 @@ box {
 Check the file, then push it as any change to the box (a signed
 commit). `make check`, at the top of the box's repository, checks every
 box's file; it needs a Linux `moteld`, and on a Mac the pull request's
-check runs it instead. Run bare, `moteld validate` refuses a file
-whose `monitor` block reads a `{secret.…}`, since those values are on
-the box alone; `make check` tells it their names. To see the people
+check runs it instead. Off the box, a bare `moteld validate` refuses a
+file whose `monitor` block reads a `{secret.…}`, since those values are
+on the box alone; `make check` tells it their names. To see the people
 lines as the box reads them, on Linux:
 
 ```sh
