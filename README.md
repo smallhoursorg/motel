@@ -1,7 +1,7 @@
 # motel
 
 **Deploy from `git push` to a single cheap server, with zero downtime.**
-One binary that is your reverse proxy, your deploy pipeline, your rate
+One package that is your reverse proxy, your deploy pipeline, your rate
 limiter, your page cache, and your apps' hourly backups, with its
 config and secrets kept in git — for indie hackers, solo devs, and
 small businesses running real apps on cheap servers. No Docker, no
@@ -17,12 +17,15 @@ Built in:
 | Module | What it does |
 |---|---|
 | **[liveswap](liveswap/)** | Zero-downtime app deploys: webhook from CI, artifact download, migrations, health-gated start, atomic traffic cutover, graceful stop, versioned releases with rollback. Your apps run as systemd units under the motel user's own service manager — Node.js, Go, anything that can listen on a unix socket — surviving motel restarts and upgrades, with a continuous watchdog that restarts them on crash or sustained health failure (a restart budget and backoff bound the rate; it throttles rather than giving up on anything a retry can fix). |
-| **[penaltybox](penaltybox/)** | Rate limiting driven by your app's `X-Rate-Limit-Level` hint headers — weighted sliding-window budgets, tiers, and a penalty box for clients that cross them. |
+| **[penaltybox](penaltybox/)** | Rate limiting driven by your app's `X-Rate-Limit-Level` hint headers — weighted sliding-window budgets, tiers, and a penalty box for clients that cross them. Its design is [penaltybox/DESIGN-penaltybox.md](penaltybox/DESIGN-penaltybox.md). |
 | **[box](examples/box/)** | Config from git: the box's Caddyfile lives in a repository of its own, and each signed push to `main` reaches the box, which checks the commit's signature, validates the file, installs it as root, and rolls back a reload that fails. The apps' secrets ride along, encrypted to the box's own key. CI holds no SSH key. |
 | **[backups](backups/)** | Hourly backups of what each app declares — its SQLite databases and the files under its `shared/` — into a [restic](https://restic.net) repository off the box, a weekly drill that proves a restore would work, and `motel-backup restore` to put an app back. A program of its own in the package, `motel-backup`, which runs Debian's restic and sqlite3 in sandboxed units and links no Caddy; motel validates the declaration and does nothing else with it. The operator's guide is [docs/backups.md](docs/backups.md). |
 | **[notify](notify/DESIGN-notify.md)** | Who motel tells, about what (experimental): a restart loop, a failed or refused deploy, a rollback, a stale backup, a failed certificate renewal, a filling disk, a release worse than the one it replaced, the operator's own threshold rules, each to the operator's channels and, for an app, to the channels bound to the identities it trusts, from the `monitor` block in the Caddyfile, whose `metrics` line also keeps the box's and each app's numbers ([notify/DESIGN-metrics.md](notify/DESIGN-metrics.md)). Debian's Alertmanager delivers, on a unix socket and no port, with a config motel renders; `moteld monitor setup` installs it, and `moteld monitor setup --metrics` the store too. The operator's guide is [docs/monitor.md](docs/monitor.md). |
+| **[access](liveswap/access/DESIGN-access.md)** | People, not CI, reading a box from a laptop: `person` and `grant` lines in the box's Caddyfile give a person's ssh key the `viewer` role on one app or on the whole box, and the key signs a short token the box checks on every read. Reads only: no person can deploy, roll back or push. |
 | **cache** | HTTP page caching via [Souin](https://github.com/darkweak/souin) with in-memory [Otter](https://github.com/darkweak/storages) storage. |
 | everything Caddy has | Automatic HTTPS, HTTP/2 + HTTP/3, the Caddyfile, the admin API — motel *is* Caddy underneath, with the modules above compiled in. |
+| **[motel, the client](client/)** | Not in the server: the laptop client (experimental), which reads a box over HTTPS with that token — an app's status and deploys, a deploy as it runs, the box's backups, alerts and rules — from the command line or its screens. Each release after v0.8.0 carries it for an M-series Mac; elsewhere it builds from this repository. |
+| **[packaging](packaging/)** | The `.deb`: what ships and at which mode (`packaging/nfpm.yaml`'s comments), the maintainer scripts and the units. The triage of the scripts is [packaging/DESIGN-packaging.md](packaging/DESIGN-packaging.md). |
 
 ## Install
 
@@ -114,12 +117,18 @@ without the feature it exists for.
 The laptop client, `motel` (experimental; [client/](client/README.md)),
 is on the same page for an M-series Mac from the first release after
 v0.8.0 on: `motel_<version>_darwin_arm64.tar.gz`, with the release's
-own number. Its README's "Getting it" fetches and checks it, and
-builds it from a clone on Linux and on an Intel Mac.
+own number. No release up to v0.8.0 carries it, so on those there is
+nothing to download: build it from a clone. Its README's "Getting it"
+fetches and checks it, and builds it from a clone on Linux and on an
+Intel Mac.
 
 **Installing and upgrading need root; everyday administering does
 not.** Checking a config
-(`moteld validate`) needs no privilege, and reading the journal —
+(`moteld validate`) needs no privilege, except on the box for a file
+whose `monitor` block has more than a `metrics` line: validate then
+reads the box's secrets in `/etc/motel/secrets`, which only root and
+the `motel` group can enter, and refuses the file to anyone else, so
+run it as root there. Reading the journal —
 moteld's and every app's — needs the `adm` group. The config changes
 only by a signed push from the box's repository
 ([examples/box](examples/box)), and so do the apps' secrets kept there,
@@ -140,8 +149,9 @@ changing the config, secrets (whose reference is
 [Secrets](docs/secrets.md)) and the way back, and
 [Hardening the box](docs/hardening.md) covers SSH by key only, the SSH
 port shut, and, optionally, an administrator who is not root,
-Debian's updates installed on their own, and seven kernel network
-modules no app needs refused.
+Debian's updates installed on their own, seven kernel network
+modules no app needs refused, and a memory and CPU ceiling for all the
+apps together.
 The first two use the three directories below, which the e2e suite
 builds and deploys on every change, so what they say works:
 
@@ -394,11 +404,14 @@ module graph is larger than that (about 180 modules) only because
 `liveswap/wire` is a package of the liveswap module, whose go.mod
 requires Caddy.
 
-Build and CI tooling never ships to users and is pinned by image tag
-in `docker-compose.yml`: `golang` (toolchain), `golangci-lint`,
-`gitleaks` (secret scan), `nfpm` (deb packaging), `python` (the usage
-ledger and pin-watch) and `curl` (the e2e runner). GitHub Actions are
-pinned to commit SHAs.
+Build and CI tooling is pinned in `docker-compose.yml`. Two of its
+images shape what ships, and are pinned by digest (the tag beside it
+is for Dependabot and for people): `golang` (the toolchain that
+compiles moteld, motel-backup and the client) and `nfpm` (writes the
+`.deb`). The rest never ship to users and are
+pinned by image tag: `golangci-lint`, `gitleaks` (secret scan),
+`python` (the usage ledger and pin-watch) and `curl` (the e2e runner).
+GitHub Actions are pinned to commit SHAs.
 
 What keeps this honest: `govulncheck` gates every PR that changes code and runs weekly
 against the fresh vulnerability database (reachable-code analysis, all
