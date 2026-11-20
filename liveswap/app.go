@@ -185,9 +185,11 @@ var (
 
 // validationError is a bad request (422), as opposed to a deploy that
 // failed on its own merits (500). msg is what the 422 and the journal
-// say. said is the same refusal without the text in msg the deployer
-// chose — the artifact URL, a path inside the release — for the
-// operator's channels (reportDeploy); empty when msg quotes none.
+// say. said is the same refusal without the free text in msg the
+// deployer chose — the artifact URL, a path inside the release — for
+// the operator's channels (reportDeploy); empty when msg quotes none.
+// A version or a digest is not free text: each passed its format
+// check (validVersion, sha256Re) before any refusal quotes it.
 type validationError struct{ msg, said string }
 
 func (e validationError) Error() string { return e.msg }
