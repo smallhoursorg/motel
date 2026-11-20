@@ -388,8 +388,9 @@ install, as root:
 stat -c '%n %U %a' /etc/motel-backup /etc/motel-backup/repository.env
 ```
 
-It should say `root 755` of the directory and `root 600` of the file
-(`root 700` and `root 400` pass too). For anything else:
+It should say `root 755` of the directory, which every account looks
+into to see whether backups are set up, and `root 600` of the file
+(`root 400` passes too). For anything else:
 `chown root:root /etc/motel-backup /etc/motel-backup/repository.env && chmod 0755 /etc/motel-backup && chmod 0600 /etc/motel-backup/repository.env`.
 
 ## A person's key, told once after the install
