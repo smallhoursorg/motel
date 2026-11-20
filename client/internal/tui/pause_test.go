@@ -175,3 +175,21 @@ func TestMeSaysThePause(t *testing.T) {
 		}
 	}
 }
+
+// TestPausedRefusalReleased: a viewer of the box whose alerts are
+// refused (a 403) while paused has them read again, with no key, once
+// whoami lists the box again: whoami is read through the pause too.
+func TestPausedRefusalReleased(t *testing.T) {
+	h := start(t, 100, 30, nil)
+	h.away(model.Idle + time.Minute)
+	h.fake.Set("box-alerts", &model.Failure{Kind: model.FailForbidden, Message: "no"})
+	h.away(2 * time.Minute)
+	if f := h.s.Firing(h.now); f.Why != model.WasRefused {
+		t.Fatalf("refused: %+v", f)
+	}
+	h.fake.Set("box-alerts", nil)
+	h.away(model.MeAlways + time.Minute)
+	if f := h.s.Firing(h.now); f.Why != model.Known {
+		t.Errorf("the box's grant back, still paused: %+v", f)
+	}
+}

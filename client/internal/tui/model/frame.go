@@ -633,7 +633,8 @@ func (s *Session) freshness(now time.Time) Line {
 		// 57 cells: every word here fits the smallest window, 60, the
 		// left side cut before it (TestTitleWordsAt60).
 		return Line{ownC("STOPPED: answered about another key or box · r asks again", Bad)}
-	case h.Paused && !h.WatchRead:
+	case h.Paused && !h.ReadsOn:
+		// Nothing is read: a hardware key, or nothing to watch.
 		return Line{ownC("PAUSED (idle 10m): any key resumes", Warn)}
 	case h.SlowIn > 0:
 		// The box's word, an hour if it says so: until when, counting
@@ -650,11 +651,14 @@ func (s *Session) freshness(now time.Time) Line {
 	case h.Waiting >= WaitingAfter:
 		// A read not answered yet: not live while the box is waited for.
 		return Line{ownC("waiting "+Ago(h.Waiting)+" for an answer · "+ago, Warn)}
-	case h.Paused:
+	case h.Paused && h.WatchRead:
 		// The watch's reads go on, and answer: a 429, slow, STALE and
 		// waiting above say when they do not. 53 cells: the tiny mark
 		// beside it fits 60.
 		return Line{ownC("PAUSED (idle 10m), alerts still read: any key resumes", Warn)}
+	case h.Paused:
+		// They go on, and the newest failed or none has answered yet.
+		return Line{ownC("PAUSED (idle 10m): any key resumes", Warn)}
 	case !s.backAt.IsZero() && now.Sub(s.backAt) < 5*time.Second:
 		return Line{ownC("back · "+hms(s.backAt), Good)}
 	case s.refused && s.last.IsZero():

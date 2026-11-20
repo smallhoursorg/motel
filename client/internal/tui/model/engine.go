@@ -623,8 +623,8 @@ func (e *Engine) idleAt(t time.Time) bool { return t.Sub(e.touched) >= Idle }
 func (e *Engine) readsThroughPause() bool { return !e.hardware && e.watch != WatchNone }
 
 // watchAnswers says whether the watch's alerts reads are made and
-// answer: one at least is not held (a refusal), and the newest read of
-// none of those failed.
+// answer: one at least has answered and is not held (a refusal), and
+// the newest read of none failed.
 func (e *Engine) watchAnswers() bool {
 	n := 0
 	for j, en := range e.jobs {
@@ -632,20 +632,23 @@ func (e *Engine) watchAnswers() bool {
 		case !e.watchJob(j) || en.held || j.Kind == KApps || j.Kind == KWhoAmI:
 		case en.misses > 0:
 			return false
-		default:
+		case !en.answered.IsZero():
 			n++
 		}
 	}
 	return n > 0
 }
 
-// watchJob says whether j is the watch's read now: a person with app
-// grants only also reads the list and whoami at their own pace, which
-// say which apps are watched (an app added or granted while paused).
+// watchJob says whether j is the watch's read now, which goes on while
+// paused: a person with app grants only also reads the list and whoami
+// at their own pace, which say which apps are watched (an app added or
+// granted while paused).
 func (e *Engine) watchJob(j Job) bool {
 	switch e.watch {
 	case WatchBox:
-		return j.Kind == KBoxAlerts
+		// whoami too, at its own pace: it releases a read a 403 held
+		// once it lists the role again (Session.follow).
+		return j.Kind == KBoxAlerts || j.Kind == KWhoAmI
 	case WatchApps:
 		return j.Kind == KAlerts && e.listed[j.App] || j.Kind == KApps || j.Kind == KWhoAmI
 	}
@@ -1284,9 +1287,12 @@ type Health struct {
 	SlowIn  time.Duration
 	// Back is set once, on the first answer after a run of none.
 	Back bool
-	// WatchRead: paused, and the watch's reads go on, the newest of
-	// each answered (one refused aside; one at least is read). While paused they are the only reads, so one that
-	// fails alone begins no run of no answer: this is what says it.
+	// ReadsOn: paused, and the watch's reads go on (a key that needs no
+	// touch). WatchRead: and they answer, the newest of each answered
+	// (one refused aside; one at least is read). While paused they are
+	// the only reads, so one that fails alone begins no run of no
+	// answer: this is what says it.
+	ReadsOn   bool
 	WatchRead bool
 	// Waiting is how long the box has been waited for: since the read in
 	// flight began to wait for it (not one cancelled); or, when a read
@@ -1301,7 +1307,8 @@ func (e *Engine) Health(now time.Time) Health {
 	defer e.mu.Unlock()
 	e.seen(now)
 	h := Health{Stop: e.stopped, Paused: e.idleAt(now), Misses: e.misses, Back: e.recovering}
-	h.WatchRead = h.Paused && e.readsThroughPause() && e.watchAnswers()
+	h.ReadsOn = h.Paused && e.readsThroughPause()
+	h.WatchRead = h.ReadsOn && e.watchAnswers()
 	e.recovering = false
 	if e.misses > 0 {
 		// The next read, as Take would make it: the retry, or the first
