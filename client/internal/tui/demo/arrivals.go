@@ -55,10 +55,11 @@ func Arrivals(ctx context.Context, f *Fake, after func(time.Duration) <-chan tim
 	}
 }
 
-// Arrive plays step i of Script on f: the box's alerts are then the
-// fixture's, their times pinned to the fake's first read, with the
-// script's alerts firing at this step in front of them, newest first,
-// each from the step it fired at.
+// Arrive plays step i of Script on f: the box's alerts, and the alerts
+// of each app the script fires on, are then the fixture's, their times
+// pinned to the fake's first read, with the script's alerts firing at
+// this step in front of them, newest first, each from the step it fired
+// at.
 func (f *Fake) Arrive(i int) {
 	st := Script[i]
 	f.mu.Lock()
@@ -80,9 +81,28 @@ func (f *Fake) Arrive(i int) {
 	}
 	f.firing = firing
 	f.mu.Unlock()
-	base, err := fs.ReadFile(fixtures, "fixtures/box-alerts.json")
+	// The box's alerts, and each app's the script fires on, so its
+	// screen shows them too.
+	apps := map[string]bool{}
+	for _, st := range Script {
+		if st.Fire != nil {
+			apps[st.Fire.App] = true
+		}
+	}
+	f.arrived("box-alerts.json", anchor, firing, "")
+	for app := range apps {
+		f.arrived("alerts/"+app+".json", anchor, firing, app)
+	}
+}
+
+// arrived sets the body at path: the fixture's (an app with none holds
+// no alert), its times pinned to anchor, with the alerts of firing in
+// front of its own, newest first; those of app alone when app is not ""
+// (an app's alerts name no app).
+func (f *Fake) arrived(path string, anchor time.Time, firing []Arrival, app string) {
+	base, err := fs.ReadFile(fixtures, "fixtures/"+path)
 	if err != nil {
-		return
+		base = []byte(`{"monitor":"on","alerts":[]}`)
 	}
 	pinned := token.ReplaceAllStringFunc(string(base), func(m string) string {
 		p := token.FindStringSubmatch(m)
@@ -96,13 +116,19 @@ func (f *Fake) Arrive(i int) {
 	alerts, _ := doc["alerts"].([]any)
 	var fired []any
 	for _, a := range firing {
-		fired = append(fired, map[string]any{"name": a.Name, "severity": a.Severity, "app": a.App, "summary": a.Summary,
-			"state": "active", "starts_at": a.start.UTC().Format(time.RFC3339)})
+		row := map[string]any{"name": a.Name, "severity": a.Severity, "summary": a.Summary, "state": "active", "starts_at": a.start.UTC().Format(time.RFC3339)}
+		switch {
+		case app == "":
+			row["app"] = a.App
+		case a.App != app:
+			continue
+		}
+		fired = append(fired, row)
 	}
 	doc["alerts"] = append(fired, alerts...)
 	b, err := json.Marshal(doc)
 	if err != nil {
 		return
 	}
-	f.Body("box-alerts.json", string(b))
+	f.Body(path, string(b))
 }

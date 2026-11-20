@@ -275,10 +275,11 @@ func (e *Engine) background() time.Duration {
 	if e.watch == WatchApps {
 		// Each app's alerts are read at the statuses' interval (it is
 		// never under AppWatchEvery), beside them: the open app's at its
-		// own, counted above.
-		n += len(e.apps)
-		if e.listed[e.alertsApp] {
-			n--
+		// own, counted above; one held (a 403, a 404) is not read.
+		for _, a := range e.apps {
+			if en, ok := e.jobs[Job{Kind: KAlerts, App: a}]; ok && !en.held && a != e.alertsApp {
+				n++
+			}
 		}
 	}
 	if n <= 0 || left <= 0 {

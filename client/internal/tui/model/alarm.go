@@ -66,9 +66,10 @@ func (a *alarm) forget() { a.unseen, a.owed, a.newAt = nil, false, time.Time{} }
 // rung at the first frame after it ends (the clock's tick draws one a
 // second), unless by then everything it was owed for was seen, has
 // resolved, or is no longer watched: it calls a person to what is new,
-// and nothing is. The screens take it at every frame, and ring the
-// terminal's bell only when it is on: taken while off, the floor counts
-// the same.
+// and nothing is. While the count is not known it is held too: no bell
+// rings beside `alerts not known`. The screens take it at every frame,
+// and ring the terminal's bell only when it is on: taken while off, the
+// floor counts the same.
 func (s *Session) Ring(now time.Time) bool {
 	s.seen(now)
 	a := &s.alarm
@@ -78,7 +79,7 @@ func (s *Session) Ring(now time.Time) bool {
 	case s.unseen() == 0:
 		a.owed = false
 		return false
-	case !a.rungAt.IsZero() && now.Sub(a.rungAt) < RingFloor:
+	case !a.rungAt.IsZero() && now.Sub(a.rungAt) < RingFloor, s.Firing(now).Why != Known:
 		return false
 	}
 	a.owed, a.rungAt = false, now

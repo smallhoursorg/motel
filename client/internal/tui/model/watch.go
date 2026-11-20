@@ -102,6 +102,10 @@ type watchSrc struct {
 	// failed: the newest read got no answer, or one the client could
 	// not use, or a 429, or stopped every read: the count is old.
 	failed bool
+	// every is the read's interval when its last known answer came: the
+	// next was due by it, whatever the interval is now (an app's screen
+	// opened makes its alerts' 15 s).
+	every time.Duration
 }
 
 // alertKey is an alert as the watch tells one from another across
@@ -285,8 +289,10 @@ func (s *Session) watchRead(j Job, at time.Time, err error) {
 	switch monitor {
 	case wire.MonitorOn:
 		fresh = src.take(rows, more, false, at)
+		src.every = s.Engine.WatchInterval(j)
 	case wire.MonitorOff:
 		fresh = src.take(nil, false, true, at)
+		src.every = s.Engine.WatchInterval(j)
 	case wire.MonitorUnanswered:
 		src.why, src.failed = Unanswered, false
 		return
@@ -371,7 +377,7 @@ func (s *Session) Firing(now time.Time) Firing {
 			if w.mode == WatchApps {
 				job = Job{Kind: KAlerts, App: n}
 			}
-			if src.failed || now.Sub(src.at) > s.Engine.WatchInterval(job)+WaitingAfter {
+			if src.failed || now.Sub(src.at) > max(src.every, s.Engine.WatchInterval(job))+WaitingAfter {
 				f.Old = true
 			}
 		}

@@ -479,6 +479,7 @@ made by hand. Accepted:
 | An alert that fires and ends within a gap of the reads (the pause, STALE, a sleep) is never counted nor rung: no read gives what fired before it | 2 | 5 | 5 | 50 | 3 (a read of what fired since, on the box) | accepted over the bar, by the owner's decision of 2026-11-20 (#576: no history of a gap); notify's channels still told it, and the mark says its count was old |
 | Against a moteld older than the alerts read (a 404), the title bar says `alerts not known` (`alerts ?`) in the warning colour on every screen until ctrl-r, though the box refused nothing | 2 | 5 | 1 | 10 | 2 (a dim word of its own for a box that cannot say) | accepted: the decision of 2026-11-20 (#576, READS.md section 3): the box cannot say, and the mark never reads as none firing; `:alerts` says the 404 and why |
 | While the box says it holds more alerts than it sends (`more_alerts`, past 500), every alert the watch has counted and the box no longer sends is kept as maybe firing until an answer without it, so the keys kept grow for as long as that lasts, and one not yet seen stays counted as new until a key | 2 | 2 | 3 | 12 | 2 | accepted: it takes an Alertmanager holding over 500 alerts, far past what motel posts; the count says `+` |
+| For a person with app grants only, two alerts of one app that differ only by instance and begin at one evaluation (an app's rule over two paths) are one in the title bar's count and ring once: an app's alerts carry no instance, so their keys are the same. A viewer of the box, whose read carries it, counts two | 2 | 3 | 3 | 18 | 3 (the instance on an app's alerts: a wire field) | accepted: it takes two instances crossing at one evaluation; the app's screen lists both |
 | `ChannelFailed` told to several channels is one alert in the title bar's count, but several identical rows on `:alerts` and in the box screen's count of what fires: the wire does not carry which channel each is | 2 | 3 | 3 | 18 | 2 (the channel on the wire, a notify change) | accepted: the owner's decision of 2026-11-20 (#576) leaves the box side for a PR of its own, if wanted |
 | The box screen's alerts line counts an alert in a state the client does not know (none Alertmanager 0.28 has: `active`, `suppressed`, `unprocessed`) as firing, and marks the line as one that needs a look | 2 | 1 | 3 | 6 | 2 | accepted: `:alerts` says the state as not known, the box's word quoted; counting such a state apart is a fourth count on the line for a state no Alertmanager sends |
 | A silence's matcher's label name is the box's text, unquoted, so a name that holds `" = "x", `, which Alertmanager 0.28 takes in a UTF-8 label name, reads on the `matches` row as one more matcher | 2 | 1 | 3 | 6 | 2 | accepted: only root (or the motel user) writes a silence past motel's own route, which takes no label name; the row is labelled and cut, and `y` shows the answer |
@@ -766,7 +767,9 @@ SIGINT, SIGTERM or SIGHUP sent to the process, or the terminal closed under the 
   With none firing nothing is drawn; with a box that has no monitor, a
   dim `no monitor` where the long form fits; before the first answer
   `alerts…`. Where the count is not known (its read refused: a 403 is
-  asked again when whoami next lists the role, a 404 by ctrl-r; the
+  asked again when whoami next lists the role, a 404 by ctrl-r on a
+  screen that shows the read (`:alerts`, the box screen, an app's
+  screen for its alerts); the
   box's Alertmanager did not answer the box; a monitor word the client
   does not know; a read that failed before any answer; an answer about
   another key or box) it says `alerts not known` (`alerts ?`, `?`),
@@ -791,8 +794,10 @@ SIGINT, SIGTERM or SIGHUP sent to the process, or the terminal closed under the 
   at the first answer, on a resolve, or while the count is not known;
   and at most once a minute: a bell due sooner is held, and rung once
   when the minute ends, unless by then what it was for has been seen,
-  has resolved, or is no longer watched (an app no longer listed). `MOTEL_BELL=off` in the environment turns the
-  bell off, and the mark is the same. What the terminal does with a
+  has resolved, or is no longer watched (an app no longer listed), and
+  held on while the count is not known. `MOTEL_BELL=off` in the
+  environment (or `no`, `false`, `0`, in any case) turns the bell off,
+  and the mark is the same. What the terminal does with a
   bell is its own setting (a sound, a flash, a badge on its tab or its
   Dock icon). No desktop notification and no window title is written.
   The mark and the bell carry only the client's own words and numbers:

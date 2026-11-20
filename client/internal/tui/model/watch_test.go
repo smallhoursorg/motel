@@ -758,3 +758,70 @@ func TestWatchHeldBeforeChange(t *testing.T) {
 		t.Errorf("after the box's grant is back: read %v, %+v", read, fw)
 	}
 }
+
+// TestWatchHeldWhileNotKnown: a bell held inside the floor is not rung
+// at its end while the count is not known, and is rung when it is known
+// again with what it was for still firing.
+func TestWatchHeldWhileNotKnown(t *testing.T) {
+	s, f, now := watcher(t)
+	for range 3 {
+		step(t, s, f, now)
+	}
+	y := alert("cert_failed", "critical", "active", *now, "")
+	f.Body("box-alerts.json", alerts(false, y))
+	watchRead(t, s, f, now)
+	firing(t, s, *now, "the first", 1, 1, true)
+	rang := *now
+	x := alert("disk_low", "warning", "active", *now, "")
+	f.Body("box-alerts.json", alerts(false, x, y))
+	watchRead(t, s, f, now)
+	f.Body("box-alerts.json", `{"monitor":"unanswered","alerts":[],"silences":[]}`)
+	watchRead(t, s, f, now)
+	*now = rang.Add(model.RingFloor)
+	if s.Ring(*now) {
+		t.Error("the held bell rang while the count is not known")
+	}
+	f.Body("box-alerts.json", alerts(false, x, y))
+	watchRead(t, s, f, now)
+	if !s.Ring(*now) {
+		t.Error("the held bell did not ring once the count was known again")
+	}
+}
+
+// TestWatchAppOpenedNotOld: a person with app grants only opening an
+// app's screen, whose alerts were read in the background a while ago,
+// does not make the count old: it is judged by the interval its answer
+// was due again by.
+func TestWatchAppOpenedNotOld(t *testing.T) {
+	s, f, now := appPerson(t)
+	for range 6 {
+		step(t, s, f, now)
+	}
+	*now = now.Add(model.AppWatchEvery - time.Second)
+	s.Engine.Touch(*now)
+	s.Engine.AlertsOpen("blog", *now)
+	if fw := s.Firing(*now); fw.Why != model.Known || fw.Old {
+		t.Errorf("blog's screen opened: %+v", fw)
+	}
+}
+
+// TestWatchAppsHeldNotBudgeted: an app's alerts held (a 404 from a box
+// older than the read) take no share of the budget the statuses are
+// read in.
+func TestWatchAppsHeldNotBudgeted(t *testing.T) {
+	e := model.NewEngine(t0)
+	e.SetWatch(model.WatchApps, t0)
+	apps := names(40)
+	calls := sim(e, apps, t0, 10*time.Minute, 50*time.Millisecond, func(j model.Job, _ time.Time) error {
+		if j.Kind == model.KAlerts {
+			return &model.Failure{Kind: model.FailNotFound, Message: "no"}
+		}
+		return nil
+	})
+	boxBucket(t, calls)
+	plain := model.NewEngine(t0)
+	sim(plain, apps, t0, 10*time.Minute, 50*time.Millisecond, ok)
+	if got, want := e.Interval("app-1"), plain.Interval("app-1"); got != want {
+		t.Errorf("with every app's alerts held a status comes every %s, want %s as with no watch", got, want)
+	}
+}

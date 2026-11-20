@@ -85,3 +85,43 @@ func TestArrivalsPlays(t *testing.T) {
 		t.Error("played after its context ended")
 	}
 }
+
+// TestArriveOnTheApps: an app the script fires on shows its alert on
+// its own screen too, beside the fixture's own, until it resolves.
+func TestArriveOnTheApps(t *testing.T) {
+	base := time.Date(2026, 11, 20, 12, 0, 0, 0, time.UTC)
+	now := base
+	f := &Fake{Now: func() time.Time { return now }}
+	names := func(app string) []string {
+		t.Helper()
+		g, err := f.Alerts(context.Background(), app)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []string
+		for _, a := range g.V.Alerts {
+			out = append(out, a.Name)
+		}
+		return out
+	}
+	own := names("blog")
+	for i, st := range Script {
+		now = base.Add(st.At)
+		f.Arrive(i)
+		blog, shop := names("blog"), names("shop")
+		switch i {
+		case 0:
+			if len(blog) != len(own)+1 || blog[0] != "relaunch_refused" || len(shop) != 0 {
+				t.Errorf("step 0: blog %v, shop %v", blog, shop)
+			}
+		case 1:
+			if len(shop) != 1 || shop[0] != "app_memory_high" {
+				t.Errorf("step 1: shop %v", shop)
+			}
+		case 2:
+			if len(blog) != len(own) {
+				t.Errorf("step 2: blog %v, want its own %v", blog, own)
+			}
+		}
+	}
+}

@@ -114,7 +114,7 @@ func (r *runner) screen(root *cobra.Command) {
 		}
 		o := tui.Options{Clock: tui.RealClock{}, Colour: r.env.Color, Tick: time.Second}
 		// The bell rings for a new alert unless MOTEL_BELL=off.
-		o.Bell = r.env.Getenv("MOTEL_BELL") != "off"
+		o.Bell = bellOn(r.env.Getenv("MOTEL_BELL"))
 		// Wall-clock time: a monotonic reading stops while a laptop
 		// sleeps, and ages and due times would leave the sleep out.
 		wall := func() time.Time { return r.env.Now().Round(0) }
@@ -174,6 +174,17 @@ func (r *runner) screen(root *cobra.Command) {
 	t.flags(root)
 	root.Flags().BoolVar(&sample, "demo", false, "show sample data, with no box")
 	_ = root.Flags().MarkHidden("demo")
+}
+
+// bellOn says whether the TUI rings the terminal's bell for a new
+// alert, by MOTEL_BELL: on unless it is off, or another word for it
+// (no, false, 0), in any case.
+func bellOn(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "off", "no", "false", "0":
+		return false
+	}
+	return true
 }
 
 // boxSession is the box and key a live session shows: the host alone
