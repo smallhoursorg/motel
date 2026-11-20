@@ -548,7 +548,11 @@ func TestRenderRoutesWithAmtool(t *testing.T) {
 // TestRenderFollowsNoRedirect reads in the YAML, asked of Alertmanager,
 // whose next release could merge http_config differently.
 func TestAlertmanagerFollowsNoRedirect(t *testing.T) {
-	bin := filepath.Join(filepath.Dir(amtool(t)), "prometheus-alertmanager")
+	amtool(t) // the package that ships amtool ships the daemon too
+	bin, err := exec.LookPath("prometheus-alertmanager")
+	if err != nil {
+		t.Skip("prometheus-alertmanager is not installed (Debian: prometheus-alertmanager)")
+	}
 	var mu sync.Mutex
 	hit, landed := map[string]bool{}, []string{}
 	land := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -617,10 +621,13 @@ func TestAlertmanagerFollowsNoRedirect(t *testing.T) {
 	for deadline := time.Now().Add(15 * time.Second); ; {
 		resp, err := http.Post(base+"/api/v2/alerts", "application/json", strings.NewReader("["+alerts+"]"))
 		if err == nil {
+			var b bytes.Buffer
+			_, _ = b.ReadFrom(resp.Body)
 			_ = resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {
 				break
 			}
+			err = fmt.Errorf("%s: %s", resp.Status, b.String())
 		}
 		if time.Now().After(deadline) {
 			fail("Alertmanager took no alerts: %v", err)
@@ -655,7 +662,7 @@ func TestAlertmanagerFollowsNoRedirect(t *testing.T) {
 		}
 		return n
 	}
-	want := float64(len(r.urls))
+	want := float64(1 + len(r.order)) // the alerts posted, one notification each
 	for deadline := time.Now().Add(30 * time.Second); failed() < want && !followed(); {
 		if time.Now().After(deadline) {
 			mu.Lock()

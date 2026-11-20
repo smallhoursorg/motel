@@ -267,7 +267,7 @@ TestRenderRoutesWithAmtool
 nam=$(names_count "$amtests")
 (cd /tmp && notify.test -test.run "$(names_pattern "$amtests")" -test.v -test.count=1) >/tmp/amtests.out 2>&1
 [ $? -eq 0 ] && [ "$(grep -c '^--- PASS' /tmp/amtests.out)" = "$nam" ] && ! grep -q -- '--- SKIP' /tmp/amtests.out \
-	&& pass "notify's $nam amtool tests run and pass against the box's amtool" \
+	&& pass "notify's $nam amtool tests run and pass against the box's amtool and Alertmanager" \
 	|| fail "notify's amtool tests: $(grep -E -- '^(--- |FAIL|ok)|SKIP|→' /tmp/amtests.out | head -10)"
 }
 case " $parts " in *" vm "*) case_vm ;; esac
