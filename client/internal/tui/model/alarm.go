@@ -65,9 +65,9 @@ func (a *alarm) forget() { a.unseen, a.owed, a.newAt = nil, false, time.Time{} }
 // Ring says whether the bell rings now, and takes it: owed, and
 // RingFloor since the last. A bell owed inside the floor is held, and
 // rung at the first frame after it ends (the clock's tick draws one a
-// second), unless by then everything it was owed for was seen, has
-// resolved, or is no longer watched: it calls a person to what is new,
-// and nothing is. While the count is not known it is held too: no bell
+// second), unless by then everything it was owed for (what arrived
+// after the last bell) was seen, has resolved, or is no longer watched:
+// it calls a person to what is new, and nothing is. While the count is not known it is held too: no bell
 // rings beside `alerts not known`. The screens take it at every frame,
 // and ring the terminal's bell only when it is on: taken while off, the
 // floor counts the same.
@@ -77,7 +77,7 @@ func (s *Session) Ring(now time.Time) bool {
 	switch {
 	case !a.owed:
 		return false
-	case s.unseen() == 0:
+	case s.unseen(a.rungAt) == 0:
 		a.owed = false
 		return false
 	case !a.rungAt.IsZero() && now.Sub(a.rungAt) < RingFloor, s.Firing(now).Why != Known:
@@ -133,6 +133,8 @@ func (s *Session) Mark(now time.Time) MarkForms {
 		return marks(Warn, "alerts not known", "alerts ?", "?", "?")
 	case f.Off:
 		return MarkForms{Long: Line{ownC("no monitor", Dim)}}
+	case f.N == 0 && f.More && f.Old:
+		return marks(Plain, "0+ firing as of "+Ago(now.Sub(f.At))+" ago", "0+?", "0+?", "?")
 	case f.N == 0 && f.More:
 		// The box sent none that is counted, and holds more than it sent.
 		return marks(Plain, "0+ firing", "0+", "0+", "?")

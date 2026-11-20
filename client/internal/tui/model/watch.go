@@ -225,12 +225,12 @@ func (s *Session) watched() []string {
 	return nil
 }
 
-// unseen is how many of what arrived are not yet seen, of the reads the
-// watch counts now: one of an app no longer listed is not.
-func (s *Session) unseen() int {
+// unseen is how many of what arrived after since are not yet seen, of
+// the reads the watch counts now: one of an app no longer listed is not.
+func (s *Session) unseen(since time.Time) int {
 	n, srcs := 0, s.watched()
-	for k := range s.alarm.unseen {
-		if slices.Contains(srcs, k.src) {
+	for k, at := range s.alarm.unseen {
+		if slices.Contains(srcs, k.src) && (since.IsZero() || at.After(since)) {
 			n++
 		}
 	}
@@ -394,6 +394,6 @@ func (s *Session) Firing(now time.Time) Firing {
 		// With nothing to read (no app listed) nothing is old.
 		f.Old = true
 	}
-	f.New = s.unseen()
+	f.New = s.unseen(time.Time{})
 	return f
 }

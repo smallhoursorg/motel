@@ -911,6 +911,10 @@ func (e *Engine) rank(j Job, en *entry) int {
 		return 2
 	case j.Kind == KApps:
 		return 3
+	case j.Kind == KAlerts && j.App != e.alertsApp:
+		// The watch's read of a background app's alerts: after every
+		// status due, so the apps screen fills first.
+		return 6
 	case j.Kind == KBox, j.Kind == KBackups, j.Kind == KAlerts, j.Kind == KBoxAlerts, j.Kind == KRules, j.Kind == KBoxRules, j.Kind == KSeries:
 		return 4
 	}

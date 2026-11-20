@@ -857,3 +857,57 @@ func TestSeenEach(t *testing.T) {
 		t.Errorf("a key half a second after the second: %d new, want 1", fw.New)
 	}
 }
+
+// TestHeldBellOldOnly: a bell held for an alert that then resolves is
+// not rung for an older one, still unseen, that rang already.
+func TestHeldBellOldOnly(t *testing.T) {
+	s, f, now := watcher(t)
+	for range 3 {
+		step(t, s, f, now)
+	}
+	y := alert("cert_failed", "critical", "active", *now, "")
+	f.Body("box-alerts.json", alerts(false, y))
+	watchRead(t, s, f, now)
+	firing(t, s, *now, "the first", 1, 1, true)
+	rang := *now
+	f.Body("box-alerts.json", alerts(false, alert("disk_low", "warning", "active", *now, ""), y))
+	watchRead(t, s, f, now)
+	f.Body("box-alerts.json", alerts(false, y))
+	watchRead(t, s, f, now)
+	if s.Ring(rang.Add(model.RingFloor)) {
+		t.Error("the held bell rang for the first, which rang already")
+	}
+}
+
+// TestWatchAppsStatusesFirst: for a person with app grants only, the
+// apps' statuses are read before their alerts when both are due, so the
+// apps screen fills as fast as before the watch.
+func TestWatchAppsStatusesFirst(t *testing.T) {
+	e := model.NewEngine(t0)
+	e.SetWatch(model.WatchApps, t0)
+	calls := sim(e, names(30), t0, time.Minute, 50*time.Millisecond, ok)
+	statuses := 0
+	for _, c := range calls {
+		switch c.j.Kind {
+		case model.KStatus:
+			statuses++
+		case model.KAlerts:
+			if statuses < 30 {
+				t.Fatalf("an app's alerts read after %d of 30 statuses", statuses)
+			}
+		}
+	}
+}
+
+// TestWatchMoreOld: 0+ says when its count is old.
+func TestWatchMoreOld(t *testing.T) {
+	s, f, now := watcher(t)
+	f.Body("box-alerts.json", alerts(true, alert("disk_low", "warning", "suppressed", t0, "")))
+	for range 3 {
+		step(t, s, f, now)
+	}
+	*now = now.Add(model.Idle)
+	if m := s.Mark(*now); m.Long.Text() != "0+ firing as of 10m ago" || m.Tiny.Text() != "0+?" {
+		t.Errorf("the mark says %q, %q", m.Long.Text(), m.Tiny.Text())
+	}
+}
