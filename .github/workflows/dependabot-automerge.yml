@@ -10,9 +10,9 @@
 # no type, stays open for human review. Its update-type output will not
 # do for this: for a group it is the highest typed bump and skips an
 # untyped one, so a patch beside an untyped update reads as a patch.
-# Hence updated-dependencies-json, entry by entry. A digest-only image
-# refresh (the tag unchanged) comes from Dependabot typed semver-patch,
-# so it merges.
+# Hence updated-dependencies-json, entry by entry. Dependabot has typed
+# a digest-only image refresh (the tag unchanged) semver-patch, so one
+# merges; one that came untyped would stay open.
 name: dependabot-automerge
 
 on: pull_request

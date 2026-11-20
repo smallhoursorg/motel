@@ -6,7 +6,10 @@ services:
   # own; the tag is for Dependabot and for people, and names Go's patch
   # release, so a new one is a version Dependabot moves to (after its
   # cooldown), not only a digest. Until it does, govulncheck fails on
-  # a called standard-library fix the pinned Go lacks, naming it.
+  # a called standard-library fix the pinned Go lacks, naming it; a
+  # bump by hand moves this line and the e2e and test/systemd
+  # Dockerfiles' golang lines together (`docker buildx imagetools
+  # inspect golang:<tag>` prints the index digest).
   # Integration tests spawn real child processes (the test app), which
   # is why this service has no read_only hardening: the tests exercise
   # process management.
