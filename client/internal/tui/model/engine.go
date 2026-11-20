@@ -622,14 +622,14 @@ func (e *Engine) idleAt(t time.Time) bool { return t.Sub(e.touched) >= Idle }
 // readsThroughPause says whether the watch's reads go on while paused.
 func (e *Engine) readsThroughPause() bool { return !e.hardware && e.watch != WatchNone }
 
-// watchAnswers says whether the watch's reads are made and answer: one
-// at least is not held (a refusal), and the newest read of none of
-// those failed.
+// watchAnswers says whether the watch's alerts reads are made and
+// answer: one at least is not held (a refusal), and the newest read of
+// none of those failed.
 func (e *Engine) watchAnswers() bool {
 	n := 0
 	for j, en := range e.jobs {
 		switch {
-		case !e.watchJob(j) || en.held:
+		case !e.watchJob(j) || en.held || j.Kind == KApps || j.Kind == KWhoAmI:
 		case en.misses > 0:
 			return false
 		default:
@@ -639,9 +639,17 @@ func (e *Engine) watchAnswers() bool {
 	return n > 0
 }
 
-// watchJob says whether j is the watch's read now.
+// watchJob says whether j is the watch's read now: a person with app
+// grants only also reads the list and whoami at their own pace, which
+// say which apps are watched (an app added or granted while paused).
 func (e *Engine) watchJob(j Job) bool {
-	return j.Kind == KBoxAlerts && e.watch == WatchBox || j.Kind == KAlerts && e.watch == WatchApps && e.listed[j.App]
+	switch e.watch {
+	case WatchBox:
+		return j.Kind == KBoxAlerts
+	case WatchApps:
+		return j.Kind == KAlerts && e.listed[j.App] || j.Kind == KApps || j.Kind == KWhoAmI
+	}
+	return false
 }
 
 // BoxRulesOpen says whether the box's rules screen is open: GET

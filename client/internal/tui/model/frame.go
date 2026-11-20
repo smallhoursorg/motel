@@ -620,7 +620,8 @@ func (s *Session) freshness(now time.Time) Line {
 	case s.Signing && !s.SigningAt.IsZero() && now.Sub(s.SigningAt) >= WaitingAfter:
 		// A key that needs no touch signs in well under a second; one
 		// that takes longer has an agent that asks first, or a stuck
-		// one: not live while it waits, and SignWithin ends it.
+		// one: not live while it waits, and the TUI's signer's deadline
+		// (cli's signWithin) ends it.
 		return Line{ownC("waiting "+Ago(now.Sub(s.SigningAt))+" for the key to sign · "+ago, Warn)}
 	case h.Stop == SignedOut:
 		return Line{ownC("SIGNED OUT: the box refused the key (401) · r asks again", Bad)}

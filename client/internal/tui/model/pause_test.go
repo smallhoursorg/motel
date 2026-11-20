@@ -95,6 +95,9 @@ func TestAppWatchThroughThePause(t *testing.T) {
 			if c.at.Sub(t0) < model.Idle+2*time.Minute {
 				continue // the pause's first reads still at the keys' pace
 			}
+			if c.j.Kind == model.KApps || c.j.Kind == model.KWhoAmI {
+				continue // which apps are watched, at their own pace
+			}
 			if c.j.Kind != model.KAlerts {
 				other++
 				continue
@@ -274,5 +277,35 @@ func TestWatchIntervalNotesNoTime(t *testing.T) {
 	e.WatchPaused(at.Add(-time.Second))
 	if e.Health(at.Add(model.Idle - 500*time.Millisecond)).Paused {
 		t.Error("paused before Idle after the key")
+	}
+}
+
+// TestAppAddedWhilePaused: for a person with app grants only, the list
+// is read through the pause too, so an app added meanwhile has its
+// alerts read before a key.
+func TestAppAddedWhilePaused(t *testing.T) {
+	e := model.NewEngine(t0)
+	e.SetWatch(model.WatchApps, t0)
+	e.Touch(t0)
+	apps := names(2)
+	now := t0
+	read := false
+	for end := t0.Add(model.Idle + 10*time.Minute); now.Before(end); {
+		if now.After(t0.Add(model.Idle + time.Minute)) {
+			apps = names(3)
+		}
+		j, ok, wait := e.Take(now)
+		if !ok {
+			now = now.Add(max(wait, time.Second))
+			continue
+		}
+		if j.Kind == model.KApps {
+			e.SetApps(apps, now)
+		}
+		e.Done(j, now, nil)
+		read = read || j == model.Job{Kind: model.KAlerts, App: "app-2"}
+	}
+	if !read {
+		t.Error("an app added while paused: its alerts never read")
 	}
 }
