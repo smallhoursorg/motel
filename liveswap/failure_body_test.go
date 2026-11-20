@@ -195,3 +195,20 @@ func TestFailureInAPhaseNamesItsPhase(t *testing.T) {
 		wantReading(t, "read as a deploy of v9", body, "v9", "", "start failed: boom")
 	}
 }
+
+// TestFailureCauseReadsAsWritten: a cause holding what Go's JSON
+// escapes (<, > and & as \u003c, \u003e and \u0026; a newline as \n)
+// reads in deploy.sh as written, a newline as a space, and an escaped
+// backslash before such a sequence stays a backslash.
+func TestFailureCauseReadsAsWritten(t *testing.T) {
+	h, rig := newTestHandler(t)
+	must(t, rig.ma.Deploy(context.Background(), deployRequest{url: "https://x/1.tgz", version: "v1"}))
+	rig.runner.setStartErr(errors.New("probe answered 503: <html> & \"q\"\n\tnext \\u003c"))
+	code, body := deployURLVersion(t, h, "v2", false)
+	if code != http.StatusInternalServerError || !strings.Contains(body, `\u003chtml\u003e \u0026`) {
+		t.Fatalf("%d %s", code, body)
+	}
+	if phase, why := deployShReads(t, body, "v2"); phase != "starting" || why != `start failed: probe answered 503: <html> & "q"  next \u003c` {
+		t.Errorf("deploy.sh reads phase %q, cause %q: %s", phase, why, body)
+	}
+}

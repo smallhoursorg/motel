@@ -329,7 +329,7 @@ func TestDeployShSaysWhatARefusedRunMustBeTrustedFor(t *testing.T) {
 		"claim repository  org/blog",
 		"claim ref         refs/heads/main",
 		"journalctl -u moteld",
-		"::error title=motel%3A demo v1 failed::invalid or missing deploy token (Authorization: Bearer \\u003cjwt\\u003e); the log says what the box must trust",
+		"::error title=motel%3A demo v1 failed::invalid or missing deploy token (Authorization: Bearer <jwt>); the log says what the box must trust",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("output lacks %q:\n%s", want, out)
@@ -778,12 +778,11 @@ func gitCheckout(t *testing.T, files map[string]string) (string, func(...string)
 // a deploy of the version sent.
 const (
 	linkRefusal = `refusing to deploy: /srv/motel/demo/tmp is a link, which is not followed under the liveswap root`
-	// A push refused before staging by a box older than #533's fix: the
-	// refusal, and the status as it was, whose last_deploy and deploys
-	// are v2's, failed in starting.
-	refusedWithOldStatus = `{"error":"` + linkRefusal + `","status":{"app":"demo","phase":"idle","current_version":"v1","running":true,"deploys":[{"version":"v2","status":"failed","phase":"starting","started_at":"t","finished_at":"t"},{"version":"v1","status":"succeeded","started_at":"t","finished_at":"t"}],"last_deploy":{"version":"v2","status":"failed","error":"start failed: boom","phase":"starting","started_at":"t","finished_at":"t","artifact_entries":0,"artifact_bytes":0,"phases":[{"name":"downloading","started_at":"t","seconds":0},{"name":"starting","started_at":"t","seconds":0}]},"available_versions":["v1"]}}`
-	// The same after v1 succeeded: the only phase is the app's "idle".
-	refusedAfterSuccess = `{"error":"` + linkRefusal + `","status":{"app":"demo","phase":"idle","current_version":"v1","running":true,"deploys":[{"version":"v1","status":"succeeded","started_at":"t","finished_at":"t"}],"last_deploy":{"version":"v1","status":"succeeded","started_at":"t","finished_at":"t","artifact_entries":0,"artifact_bytes":0},"available_versions":["v1"]}}`
+	// A failure body whose last_deploy and deploys are another
+	// version's, v2's, failed in starting: a URL deploy's or rollback's
+	// status read after another deploy took the lock (the race in
+	// DESIGN-liveswap.md's accepted residuals).
+	otherVersionsLastDeploy = `{"error":"` + linkRefusal + `","status":{"app":"demo","phase":"idle","current_version":"v1","running":true,"deploys":[{"version":"v2","status":"failed","phase":"starting","started_at":"t","finished_at":"t"},{"version":"v1","status":"succeeded","started_at":"t","finished_at":"t"}],"last_deploy":{"version":"v2","status":"failed","error":"start failed: boom","phase":"starting","started_at":"t","finished_at":"t","artifact_entries":0,"artifact_bytes":0,"phases":[{"name":"downloading","started_at":"t","seconds":0},{"name":"starting","started_at":"t","seconds":0}]},"available_versions":["v1"]}}`
 	// v3 failed in the pipeline before its first phase: last_deploy is
 	// its own, with no phase; v2's failed record is in deploys.
 	failedBeforeAnyPhase = `{"error":"` + linkRefusal + `","status":{"app":"demo","phase":"idle","current_version":"v1","running":true,"deploys":[{"version":"v2","status":"failed","phase":"starting","started_at":"t","finished_at":"t"}],"last_deploy":{"version":"v3","status":"failed","error":"` + linkRefusal + `","started_at":"t","finished_at":"t","artifact_entries":0,"artifact_bytes":0},"available_versions":["v1"]}}`
@@ -806,14 +805,16 @@ func TestDeployShNamesTheFailureOfTheVersionSent(t *testing.T) {
 		annotation          string // the ::error message
 		summary             string // the job summary's first line, after "**motel:** "
 	}{
-		{"a refusal with the status as it was (an older box)", refusedWithOldStatus, "v3", "", false, linkRefusal, "demo v3 failed, "},
-		{"a refusal with the status after a success (an older box)", refusedAfterSuccess, "v3", "", false, linkRefusal, "demo v3 failed, "},
+		{"a body whose last_deploy is another version's", otherVersionsLastDeploy, "v3", "", false, linkRefusal, "demo v3 failed, "},
 		{"a refusal alone", `{"error":"` + linkRefusal + `"}`, "v3", "", false, linkRefusal, "demo v3 failed, "},
 		{"a failure before the first phase", failedBeforeAnyPhase, "v3", "", false, linkRefusal, "demo v3 failed, "},
 		{"a failure in starting, streamed", failedInStarting, "v3", "", true, "in starting: start failed: boom", "demo v3 failed in `starting`, "},
 		{"a filtered body", failedRedacted, "v1", "", false, "in starting: start failed: [redacted]", "demo v1 failed in `starting`, "},
 		{"a rollback to last_deploy's version", failedRedacted, "v3", "v1", false, "in starting: start failed: [redacted]", "demo rollback to v1 failed in `starting`, "},
 		{"a rollback to another version", failedRedacted, "v3", "v0", false, "start failed: [redacted]", "demo rollback to v0 failed, "},
+		// What Go's JSON escapes reads as written; an escaped backslash
+		// before such a sequence stays a backslash.
+		{"a cause with escapes", `{"error":"probe: \u003cb\u003e \u0026 \\u003c\nnext"}`, "v3", "", false, `probe: <b> & \u003c next`, "demo v3 failed, "},
 		// Not the box's: its cause is not the first key, so the
 		// annotation points at the body, which the log printed.
 		{"JSON that is not the box's", `{"code":7,"error":"bad gateway","phase":"x"}`, "v3", "", false, "see the response above", "demo v3 failed, "},

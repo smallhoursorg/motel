@@ -167,18 +167,26 @@ fi
 
 # The Actions dressing. `field` reads one string field out of the
 # response (no jq here: this also runs from laptops): its last
-# occurrence, with JSON's \" and \\ unescaped so a quote in the cause
-# does not cut it short; `lead` reads it only as the body's first key.
+# occurrence, with JSON's escapes undone by `unjson` so a quote in the
+# cause does not cut it short; `lead` reads it only as the body's first
+# key. `unjson` undoes \" and \\, the \u003c, \u003e and \u0026 Go's
+# JSON writes for <, > and &, and makes \n, \r and \t a space; an
+# escaped backslash stands aside (as a newline, which sed's line holds
+# no other of) while the rest are undone, so a JSON \\u003c reads \u003c.
 # `failed` reads a failure body with them. `prop` and `msg` escape what a
 # workflow command's property and message may not contain. The
 # commands are written with printf, never echo: dash's echo turns a
 # JSON-escaped \n in a cause into a real newline and splits the line.
 actions=${GITHUB_ACTIONS:-}
+unjson() {
+	sed 's/\\\\/\
+/g; s/\\"/"/g; s/\\u003c/</g; s/\\u003e/>/g; s/\\u0026/\&/g; s/\\[nrt]/ /g; s/\n/\\/g'
+}
 field() {
-	printf '%s' "$1" | sed -n 's/.*"'"$2"'":"\(\([^\\"]*\\.\)*[^\\"]*\)".*/\1/p' | sed 's/\\\(["\\]\)/\1/g'
+	printf '%s' "$1" | sed -n 's/.*"'"$2"'":"\(\([^\\"]*\\.\)*[^\\"]*\)".*/\1/p' | unjson
 }
 lead() {
-	printf '%s' "$1" | sed -n 's/^{"'"$2"'":"\(\([^\\"]*\\.\)*[^\\"]*\)".*/\1/p' | sed 's/\\\(["\\]\)/\1/g'
+	printf '%s' "$1" | sed -n 's/^{"'"$2"'":"\(\([^\\"]*\\.\)*[^\\"]*\)".*/\1/p' | unjson
 }
 # failed <body> <version sent>: sets why, the body's own error (the
 # box puts it first, and a filtered body's sorted keys keep it first),

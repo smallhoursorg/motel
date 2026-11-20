@@ -353,7 +353,7 @@ func deployShReads(t *testing.T, body, sent string) (phase, why string) {
 	script, err := os.ReadFile(filepath.Join("..", "examples", "node", "scripts", "deploy.sh"))
 	must(t, err)
 	var defs string
-	for _, name := range []string{"field", "lead", "failed"} {
+	for _, name := range []string{"unjson", "field", "lead", "failed"} {
 		def := regexp.MustCompile(`(?ms)^` + name + `\(\) \{\n.*?^\}\n`).Find(script)
 		if def == nil {
 			t.Fatalf("deploy.sh has no %s function of the shape this test reads", name)
