@@ -7,6 +7,7 @@
 package examples
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -205,7 +206,10 @@ func deployShIn(t *testing.T, srv *httptest.Server, dir string, args []string, e
 	if _, err := os.Stat(script); err != nil {
 		t.Fatal(err)
 	}
-	cmd := exec.Command("sh", append([]string{script}, args...)...)
+	// A bound, so a script that hangs fails its test, not the run.
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "sh", append([]string{script}, args...)...)
 	cmd.Dir = dir
 	// Later entries win, so a developer's own MOTEL_AUDIENCE, or the
 	// job summary of an Actions run this test runs in, never reaches
@@ -845,5 +849,28 @@ func TestDeployShNamesTheFailureOfTheVersionSent(t *testing.T) {
 				t.Errorf("exit %d, annotation %q (want %q), summary %q (want it to begin %q)\n%s", code, annotation, tc.annotation, sum, tc.summary, out)
 			}
 		})
+	}
+}
+
+// A long one-line answer that is not the box's (a wrong MOTEL_URL
+// serving a minified page) is read in time linear in its length: a
+// strip with the shell's own pattern match took 11 s for 100 KB in
+// dash, and four times that for each doubling.
+func TestDeployShReadsALongAnswerQuickly(t *testing.T) {
+	t.Parallel()
+	if _, err := exec.LookPath("curl"); err != nil {
+		t.Fatal("deploy.sh needs curl; install it to run this test")
+	}
+	long := strings.Repeat("a", 1<<20)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadGateway)
+		_, _ = w.Write([]byte(long + "\n"))
+	}))
+	defer srv.Close()
+	began := time.Now()
+	out, code := deploySh(t, srv, "MOTEL_TOKEN=x", "GITHUB_ACTIONS=true", "ACTIONS_ID_TOKEN_REQUEST_URL=")
+	if took := time.Since(began); code != 1 || took > 30*time.Second || !strings.Contains(out, "::see the response above") {
+		t.Errorf("exit %d after %s, output ending %q", code, took, out[max(0, len(out)-300):])
 	}
 }

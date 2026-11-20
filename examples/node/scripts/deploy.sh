@@ -189,7 +189,7 @@ lead() {
 # gives no phase (#533).
 failed() {
 	why=$(lead "$1" error)
-	phase= rest=${1#*\"last_deploy\":\{}
+	phase= rest=$(printf '%s' "$1" | sed -n 's/.*"last_deploy":{//p')
 	case $rest in "\"version\":\"$2\","*) phase=$(field "$rest" phase) ;; esac
 }
 msg() { printf '%s' "$1" | sed 's/%/%25/g' | tr '\r\n' '  '; }
