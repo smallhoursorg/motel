@@ -681,7 +681,8 @@ backup timers' stamps, so that a reinstall does not take a backup and
 a drill as missed and run both at once. Nothing else is deleted, `/etc/motel/Caddyfile` included.
 
 `apt purge moteld` then deletes what the package made and nothing else
-holds: `/etc/motel/Caddyfile` (a symlink there is kept, and named), the
+holds: the masks and the enable state of the path unit and the backup
+timers, `/etc/motel/Caddyfile` (a symlink there is kept, and named), the
 starter's record in `/var/lib/motel-package`, the box applier's tree in
 `/var/lib/motel-box`, `motel-backup`'s record in
 `/var/lib/motel-backup` and its cache in `/var/cache/motel-backup`. It
