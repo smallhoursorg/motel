@@ -1269,7 +1269,9 @@ scope for the runtime model, in scope for release signing (roadmap).
   the backups' status as any account looks at them, every alert but the
   heartbeat, the test alert, the deploy mute and the people
   announcements (so not those its own use set off), every active or
-  pending silence (its creator and comment included) and every rule.
+  pending silence but one that names a people announcement
+  (`ofPersonAlert`, notify/alertsview.go), its creator and comment
+  included, and every rule.
   This is the operator's viewing key, and the one an address list is
   most worth having on. It reads what the box webhooks answer through
   the same filtered bodies, and nothing the webhooks do not answer: not
