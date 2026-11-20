@@ -5,16 +5,24 @@ COMPOSE ?= docker compose
 # The workspace modules. NOTE: `./...` from the repo root matches only
 # the root module — nested modules are excluded from a parent module's
 # pattern even in workspace mode — so test/vet name each module's tree
-# explicitly. Each variable a contributor picks a part with (these, RUN
-# and the e2e lanes' splits and suites) is set with ?=, so it is read
-# from make's command line or the environment alike.
+# explicitly. These, RUN and the e2e lanes' splits and suites are set
+# with ?=, so each is read from make's command line or the environment
+# alike.
 MODULES ?= . backups box client liveswap notify penaltybox
 PKGS ?= ./... ./backups/... ./box/... ./client/... ./liveswap/... ./notify/... ./penaltybox/...
 
 # One test by name: make test's `go test -run` pattern, as in
 # make test PKGS=./penaltybox/... RUN=TestRetryAfterSeconds. Read with
-# $(value), so a `$` in it (^TestX$/^sub$) reaches go test as typed.
+# $(value), so a `$` in it (^TestX$/^sub$) reaches go test as typed,
+# and its single quotes escaped for the shell.
 RUN ?=
+
+# PKGS or RUN left in the environment narrows test and vet as on the
+# command line, but unseen, and a narrowed run passes: such a run ends
+# by naming them.
+# $(call narrowed_note,<the variables the target reads>).
+env_narrowed = $(strip $(foreach v,$(1),$(if $(and $(filter environment,$(origin $(v))),$(value $(v))),$(v))))
+narrowed_note = $(if $(call env_narrowed,$(1)),@echo "════ make $@: $(call env_narrowed,$(1)) from the environment: only what it names ran ════")
 
 # Release version: the tag when present (release.yml passes it in),
 # else a digit-leading dev placeholder that deb version rules accept.
@@ -26,7 +34,8 @@ DISTRO ?= debian:13
 .PHONY: test help test-integration vet tidy tidy-check lint fuzz fuzz-list vulncheck pin-watch-check ci-changes-check secretscan usage usage-claude usage-check build build-client package clean-dist install-test e2e e2e-backup e2e-notify e2e-metrics soak e2e-logs clean
 
 test: ## unit tests, all modules (race + coverage); PKGS= some packages, RUN= a go test -run pattern
-	$(COMPOSE) run --rm dev go test -race -cover $(if $(value RUN),-run '$(value RUN)') $(PKGS)
+	$(COMPOSE) run --rm dev go test -race -cover $(if $(value RUN),-run '$(subst ','\'',$(value RUN))') $(PKGS)
+	$(call narrowed_note,PKGS RUN)
 
 # The privileged systemd lanes (test-integration, e2e, install-test)
 # need a cgroup-v2 Docker host: Docker Desktop, or Linux with systemd.
@@ -85,6 +94,7 @@ test-integration: ## real deploys through caddytest, under a real systemd user m
 vet: ## go vet, both tag sets
 	$(COMPOSE) run --rm dev go vet $(PKGS)
 	$(COMPOSE) run --rm dev go vet -tags integration $(PKGS)
+	$(call narrowed_note,PKGS)
 
 tidy: ## go mod tidy in each of MODULES
 	for m in $(MODULES); do $(COMPOSE) run --rm -w /src/$$m dev go mod tidy || exit 1; done

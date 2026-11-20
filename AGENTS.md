@@ -10,7 +10,7 @@ Everything runs in Docker through the Makefile; no host Go is needed.
 - **Unit tests:** `make test PKGS=./notify/...` for the module you
   changed; `make test` for all of them (~1 min warm); one test by
   name, `make test PKGS=./notify/... RUN=TestName` (a `go test -run`
-  pattern).
+  pattern, as typed: a plain `$`, not make's `$$`).
 - **Lint, before every push:** `make lint MODULES="notify"`, naming
   each module you touched. It runs both tag sets.
 - **Integration:** `make test-integration` (~2.5 min) only when your
@@ -19,9 +19,9 @@ Everything runs in Docker through the Makefile; no host Go is needed.
 - **e2e:** run the lane for the code you changed, and in it only the
   split or suite you need, named on make's command line as below or in
   the environment. `e2e/notify/run.sh` and `e2e/metrics/run.sh` list
-  their splits (`SPLIT`). The Makefile lists the rest: `BACKUP_SUITES`,
-  a script each in `e2e/backup/`, and the `e2e` target's suites, which
-  run together.
+  their splits. The Makefile lists the rest: `BACKUP_SUITES`, a script
+  each in `e2e/backup/`, and the `e2e` target's suites, which run
+  together.
 
 | Lane | One part | A bare run |
 |---|---|---|
