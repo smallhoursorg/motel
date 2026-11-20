@@ -115,6 +115,7 @@ most container hosts will not give you.
 				audience motel
 				claim repository your-org/blog     # pin who may deploy
 				claim ref        refs/heads/main
+				claim workflow_ref your-org/blog/.github/workflows/deploy.yml@refs/heads/main
 			}
 
 			# Everything below is a default, shown for reference:
@@ -142,6 +143,7 @@ most container hosts will not give you.
 				audience motel
 				claim repository your-org/api
 				claim ref        refs/heads/main
+				claim workflow_ref your-org/api/.github/workflows/deploy.yml@refs/heads/main
 			}
 		}
 	}
@@ -1007,6 +1009,7 @@ liveswap {
 		audience blog
 		claim repository your-org/blog
 		claim ref        refs/heads/main
+		claim workflow_ref your-org/blog/.github/workflows/deploy.yml@refs/heads/main
 	}
 	# Break-glass: each dev registers their own public key (they keep
 	# the private half on their laptop). Revoke one by deleting its
@@ -1575,7 +1578,9 @@ What's yours to handle:
 
 No deploy secret to store — the deploy job mints an OIDC token per run
 (matching a `deploy_trust github { audience motel; claim repository
-your-org/blog; claim ref refs/heads/main }` block on the box). Three
+your-org/blog; claim ref refs/heads/main; claim workflow_ref
+your-org/blog/.github/workflows/deploy.yml@refs/heads/main }` block on
+the box, for a workflow in `deploy.yml`). Three
 jobs, so that the box only ever holds a token that reads the
 repository: the build runs the repository's code and its tools with a
 read token, the release job alone may write (it runs none of that
