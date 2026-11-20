@@ -304,6 +304,22 @@ func TestLifecycleDeployRefused(t *testing.T) {
 	}
 }
 
+// A refusal whose message quotes the deployer's text (here a path in
+// the release) is told to the operator's channels by its said; the
+// 422 keeps the message whole.
+func TestLifecycleDeployRefusedSaysNoDeployersText(t *testing.T) {
+	rig, n := notifiedRig(t)
+	rig.runner.preflightErr = &preflightError{msg: deployersWords + " is a 32-bit executable", said: commandsFile + " is a 32-bit executable"}
+	err := rig.ma.Deploy(context.Background(), deployRequest{url: "https://x/1", version: "v1"})
+	if err == nil || !strings.Contains(err.Error(), deployersWords) {
+		t.Fatalf("the 422 must keep the message whole: %v", err)
+	}
+	ev, ok := n.find(EventDeployRefused)
+	if !ok || ev.Summary != "deploy of v1 refused: pre-flight: "+commandsFile+" is a 32-bit executable" {
+		t.Fatalf("events = %v, refused = %+v", n.names(), ev)
+	}
+}
+
 func TestLifecycleRollback(t *testing.T) {
 	rig, n := notifiedRig(t)
 	deployV1(t, rig)

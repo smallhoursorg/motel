@@ -120,6 +120,30 @@ func TestDownloadPayloadRefusalsAreValidationErrors(t *testing.T) {
 	}
 }
 
+// Each refusal quotes the URL, the deployer's text, in its 422; its
+// said, what the operator's channels are told, holds none of it.
+func TestPinArtifactURLSaidQuotesNoURL(t *testing.T) {
+	const words = "URGENT-call-evil.example"
+	for name, rawURL := range map[string]string{
+		"unparseable url": "https://exa mple.com/" + words,
+		"weird scheme":    "ftp://example.com/" + words,
+		"plain http":      "http://127.0.0.1/" + words,
+		"not allowlisted": "https://evil.example/" + words,
+		"undeclared port": "https://127.0.0.1:1234/" + words,
+		"query":           "https://127.0.0.1/a.tgz?" + words + "=1",
+	} {
+		_, err := pinArtifactURL(rawURL, false, mustAllowlist(t, "127.0.0.1"))
+		var vErr validationError
+		if !errors.As(err, &vErr) || !strings.Contains(vErr.msg, words) {
+			t.Errorf("%s: want a 422 quoting the url, got %v", name, err)
+			continue
+		}
+		if vErr.said == "" || strings.Contains(vErr.said, words) {
+			t.Errorf("%s: said = %q, want the refusal without the url", name, vErr.said)
+		}
+	}
+}
+
 // A pinned sha256 binds the download to the bytes the deployer hashed:
 // the same bytes come through, other bytes are a validationError (a
 // 422 upstream) naming both digests, and nothing is left on disk.
