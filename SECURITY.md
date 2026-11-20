@@ -1,10 +1,15 @@
 # Security policy
 
 motel terminates TLS for your sites, holds the keys, and supervises
-your application processes. It runs unprivileged — `User=motel`,
-with `CAP_NET_BIND_SERVICE` and nothing else — but a compromise still
-reaches everything it serves, so security reports are taken seriously
-and handled with priority.
+your application processes. Its server, moteld, runs unprivileged —
+`User=motel`, with `CAP_NET_BIND_SERVICE` its one capability and the
+`systemd-journal` group for its own process, to read a failed app's
+journal lines — but a compromise still reaches everything it serves,
+so security reports are taken seriously and handled with priority.
+The package also installs root units, each with a bounded set of
+capabilities: the box applier (`motel-box-apply.service`), which
+installs a signed config push, and the backups (`motel-backup.service`,
+and its restore drill).
 
 ## Reporting a vulnerability
 
@@ -33,12 +38,15 @@ private advisory.
 
 ## Supported versions
 
-Pre-1.0: only the latest release receives security fixes. Upgrading is
-a package install and a service restart: deployed apps keep running
-through it, but new visitors get errors while moteld restarts, about
-a tenth of a second, or up to about 5 seconds while a slow request
-finishes ([docs/upgrading.md](docs/upgrading.md)). So a fix costs a
-quiet moment, and little more.
+Pre-1.0: only the latest release receives security fixes. Upgrading a
+box on the `moteld` package (v0.8.0 and later) is a package install
+and a service restart: deployed apps keep running through it, but new
+visitors get errors while moteld restarts, about a tenth of a second,
+or up to about 5 seconds while a slow request finishes ([docs/upgrading.md](docs/upgrading.md)). So a fix costs a
+quiet moment, and little more. A box on v0.7.0 or earlier, whose
+package was named `motel`, cannot upgrade in place: the move is a
+remove and an install, which stops every app, and the first `moteld`
+release's notes describe it.
 
 ## Scope notes for researchers
 
@@ -49,6 +57,17 @@ quiet moment, and little more.
   outside the configured trust claims, is in scope — as is any deploy
   reaching outside `artifact_allowlist` (see
   [liveswap/README.md](liveswap/README.md)).
+- The webhook endpoint is not the only surface. The others: the config
+  channel (`box_webhook`) and its root applier
+  ([box/DESIGN-box.md](box/DESIGN-box.md)); people's reads under
+  `/_motel/`, their token and their grants
+  ([liveswap/access/DESIGN-access.md](liveswap/access/DESIGN-access.md));
+  the backups, `motel-backup`, whose units start as root
+  ([backups/README.md](backups/README.md)); notify's and the metrics
+  store's unix sockets
+  ([notify/DESIGN-notify.md](notify/DESIGN-notify.md),
+  [notify/DESIGN-metrics.md](notify/DESIGN-metrics.md)); and the
+  laptop client, `motel` ([client/README.md](client/README.md)).
 - Apps deployed by liveswap share one UID, and every one of them runs
   in its own user and PID namespace behind a deny-by-default
   filesystem view
