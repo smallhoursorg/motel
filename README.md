@@ -79,7 +79,12 @@ The `moteld_<version>_linux_<arch>.tar.gz` archives on the same page
 hold the **raw binary** (plus LICENSE and a README; and
 `motel-backup` with its unit files, for [backups](backups/README.md)),
 for other systemd
-hosts you wire up yourself — a NixOS-style distro, say. Prefer the
+hosts you wire up yourself — a NixOS-style distro, say. Up to v0.7.0
+they were `motel_<version>_linux_<arch>.tar.gz`, holding `motel`;
+after v0.8.0 that name is the laptop client's archive, and its `motel`
+is the client, which refuses `run` and every other server command. A
+script of your own that still fetches the old name installs the client
+in the server's place: have it fetch `moteld_…` and install `moteld`. Prefer the
 packages where you can: going this way you take on what the package
 does for you, all of it in [packaging/](packaging/) (`nfpm.yaml` and
 `postinstall.sh` are the whole list): a dedicated `motel` user, the
