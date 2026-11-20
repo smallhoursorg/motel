@@ -891,7 +891,28 @@ func TestNetworksStopWaitsForTheTelling(t *testing.T) {
 			t.Errorf("a stop waited %s on an announcement that does not end", took)
 		}
 	})
+	// A request's announcer that panics (the http server recovers the
+	// request) leaves no stop waiting.
+	t.Run("an announcer that panics", func(t *testing.T) {
+		k, _ := testNetworks(t, filepath.Join(t.TempDir(), "people-networks.json"))
+		k.seen(people.reg, fp, "alice", addr("198.51.100.9"), zap.NewNop())
+		k.settle(t, false)
+		k.announcer = panics{}
+		func() {
+			defer func() { _ = recover() }()
+			k.seen(people.reg, fp, "alice", addr("203.0.113.9"), zap.NewNop())
+		}()
+		began := time.Now()
+		k.flushWithin(5 * time.Second)
+		if took := time.Since(began); took > time.Second {
+			t.Errorf("a stop waited %s after an announcer panicked", took)
+		}
+	})
 }
+
+type panics struct{}
+
+func (panics) Announce(Announcement) { panic("announcer") }
 
 // TestNetworksToldBeforeWritten: tell, then remember. While a new
 // network's announcement is being made (a held use at the load, or a

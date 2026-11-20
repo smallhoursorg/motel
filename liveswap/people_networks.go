@@ -227,9 +227,9 @@ type PeopleNetworks struct {
 	writing       bool
 	lastWrite     time.Time
 	failing       bool
-	// telling counts the announcements being made outside the lock (a
-	// request's, or the load's, the load's journal line among them): a
-	// stop waits for them, as for a write.
+	// telling counts the new networks' announcements being made outside
+	// the lock (a request's, or the load's, the load's journal line among
+	// them): a stop waits for them, as for a write.
 	telling int
 }
 
@@ -344,19 +344,22 @@ func (k *PeopleNetworks) seen(reg *access.Registry, fp, person string, addr neti
 	}
 	// Told outside the lock (the journal, notify's engine), then
 	// written: a crash between the two tells it again, never not at all.
+	// Deferred, so an announcer that panics leaves no stop waiting.
 	k.telling++
 	a := k.announcer
 	k.mu.Unlock()
+	defer func() {
+		k.mu.Lock()
+		k.toldLocked(fp, net)
+		k.telling--
+		k.mu.Unlock()
+	}()
 	k.announce(logger, a, Announcement{Name: EventPersonNewNetwork, Person: person, Key: fp, From: networkText(net), First: first})
-	k.mu.Lock()
-	k.toldLocked(fp, net)
-	k.telling--
-	k.mu.Unlock()
 }
 
 // toldLocked marks key fp's network net told, and has it written. A
-// network dropped meanwhile (its key removed, or sixteen others used
-// since) is not written.
+// network dropped meanwhile (its key removed, or cut by the networks
+// a key keeps) is not written.
 func (k *PeopleNetworks) toldLocked(fp string, net netip.Prefix) {
 	kn := k.keys[fp]
 	if kn == nil {
@@ -492,9 +495,10 @@ func (k *PeopleNetworks) changedLocked(urgent bool) {
 // file does not, and waits for it, or for a write already under way, at
 // most networksStopWait: liveswap's Stop, so that a restart (an upgrade,
 // a reload's old config) tells nothing again for want of a write that
-// was due. It waits for the announcements being made too (a request's,
-// or a read's held uses), each written once told, so none is cut off by
-// the exit. A write that hangs is left to itself past the wait; while
+// was due. It waits for the new networks' announcements being made too
+// (a request's, or a read's held uses), each written once told, so none
+// is cut off by the exit. (An outside-list's is a request's alone, which
+// the http app's graceful stop waits for, and is never written.) A write that hangs is left to itself past the wait; while
 // writes fail, the minute's retry is left as it is and a stop waits
 // for no write.
 func FlushPeopleNetworks() { sharedNetworks.flushWithin(networksStopWait) }
