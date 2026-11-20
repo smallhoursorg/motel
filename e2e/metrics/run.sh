@@ -255,10 +255,12 @@ nvm=$(names_count "$vmtests")
 	|| fail "notify's vmalert tests: $(grep -E -- '^(--- |FAIL|ok)|SKIP' /tmp/vmtests.out | head -10)"
 # notify's tests over amtool (Debian's prometheus-alertmanager, which
 # this box has as the notify box does): Alertmanager's own router over
-# the rendered tree, a receiver per channel. The list is every test
+# the rendered tree, a receiver per channel, and Alertmanager itself
+# on it, sending to a stub that redirects. The list is every test
 # that calls amtool (TestE2EMetricsListsEveryVMAlertTest too), written
 # as the one above.
 amtests='
+TestAlertmanagerFollowsNoRedirect
 TestRenderPassesAmtoolCheckConfig
 TestRenderRoutesWithAmtool
 '

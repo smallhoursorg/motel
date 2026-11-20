@@ -5,8 +5,10 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -103,12 +105,18 @@ func TestRenderFollowsNoRedirect(t *testing.T) {
 				continue
 			}
 			for _, ic := range list {
-				hc, ok := ic.(map[string]any)["http_config"]
+				m, ok := ic.(map[string]any)
+				if !ok {
+					t.Errorf("receiver %v %s: an entry that is not a map: %v", r["name"], kind, ic)
+					continue
+				}
+				hc, ok := m["http_config"]
 				if !ok {
 					continue
 				}
 				own++
-				if v, ok := hc.(map[string]any)["follow_redirects"]; !ok || v != false {
+				hm, _ := hc.(map[string]any) // nil for an empty http_config: no follow_redirects
+				if v, ok := hm["follow_redirects"]; !ok || v != false {
 					t.Errorf("receiver %v %s: http_config = %v, want follow_redirects: false", r["name"], kind, hc)
 				}
 			}
@@ -528,6 +536,144 @@ func TestRenderRoutesWithAmtool(t *testing.T) {
 		if err != nil || got != c.want {
 			t.Errorf("%v → %q (%v), want %q", c.labels, got, err, c.want)
 		}
+	}
+}
+
+// TestAlertmanagerFollowsNoRedirect runs Debian's Alertmanager on the
+// full block's render with every URL pointed at a stub that answers 307
+// to a second one on loopback, and posts one alert to each receiver
+// kind: the heartbeat's and bob's webhooks, ops' Slack, alice's
+// Discord, and pager's ntfy, which has an http_config of its own. Each
+// must fail at the stub and none reach the second: what
+// TestRenderFollowsNoRedirect reads in the YAML, asked of Alertmanager,
+// whose next release could merge http_config differently.
+func TestAlertmanagerFollowsNoRedirect(t *testing.T) {
+	bin := filepath.Join(filepath.Dir(amtool(t)), "prometheus-alertmanager")
+	var mu sync.Mutex
+	hit, landed := map[string]bool{}, []string{}
+	land := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		landed = append(landed, r.URL.Path)
+		mu.Unlock()
+	}))
+	defer land.Close()
+	redirect := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		hit[strings.TrimPrefix(r.URL.Path, "/")] = true
+		mu.Unlock()
+		http.Redirect(w, r, land.URL+r.URL.Path, http.StatusTemporaryRedirect)
+	}))
+	defer redirect.Close()
+
+	a := mustParse(t, fullBlock)
+	r, err := a.resolve(testTrust(), testSecrets())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key := range r.urls {
+		r.urls[key] = redirect.URL + "/" + key
+	}
+	dir := t.TempDir()
+	cfg, files, _ := render(r, dir)
+	if _, _, err := writeState(dir, cfg, files); err != nil {
+		t.Fatal(err)
+	}
+
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	addr := l.Addr().String()
+	_ = l.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	var out bytes.Buffer
+	cmd := exec.CommandContext(ctx, bin, "--config.file="+filepath.Join(dir, ConfigName),
+		"--storage.path="+t.TempDir(), "--web.listen-address="+addr, "--cluster.listen-address=")
+	cmd.Stdout, cmd.Stderr = &out, &out
+	if err := cmd.Start(); err != nil {
+		cancel()
+		t.Fatal(err)
+	}
+	stopped := false
+	stop := func() {
+		if !stopped {
+			stopped = true
+			cancel()
+			_ = cmd.Wait()
+		}
+	}
+	defer stop()
+	fail := func(format string, args ...any) {
+		t.Helper()
+		stop()
+		t.Fatalf(format+"\nAlertmanager said:\n%s", append(args, out.String())...)
+	}
+
+	alerts := `{"labels":{"alertname":"Watchdog","severity":"none"}}`
+	for _, ch := range r.order {
+		alerts += `,{"labels":{"alertname":"NotifyTest","notify_channel":"` + ch + `","severity":"info"}}`
+	}
+	base := "http://" + addr
+	for deadline := time.Now().Add(15 * time.Second); ; {
+		resp, err := http.Post(base+"/api/v2/alerts", "application/json", strings.NewReader("["+alerts+"]"))
+		if err == nil {
+			_ = resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				break
+			}
+		}
+		if time.Now().After(deadline) {
+			fail("Alertmanager took no alerts: %v", err)
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	// Every receiver's notification counted failed: none is in flight,
+	// so one that followed would have landed by now. One that lands ends
+	// the wait at once.
+	followed := func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(landed) > 0
+	}
+	failed := func() float64 {
+		resp, err := http.Get(base + "/metrics")
+		if err != nil {
+			return 0
+		}
+		defer func() { _ = resp.Body.Close() }()
+		var b bytes.Buffer
+		_, _ = b.ReadFrom(resp.Body)
+		n := 0.0
+		for _, line := range strings.Split(b.String(), "\n") {
+			if strings.HasPrefix(line, "alertmanager_notifications_failed_total{") {
+				var v float64
+				if _, err := fmt.Sscan(line[strings.LastIndex(line, " ")+1:], &v); err == nil {
+					n += v
+				}
+			}
+		}
+		return n
+	}
+	want := float64(len(r.urls))
+	for deadline := time.Now().Add(30 * time.Second); failed() < want && !followed(); {
+		if time.Now().After(deadline) {
+			mu.Lock()
+			h, ld := len(hit), slices.Clone(landed)
+			mu.Unlock()
+			fail("after 30 s: %v failed notifications, want %v; %d of %d URLs reached, %v followed to the second stub", failed(), want, h, len(r.urls), ld)
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	for key := range r.urls {
+		if !hit[key] {
+			t.Errorf("nothing was sent to %s's URL", key)
+		}
+	}
+	if len(landed) != 0 {
+		t.Errorf("Alertmanager followed the redirect to %v", landed)
 	}
 }
 

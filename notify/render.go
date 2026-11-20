@@ -65,11 +65,11 @@ type amConfig struct {
 	Receivers    []amRecv    `yaml:"receivers"`
 }
 
-// HTTPConfig is every receiver's that has none of its own: Alertmanager
-// copies the global one to those only.
 type amGlobal struct {
-	ResolveTimeout string       `yaml:"resolve_timeout"`
-	HTTPConfig     amHTTPConfig `yaml:"http_config"`
+	ResolveTimeout string `yaml:"resolve_timeout"`
+	// HTTPConfig is every receiver's that has none of its own:
+	// Alertmanager copies the global one to those only.
+	HTTPConfig amHTTPConfig `yaml:"http_config"`
 }
 
 type amRoute struct {
