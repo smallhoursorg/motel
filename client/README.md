@@ -150,8 +150,8 @@ the active ones first and then the soonest to start, and says when it
 held more: the first line then says so.
 
 `monitor rules` reads `GET /_motel/rules`, for a viewer of the box, the
-remote twin of `moteld monitor rules` (motelctl-spec, row 15) without
-the store's socket and queries, which are the box's alone; `--app
+remote twin of `moteld monitor rules` without the store's socket and
+queries, which are the box's alone; `--app
 <app>` reads `GET /_motel/apps/<app>/rules`, for a viewer of the app or
 of the box: the rules that apply to it (every app's, and its own `rule`
 lines) with its numbers alone, never the box's own checks. The first
