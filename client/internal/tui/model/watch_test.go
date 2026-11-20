@@ -236,14 +236,12 @@ func TestWatchFlapping(t *testing.T) {
 		if fw := s.Firing(*now); fw.N != 1 || fw.New != 1 {
 			t.Errorf("firing %d: %+v", i, fw)
 		}
+		if s.Ring(*now) {
+			rang = append(rang, *now)
+		}
 		f.Body("box-alerts.json", alerts(false))
 		watchRead(t, s, f, now)
-		for range 8 {
-			if s.Ring(*now) {
-				rang = append(rang, *now)
-			}
-			*now = now.Add(model.WatchEvery)
-		}
+		*now = now.Add(model.RingFloor)
 	}
 	if len(rang) != 4 {
 		t.Errorf("rang %d times for 4 firings: %v", len(rang), rang)
@@ -627,5 +625,136 @@ func TestMarkMoves(t *testing.T) {
 	s.Seen(later)
 	if c := s.Mark(later).Long[0].C; c != model.Bad {
 		t.Errorf("seen: %v", c)
+	}
+}
+
+// TestHeldBellDropped: a bell held inside the floor is not rung at its
+// end when everything it was owed for has been seen by then, or has
+// resolved; it is when something it was owed for is still new.
+func TestHeldBellDropped(t *testing.T) {
+	a := t0.Add(-time.Hour)
+	x := alert("disk_low", "warning", "active", a, "")
+	for _, c := range []struct {
+		name string
+		// then is what happens inside the floor, y the first alert.
+		then func(s *model.Session, f *demo.Fake, now *time.Time, y string)
+		ring bool
+	}{
+		{"still new", func(*model.Session, *demo.Fake, *time.Time, string) {}, true},
+		{"seen", func(s *model.Session, _ *demo.Fake, now *time.Time, _ string) {
+			s.Seen(now.Add(model.SeenAfter))
+		}, false},
+		{"resolved", func(s *model.Session, f *demo.Fake, now *time.Time, y string) {
+			f.Body("box-alerts.json", alerts(false, y))
+			watchRead(t, s, f, now)
+		}, false},
+	} {
+		s, f, now := watcher(t)
+		for range 3 {
+			step(t, s, f, now)
+		}
+		y := alert("cert_failed", "critical", "active", *now, "")
+		f.Body("box-alerts.json", alerts(false, y))
+		watchRead(t, s, f, now)
+		firing(t, s, *now, c.name+": the first", 1, 1, true)
+		rang := *now
+		s.Seen(now.Add(model.SeenAfter))
+		f.Body("box-alerts.json", alerts(false, x, y))
+		watchRead(t, s, f, now)
+		firing(t, s, *now, c.name+": the second, inside the floor", 2, 1, false)
+		c.then(s, f, now, y)
+		if got := s.Ring(rang.Add(model.RingFloor)); got != c.ring {
+			t.Errorf("%s: the held bell rings %v at the floor's end, want %v", c.name, got, c.ring)
+		}
+	}
+}
+
+// TestWatchAppsLists: for a person with app grants only, an app that
+// leaves the list leaves the count, and what arrived on it is no longer
+// new and owes no bell; an app not listed, its screen opened by name,
+// is not watched; with no app listed the mark is empty, paused or not.
+func TestWatchAppsLists(t *testing.T) {
+	s, f, now := appPerson(t)
+	for range 6 {
+		step(t, s, f, now)
+	}
+	f.Body("alerts/shop.json", `{"monitor":"on","alerts":[`+alert("app_memory_high", "critical", "active", *now, "")+`]}`)
+	*now = now.Add(model.AppWatchEvery)
+	for range 6 {
+		step(t, s, f, now)
+	}
+	if fw := s.Firing(*now); fw.N != 2 || fw.New != 1 {
+		t.Fatalf("a new alert in shop: %+v", fw)
+	}
+	f.Body("apps.json", `{"apps":[{"name":"blog"}]}`)
+	s.Engine.Again(*now, model.Job{Kind: model.KApps})
+	for range 30 {
+		if step(t, s, f, now).Kind == model.KApps {
+			break
+		}
+	}
+	if fw := s.Firing(*now); fw.N != 1 || fw.New != 0 {
+		t.Errorf("shop gone from the list: %+v", fw)
+	}
+	if s.Ring(*now) {
+		t.Error("the bell rang for an app no longer listed")
+	}
+
+	f.Body("alerts/ghost.json", `{"monitor":"on","alerts":[`+alert("errors_high", "critical", "active", *now, "")+`]}`)
+	s.Engine.AlertsOpen("ghost", *now)
+	for range 30 {
+		if j := step(t, s, f, now); j.Kind == model.KAlerts && j.App == "ghost" {
+			break
+		}
+	}
+	if fw := s.Firing(*now); fw.N != 1 || fw.New != 0 {
+		t.Errorf("an app not listed, its screen opened: %+v", fw)
+	}
+
+	s, f, now = appPerson(t)
+	f.Body("apps.json", `{"apps":[]}`)
+	for range 2 {
+		step(t, s, f, now)
+	}
+	*now = now.Add(model.Idle)
+	if m := s.Mark(*now); !m.Empty() {
+		t.Errorf("no app listed, paused: the mark says %q", m.Long.Text())
+	}
+}
+
+// TestWatchHeldBeforeChange: the box's alerts held by a 404 before the
+// watch changed (a box viewer's grant dropped from whoami, then back)
+// are asked again when the watch takes them, so the mark says why it
+// does not know, not alerts… for ever.
+func TestWatchHeldBeforeChange(t *testing.T) {
+	s, f, now := watcher(t)
+	for range 3 {
+		step(t, s, f, now)
+	}
+	f.Set("box-alerts", &model.Failure{Kind: model.FailNotFound, Message: "no"})
+	watchRead(t, s, f, now)
+	who := func(scope string) {
+		f.Body("whoami.json", `{"name":"alice@example.com","key":"`+demo.Key.Fingerprint+`","roles":[{"role":"viewer","scope":"`+scope+`"}],"box":"deploy.example.com","version":"v0.7.0","protocol":1}`)
+		*now = now.Add(model.AgainAfter)
+		s.Engine.Again(*now, model.Job{Kind: model.KWhoAmI})
+		for range 30 {
+			if step(t, s, f, now).Kind == model.KWhoAmI {
+				return
+			}
+		}
+		t.Fatal("whoami was not read")
+	}
+	who("app:blog")
+	who("box")
+	before := len(f.Calls)
+	for range 10 {
+		step(t, s, f, now)
+	}
+	read := false
+	for _, c := range f.Calls[before:] {
+		read = read || c.Job.Kind == model.KBoxAlerts
+	}
+	if fw := s.Firing(*now); !read || fw.Why != model.WasRefused {
+		t.Errorf("after the box's grant is back: read %v, %+v", read, fw)
 	}
 }

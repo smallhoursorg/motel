@@ -57,8 +57,6 @@ func (a *alarm) took(src string, set map[string]bool, fresh []string, at time.Ti
 	a.newAt, a.owed = at, true
 }
 
-func (a *alarm) unseenCount() int { return len(a.unseen) }
-
 // forget drops what arrived and the bell owed: the session dropped what
 // the box said. When a bell last rang is kept, so the floor holds.
 func (a *alarm) forget() { a.unseen, a.owed, a.newAt = nil, false, time.Time{} }
@@ -66,12 +64,21 @@ func (a *alarm) forget() { a.unseen, a.owed, a.newAt = nil, false, time.Time{} }
 // Ring says whether the bell rings now, and takes it: owed, and
 // RingFloor since the last. A bell owed inside the floor is held, and
 // rung at the first frame after it ends (the clock's tick draws one a
-// second). The screens take it at every frame, and ring the terminal's
-// bell only when it is on: taken while off, the floor counts the same.
+// second), unless by then everything it was owed for was seen, has
+// resolved, or is no longer watched: it calls a person to what is new,
+// and nothing is. The screens take it at every frame, and ring the
+// terminal's bell only when it is on: taken while off, the floor counts
+// the same.
 func (s *Session) Ring(now time.Time) bool {
 	s.seen(now)
 	a := &s.alarm
-	if !a.owed || !a.rungAt.IsZero() && now.Sub(a.rungAt) < RingFloor {
+	switch {
+	case !a.owed:
+		return false
+	case s.unseen() == 0:
+		a.owed = false
+		return false
+	case !a.rungAt.IsZero() && now.Sub(a.rungAt) < RingFloor:
 		return false
 	}
 	a.owed, a.rungAt = false, now

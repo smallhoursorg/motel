@@ -176,22 +176,26 @@ func (s *Session) follow(now time.Time) {
 	case len(s.Me.V.Roles) > 0:
 		w = WatchApps
 	}
-	if w != s.watch.mode || s.watch.forgotten {
+	changed := w != s.watch.mode || s.watch.forgotten
+	if changed {
 		// What arrived under the watch left is not new to the one taken:
 		// its first answer is nothing new.
 		s.watch = watchState{mode: w}
 		s.alarm.unseen = nil
 		s.Engine.SetWatch(w, now)
 	}
+	// A read held by a refusal from before a change of watch (a 404 on a
+	// screen opened then) is asked again too: the watch starts afresh.
+	again := func(err error) bool { return Forbidden(err) || changed && NotFound(err) }
 	switch w {
 	case WatchBox:
-		if Forbidden(s.BoxAlertsErr) {
+		if again(s.BoxAlertsErr) {
 			s.Engine.Again(now, Job{Kind: KBoxAlerts})
 		}
 	case WatchApps:
 		for _, r := range s.Me.V.Roles {
 			if n, ok := strings.CutPrefix(r.Scope, "app:"); ok {
-				if a := s.apps[n]; a != nil && Forbidden(a.alertsErr) {
+				if a := s.apps[n]; a != nil && again(a.alertsErr) {
 					s.Engine.Again(now, Job{Kind: KAlerts, App: n})
 				}
 			}
@@ -202,7 +206,31 @@ func (s *Session) follow(now time.Time) {
 // watching says whether j is the watch's read: a refusal of it goes in
 // the mark, not in the title bar's word.
 func (s *Session) watching(j Job) bool {
-	return j.Kind == KBoxAlerts && s.watch.mode == WatchBox || j.Kind == KAlerts && s.watch.mode == WatchApps
+	return j.Kind == KBoxAlerts && s.watch.mode == WatchBox || j.Kind == KAlerts && s.watch.mode == WatchApps && slices.Contains(s.Names(), j.App)
+}
+
+// watched is the reads the watch counts now: "" for the box's alerts,
+// or each listed app's name; nil when it counts none.
+func (s *Session) watched() []string {
+	switch s.watch.mode {
+	case WatchBox:
+		return []string{""}
+	case WatchApps:
+		return s.Names()
+	}
+	return nil
+}
+
+// unseen is how many of what arrived are not yet seen, of the reads the
+// watch counts now: one of an app no longer listed is not.
+func (s *Session) unseen() int {
+	n, srcs := 0, s.watched()
+	for k := range s.alarm.unseen {
+		if slices.Contains(srcs, k.src) {
+			n++
+		}
+	}
+	return n
 }
 
 // watchRead takes the read j's end into the watch, when it is the
@@ -311,19 +339,13 @@ func (s *Session) Firing(now time.Time) Firing {
 	case w.mode == WatchNone:
 		return Firing{Nothing: true}
 	}
-	var names []string
-	switch w.mode {
-	case WatchBox:
-		names = []string{""}
-	case WatchApps:
-		if s.List == nil {
-			if stopped || s.ListErr != nil {
-				return Firing{Why: FailedFirst}
-			}
-			return Firing{Why: NotAsked}
+	if w.mode == WatchApps && s.List == nil {
+		if stopped || s.ListErr != nil {
+			return Firing{Why: FailedFirst}
 		}
-		names = s.List.V
+		return Firing{Why: NotAsked}
 	}
+	names := s.watched()
 	f := Firing{Why: Known, Worst: MarkLook, Off: len(names) > 0}
 	pending, why := false, Known
 	for _, n := range names {
@@ -362,9 +384,10 @@ func (s *Session) Firing(now time.Time) Firing {
 	case pending:
 		return Firing{Why: NotAsked}
 	}
-	if stopped || s.Engine.Paused(now) {
+	if (stopped || s.Engine.Paused(now)) && !f.At.IsZero() {
+		// With nothing to read (no app listed) nothing is old.
 		f.Old = true
 	}
-	f.New = s.alarm.unseenCount()
+	f.New = s.unseen()
 	return f
 }

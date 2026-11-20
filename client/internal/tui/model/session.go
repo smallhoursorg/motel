@@ -263,7 +263,7 @@ func (s *Session) forget() {
 // Forgotten says whether the session holds nothing the box said: true
 // at the start, and after an answer about another key or box.
 func (s *Session) Forgotten() bool {
-	return s.Me == nil && s.List == nil && s.ListErr == nil && s.BoxSt == nil && s.BoxErr == nil && s.BackupsSt == nil && s.BackupsErr == nil && s.BoxAlertsSt == nil && s.BoxAlertsErr == nil && s.BoxRulesSt == nil && s.BoxRulesErr == nil && len(s.apps) == 0 && len(s.records) == 0 && len(s.series) == 0 && s.json.lines == nil && len(s.watch.srcs) == 0 && s.alarm.unseenCount() == 0
+	return s.Me == nil && s.List == nil && s.ListErr == nil && s.BoxSt == nil && s.BoxErr == nil && s.BackupsSt == nil && s.BackupsErr == nil && s.BoxAlertsSt == nil && s.BoxAlertsErr == nil && s.BoxRulesSt == nil && s.BoxRulesErr == nil && len(s.apps) == 0 && len(s.records) == 0 && len(s.series) == 0 && s.json.lines == nil && len(s.watch.srcs) == 0 && len(s.alarm.unseen) == 0
 }
 
 func (s *Session) app(name string) *appData {
