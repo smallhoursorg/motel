@@ -75,6 +75,50 @@ func TestRenderKeepsURLsOutOfTheConfig(t *testing.T) {
 	}
 }
 
+// TestRenderFollowsNoRedirect: Alertmanager 0.28.1 follows a redirect
+// unless told not to, and a receiver's own http_config starts from that
+// default rather than the global one (measured: a 307 to loopback
+// replayed the POST there). So the global http_config says false, and
+// so does every receiver's own, which the test needs at least one of.
+func TestRenderFollowsNoRedirect(t *testing.T) {
+	cfg, _, _ := renderFull(t)
+	var c struct {
+		Global struct {
+			HTTPConfig map[string]any `yaml:"http_config"`
+		} `yaml:"global"`
+		Receivers []map[string]any `yaml:"receivers"`
+	}
+	if err := yaml.Unmarshal(cfg, &c); err != nil {
+		t.Fatal(err)
+	}
+	if v, ok := c.Global.HTTPConfig["follow_redirects"]; !ok || v != false {
+		t.Errorf("global http_config = %v, want follow_redirects: false", c.Global.HTTPConfig)
+	}
+	own, heartbeat := 0, false
+	for _, r := range c.Receivers {
+		heartbeat = heartbeat || r["name"] == "heartbeat"
+		for kind, v := range r {
+			list, ok := v.([]any)
+			if !ok {
+				continue
+			}
+			for _, ic := range list {
+				hc, ok := ic.(map[string]any)["http_config"]
+				if !ok {
+					continue
+				}
+				own++
+				if v, ok := hc.(map[string]any)["follow_redirects"]; !ok || v != false {
+					t.Errorf("receiver %v %s: http_config = %v, want follow_redirects: false", r["name"], kind, hc)
+				}
+			}
+		}
+	}
+	if own == 0 || !heartbeat {
+		t.Fatalf("the full block rendered %d receiver http_configs, heartbeat %v: the test proves nothing", own, heartbeat)
+	}
+}
+
 // receiverChannels is each receiver's channels, by the secret its URL
 // file holds, sorted.
 func receiverChannels(t *testing.T, cfg []byte) map[string][]string {

@@ -156,6 +156,22 @@ The URL check is every URL's, not only a deployer's: Alertmanager sends
 from the network namespace every app shares, so a URL to loopback or a
 private address would reach a listener an app opened.
 
+Nor does Alertmanager follow a redirect, which would take a
+notification past the check to wherever the endpoint names. Its
+default follows one: measured on Debian's 0.28.1 in the e2e box
+(2026-11-20, a stub answering 307 to another port on loopback), a
+webhook, a Slack and a Discord receiver each replayed the POST, body
+and all, to the second port. The render writes `follow_redirects:
+false` in the global `http_config`, which every receiver without one
+of its own takes, and in every receiver's own (an ntfy channel's, for
+its `X-Priority`), which starts from Alertmanager's default and not
+from the global one (measured: with only the global line, that
+receiver still followed). A channel whose endpoint redirects fails,
+named: Alertmanager counts the 3xx as a failed notification
+(`unexpected status code 307`, not retried; `reason="other"`), which
+motel journals and tells as any failed delivery ("Failed delivery").
+The operator writes the URL the endpoint answers at.
+
 ### Secrets at load
 
 The last two rows are a secret's, and a boot does not refuse them.
