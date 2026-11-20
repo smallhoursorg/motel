@@ -1245,8 +1245,8 @@ scope for the runtime model, in scope for release signing (roadmap).
   copied from a laptop, or an agent socket used by malware on it, of a
   person whose only grant is `viewer` on one app
   (liveswap/access/DESIGN-access.md). Can read that app's status,
-  deploys and deploy records, its alerts and the rules that apply to
-  it, from any address their grant's `from`
+  deploys and deploy records, its alerts, the rules that apply to it
+  and its numbers over time, from any address their grant's `from`
   list allows (any address, with no list), until a push removes the
   key's line and the box reloads. Cannot read another app (each read
   takes the app handle `Decide` allowed for the path's app, and the

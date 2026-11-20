@@ -774,7 +774,8 @@ plugin's handler can take its ID.
 | `people.go` | `AdmitPerson`: a person's way in on both webhooks (the token, the address list, the failure budgets, the rate) |
 | `people_networks.go` | the networks each person's key was used from, and the two events a stolen key should set off; told, never a gate (access/DESIGN-access.md, "A key used from somewhere new") |
 | `motel_routes.go` | the box-wide rows under `/_motel/`: `whoami`, `apps`, `backups`, `alerts` and `rules`, and the dispatch to the app-scoped rows |
-| `motel_approutes.go` | the app-scoped rows, `/_motel/apps/<app>/<read>`: `alerts` (served here) and `rules` |
+| `motel_approutes.go` | the app-scoped rows, `/_motel/apps/<app>/<read>`: `alerts` (served here), `rules` and `series`, and the query keys each row takes |
+| `motel_series.go` / `series.go` | `GET /_motel/apps/<app>/series`, an app's numbers over time; `SeriesSource`, the metrics store's, which notify installs |
 | `motel_alerts.go` / `alerts.go` | `GET /_motel/alerts`, the alerts and silences a viewer of the box reads (access/DESIGN-access.md, "The answers"); `AlertsSource`, what Alertmanager holds, which notify installs |
 | `motel_rules.go` | `RulesSource`, the rules the box alerts on, which notify installs, and the two rules rows |
 | `motel_backups.go` | `GET /_motel/backups`; `BackupsSource`, which moteld installs (cmd/moteld/main.go); `allowBox` and `boxHandle`, which the backups, alerts and rules rows are given |
