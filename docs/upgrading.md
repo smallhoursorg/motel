@@ -388,6 +388,25 @@ There is no APT repository yet, so nothing upgrades moteld behind
 your back; the hosted repository on the [roadmap](../README.md#roadmap) is what
 will change that.
 
+## A backup credential file written by hand
+
+The first release that refuses a backup credential file that is not
+root's alone refuses one written [by hand](../backups/README.md#by-hand)
+with an editor under umask 022, which is 0644: every run, restore and
+drill stops before it starts anything, names the file, its mode and the
+command that puts it right, and `motel-backup status` goes unhealthy.
+A file `motel-backup setup` wrote is root's alone already. Before the
+install, as root:
+
+```sh
+stat -c '%n %U %a' /etc/motel-backup /etc/motel-backup/repository.env
+```
+
+It should say `root 755` of the directory, which every account looks
+into to see whether backups are set up, and `root 600` of the file
+(`root 400` passes too). For anything else:
+`chown root:root /etc/motel-backup /etc/motel-backup/repository.env && chmod 0755 /etc/motel-backup && chmod 0600 /etc/motel-backup/repository.env`.
+
 ## A person's key, told once after the install
 
 On a box with `person` or `grant` lines, the first release that tells
@@ -682,3 +701,47 @@ git commit --allow-empty -m "Relaunch after patching" && git push
 
 Or reboot, which relaunches every app at once but takes the sites
 down while it does.
+
+## Removing the package
+
+`apt remove moteld` stops the box: the backup timers and the backup
+and drill services, moteld, and the box applier's path unit, and then
+the `motel` user's service manager, which stops every app. A
+`motel-backup` command started from a shell (a run, a restore at its
+prompt) holds the run lock and is left to run with its program gone,
+named on the terminal: let it end before you remove the package. moteld is disabled, the
+path unit and the backup timers are masked until the package is
+installed again, and the `motel` user no longer lingers: the package's
+own files go, with the drop-ins and the linger its install made and the
+backup timers' stamps, so that a reinstall does not take a backup and
+a drill as missed and run both at once. Nothing else is deleted, `/etc/motel/Caddyfile` included.
+
+`apt purge moteld` then deletes what the package made and nothing else
+holds: the masks and the enable state of the path unit and the backup
+timers, `/etc/motel/Caddyfile` (a symlink there is kept, and named), the
+starter's record in `/var/lib/motel-package`, the box applier's tree in
+`/var/lib/motel-box`, `motel-backup`'s record in
+`/var/lib/motel-backup` and its cache in `/var/cache/motel-backup`. It
+keeps, and says so on the terminal:
+
+- the box's key for secrets and the env files decrypted with it,
+  `/etc/motel/age`, `/etc/motel/age.pub` and `/etc/motel/secrets`, so
+  `/etc/motel` stays: the key is the one way to read the secrets in the
+  box's repository;
+- the Caddyfile and the applier's tree, when a run of the applier still
+  holds its lock after 30 s, and that tree when something is mounted
+  at or under it;
+- the backup repository's credential, `/etc/motel-backup/repository.env`:
+  its password is the one way to read the backups already made;
+- a non-empty `/var/lib/motel-backup/staging` or `restore`, which holds
+  copies of an app's data a killed run left.
+
+It never touches `/var/lib/liveswap` (the apps' releases and data) or
+`/var/lib/motel` (Caddy's certificates, and the record of where
+people's keys were used), and the `motel` and `motel-backup` accounts
+stay. Neither command touches the backups themselves, off the box, or
+what `moteld monitor setup` installed: [Turn it off, and remove
+it](monitor.md#turn-it-off-and-remove-it) removes that, and its second
+step reloads moteld, so take it before the package goes. Remove the
+kept files yourself once nothing needs them: `rm -r /etc/motel
+/etc/motel-backup`.
