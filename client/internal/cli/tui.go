@@ -38,6 +38,8 @@ const screenLong = "motel alone shows them on screens in the terminal, over the 
 	"commands make: the apps you may view sorted by what needs a look, an app's state\n" +
 	"and deploys and its numbers over time drawn, a deploy's record laid out for\n" +
 	"reading a failure, who you are, the box, its backups, its alerts and its rules.\n" +
+	"On every screen the title bar counts what fires that you may see, and the\n" +
+	"terminal's bell rings when a new alert arrives (MOTEL_BELL=off turns it off).\n" +
 	"It only reads, well inside the box's limit of 2 requests a second and 60 at\n" +
 	"once: up to 30 at once to start, then at most 1.5 a second. It signs one token\n" +
 	"for ten minutes at a time, so a hardware key is touched about every nine, and\n" +
@@ -111,6 +113,8 @@ func (r *runner) screen(root *cobra.Command) {
 			}
 		}
 		o := tui.Options{Clock: tui.RealClock{}, Colour: r.env.Color, Tick: time.Second}
+		// The bell rings for a new alert unless MOTEL_BELL=off.
+		o.Bell = r.env.Getenv("MOTEL_BELL") != "off"
 		// Wall-clock time: a monotonic reading stops while a laptop
 		// sleeps, and ages and due times would leave the sleep out.
 		wall := func() time.Time { return r.env.Now().Round(0) }
@@ -123,7 +127,11 @@ func (r *runner) screen(root *cobra.Command) {
 		if sample {
 			s.Host, s.Demo, s.Key = demo.Host, true, demo.Key
 			s.TokenExpires = func() time.Time { return wall().Add(9 * time.Minute) }
-			o.Client = &demo.Fake{Now: wall}
+			fake := &demo.Fake{Now: wall}
+			o.Client = fake
+			// Alerts arrive, so the mark, its movement and the bell can
+			// be seen with no box.
+			go demo.Arrivals(ctx, fake, time.After)
 		} else {
 			gt := &gate{w: r.env.Stderr}
 			rr := *r

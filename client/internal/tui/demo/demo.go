@@ -49,6 +49,8 @@ type Fake struct {
 	// so the deploy in flight is the same deploy at each.
 	anchor time.Time
 	set    map[string]time.Time
+	// firing is what the demo's script fires (Arrive), newest first.
+	firing []Arrival
 }
 
 // Call is one read the fake answered.
