@@ -113,8 +113,8 @@ most container hosts will not give you.
 			# shared secret is ever stored on the box.
 			deploy_trust github {                 # preset: GitHub Actions OIDC
 				audience motel
-				claim repository your-org/blog     # pin who may deploy
-				claim ref        refs/heads/main
+				claim repository   your-org/blog   # pin who may deploy
+				claim ref          refs/heads/main
 				claim workflow_ref your-org/blog/.github/workflows/deploy.yml@refs/heads/main
 			}
 
@@ -141,8 +141,8 @@ most container hosts will not give you.
 			env DATABASE_URL sqlite:{shared_dir}/api.db
 			deploy_trust github {                 # its own repo, its own block
 				audience motel
-				claim repository your-org/api
-				claim ref        refs/heads/main
+				claim repository   your-org/api
+				claim ref          refs/heads/main
 				claim workflow_ref your-org/api/.github/workflows/deploy.yml@refs/heads/main
 			}
 		}
@@ -1007,8 +1007,8 @@ liveswap {
 	# Everyday path: CI deploys on merge, no secret anywhere.
 	deploy_trust github {
 		audience blog
-		claim repository your-org/blog
-		claim ref        refs/heads/main
+		claim repository   your-org/blog
+		claim ref          refs/heads/main
 		claim workflow_ref your-org/blog/.github/workflows/deploy.yml@refs/heads/main
 	}
 	# Break-glass: each dev registers their own public key (they keep
