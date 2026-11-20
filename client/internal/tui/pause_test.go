@@ -122,3 +122,57 @@ func TestPausedWordEveryMark(t *testing.T) {
 		}
 	}
 }
+
+// TestPausedWatchFails: while paused, the watch's read getting no answer
+// is not said as alerts still read: the title bar keeps the plain
+// PAUSED word, and the mark says its count is old; once it answers
+// again, the word says they are read.
+func TestPausedWatchFails(t *testing.T) {
+	h := start(t, 100, 30, nil)
+	h.away(model.Idle + time.Minute)
+	h.fake.Set("box-alerts", fiveHundred())
+	h.away(10 * time.Minute)
+	if _, r := h.s.Title(h.now); r.Text() != "PAUSED (idle 10m): any key resumes" {
+		t.Errorf("paused, the alerts reads failing: the title bar says %q", r.Text())
+	}
+	if m := h.s.Mark(h.now); !strings.HasSuffix(m.Short.Text(), "?") {
+		t.Errorf("the mark says %q", m.Short.Text())
+	}
+	h.fake.Set("box-alerts", nil)
+	h.away(2 * time.Minute)
+	if _, r := h.s.Title(h.now); r.Text() != "PAUSED (idle 10m), alerts still read: any key resumes" {
+		t.Errorf("answered again: the title bar says %q", r.Text())
+	}
+}
+
+// TestMeSaysThePause: who am I's token sentence says what is read while
+// paused: only the alerts, each at most once a minute, for a key that
+// needs no touch; nothing for a hardware key, and why; nothing to watch
+// for a person with no grant here.
+func TestMeSaysThePause(t *testing.T) {
+	for _, c := range []struct {
+		name, want string
+		with       func(*model.Session)
+		setup      func(*demo.Fake)
+	}{
+		{"an agent key", "only the alerts are read, each at most once a minute, and it is signed for them", nil, nil},
+		{"a hardware key", "a hardware key is not asked for a touch while you are away, so the alerts are not read then", func(s *model.Session) { s.Key.Hardware = true }, nil},
+		{"no grant", "signed again a minute before it ends, and only while you use the screen", nil, func(f *demo.Fake) {
+			f.Body("whoami.json", `{"name":"alice@example.com","key":"`+demo.Key.Fingerprint+`","roles":[],"box":"deploy.example.com","version":"v0.7.0","protocol":1}`)
+		}},
+	} {
+		with := func(s *model.Session) {
+			if c.with != nil {
+				c.with(s)
+			}
+		}
+		h := start(t, 100, 30, c.setup, with)
+		var me strings.Builder
+		for _, l := range h.s.MeView(h.now) {
+			me.WriteString(l.Text() + " ")
+		}
+		if got := strings.Join(strings.Fields(me.String()), " "); !strings.Contains(got, c.want) || c.name == "no grant" && strings.Contains(got, "only the alerts") {
+			t.Errorf("%s: who am I says:\n%s", c.name, got)
+		}
+	}
+}

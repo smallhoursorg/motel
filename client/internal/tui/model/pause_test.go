@@ -144,3 +144,39 @@ func TestWatchBackFromThePause(t *testing.T) {
 	}
 	t.Error("the box's alerts were not read after the key")
 }
+
+// TestAppWatchBackFromThePause: a person with app grants only, paused on
+// an app's screen: a key brings that app's alerts read back to every
+// AlertsEvery from its last answer, not the paused minute's end.
+func TestAppWatchBackFromThePause(t *testing.T) {
+	e := model.NewEngine(t0)
+	e.SetWatch(model.WatchApps, t0)
+	e.Focus("app-0", t0)
+	e.AlertsOpen("app-0", t0)
+	open := model.Job{Kind: model.KAlerts, App: "app-0"}
+	end := t0.Add(model.Idle + 5*time.Minute)
+	calls, _ := unattended(e, names(3), end.Sub(t0))
+	var last time.Time
+	for _, c := range calls {
+		if c.j == open {
+			last = c.at
+		}
+	}
+	now := end
+	e.Touch(now)
+	for range 200 {
+		j, ok, wait := e.Take(now)
+		if !ok {
+			now = now.Add(max(wait, 100*time.Millisecond))
+			continue
+		}
+		if j == open {
+			if due := maxT(end, last.Add(model.AlertsEvery+time.Second)); now.After(due) {
+				t.Errorf("read at +%s after the key, its last answer %s before the key", now.Sub(end), end.Sub(last))
+			}
+			return
+		}
+		e.Done(j, now, nil)
+	}
+	t.Error("the open app's alerts were not read after the key")
+}

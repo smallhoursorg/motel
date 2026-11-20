@@ -632,10 +632,7 @@ func (s *Session) freshness(now time.Time) Line {
 		// 57 cells: every word here fits the smallest window, 60, the
 		// left side cut before it (TestTitleWordsAt60).
 		return Line{ownC("STOPPED: answered about another key or box · r asks again", Bad)}
-	case h.Paused && h.WatchRead:
-		// 53 cells: the tiny mark beside it fits 60.
-		return Line{ownC("PAUSED (idle 10m), alerts still read: any key resumes", Warn)}
-	case h.Paused:
+	case h.Paused && !h.WatchRead:
 		return Line{ownC("PAUSED (idle 10m): any key resumes", Warn)}
 	case h.SlowIn > 0:
 		// The box's word, an hour if it says so: until when, counting
@@ -652,6 +649,11 @@ func (s *Session) freshness(now time.Time) Line {
 	case h.Waiting >= WaitingAfter:
 		// A read not answered yet: not live while the box is waited for.
 		return Line{ownC("waiting "+Ago(h.Waiting)+" for an answer · "+ago, Warn)}
+	case h.Paused:
+		// The watch's reads go on, and answer: a 429, slow, STALE and
+		// waiting above say when they do not. 53 cells: the tiny mark
+		// beside it fits 60.
+		return Line{ownC("PAUSED (idle 10m), alerts still read: any key resumes", Warn)}
 	case !s.backAt.IsZero() && now.Sub(s.backAt) < 5*time.Second:
 		return Line{ownC("back · "+hms(s.backAt), Good)}
 	case s.refused && s.last.IsZero():
@@ -706,9 +708,12 @@ func (s *Session) MeViewFit(now time.Time, width int, cells Cells) []Line {
 	if s.TokenExpires != nil {
 		if exp := s.TokenExpires(); !exp.IsZero() {
 			if left := exp.Sub(now); left > 0 {
-				again := "             signed again a minute before it ends; after ten idle minutes only the alerts are read, about once a minute, and it is signed for them"
-				if s.Key.Hardware {
-					again = "             signed again a minute before it ends, and only while you use the screen: a hardware key is not asked for a touch while you are away, so the alerts are not read then"
+				again := "             signed again a minute before it ends, and only while you use the screen"
+				switch {
+				case s.Key.Hardware:
+					again += ": a hardware key is not asked for a touch while you are away, so the alerts are not read then"
+				case s.watch.mode != WatchNone:
+					again = "             signed again a minute before it ends; after ten idle minutes only the alerts are read, each at most once a minute, and it is signed for them"
 				}
 				out = append(out, laid(width, cells, field("token", own("good until "+hms(exp)+" UTC ("+Ago(left)+" left)")),
 					Line{own(again)})...)

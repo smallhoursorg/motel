@@ -42,7 +42,7 @@ const screenLong = "motel alone shows them on screens in the terminal, over the 
 	"terminal's bell rings when a new alert arrives (MOTEL_BELL=off turns it off).\n" +
 	"It only reads, well inside the box's limit of 2 requests a second and 60 at\n" +
 	"once: up to 30 at once to start, then at most 1.5 a second. After ten minutes\n" +
-	"with no key pressed it reads only the alerts, about once a minute; with a\n" +
+	"with no key pressed it reads only the alerts, each at most once a minute; with a\n" +
 	"hardware key it reads nothing then, so no touch is asked for while you are\n" +
 	"away. It signs one token for ten minutes at a time, so a hardware key is\n" +
 	"touched about every nine minutes while you use it, a signature that takes\n" +

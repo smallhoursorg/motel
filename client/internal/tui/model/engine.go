@@ -601,7 +601,7 @@ func (e *Engine) WatchPaused(now time.Time) bool {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.seen(now)
-	return e.idleAt(now) && !e.watchesPaused()
+	return e.idleAt(now) && !e.readsThroughPause()
 }
 
 // SetHardwareKey says the key needs a touch to sign (an sk- type): after
@@ -616,8 +616,19 @@ func (e *Engine) SetHardwareKey(on bool) {
 // idleAt says whether no key was pressed for Idle at t.
 func (e *Engine) idleAt(t time.Time) bool { return t.Sub(e.touched) >= Idle }
 
-// watchesPaused says whether the watch's reads go on while paused.
-func (e *Engine) watchesPaused() bool { return !e.hardware && e.watch != WatchNone }
+// readsThroughPause says whether the watch's reads go on while paused.
+func (e *Engine) readsThroughPause() bool { return !e.hardware && e.watch != WatchNone }
+
+// watchFailing says whether the newest read of one of the watch's
+// reads failed.
+func (e *Engine) watchFailing() bool {
+	for j, en := range e.jobs {
+		if e.watchJob(j) && (en.misses > 0 || en.held) {
+			return true
+		}
+	}
+	return false
+}
 
 // watchJob says whether j is the watch's read now.
 func (e *Engine) watchJob(j Job) bool {
@@ -829,9 +840,14 @@ func (e *Engine) Touch(now time.Time) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.seen(now)
-	if en, ok := e.jobs[Job{Kind: KBoxAlerts}]; ok && e.idleAt(now) && e.watch == WatchBox && !en.held && en.misses == 0 && !en.answered.IsZero() {
-		// Back from the pause: the watch's read at its own pace again.
-		en.due = minTime(en.due, en.answered.Add(WatchEvery))
+	if e.idleAt(now) {
+		// Back from the pause: the box's alerts, and the open app's, at
+		// their own pace again.
+		for j, every := range map[Job]time.Duration{{Kind: KBoxAlerts}: WatchEvery, {Kind: KAlerts, App: e.alertsApp}: AlertsEvery} {
+			if en, ok := e.jobs[j]; ok && !en.held && en.misses == 0 && !en.answered.IsZero() {
+				en.due = minTime(en.due, en.answered.Add(every))
+			}
+		}
 	}
 	e.touched = now
 	e.poke()
@@ -856,7 +872,7 @@ func (e *Engine) Take(now time.Time) (Job, bool, time.Duration) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.seen(now)
-	if e.inflight != nil || e.stopped != Running || e.idleAt(now) && !e.watchesPaused() {
+	if e.inflight != nil || e.stopped != Running || e.idleAt(now) && !e.readsThroughPause() {
 		return Job{}, false, 0
 	}
 	e.refill(now)
@@ -1251,7 +1267,9 @@ type Health struct {
 	SlowIn  time.Duration
 	// Back is set once, on the first answer after a run of none.
 	Back bool
-	// WatchRead: paused, and the watch's reads go on.
+	// WatchRead: paused, and the watch's reads go on, the newest of
+	// each answered. While paused they are the only reads, so one that
+	// fails alone begins no run of no answer: this is what says it.
 	WatchRead bool
 	// Waiting is how long the box has been waited for: since the read in
 	// flight began to wait for it (not one cancelled); or, when a read
@@ -1266,7 +1284,7 @@ func (e *Engine) Health(now time.Time) Health {
 	defer e.mu.Unlock()
 	e.seen(now)
 	h := Health{Stop: e.stopped, Paused: e.idleAt(now), Misses: e.misses, Back: e.recovering}
-	h.WatchRead = h.Paused && e.watchesPaused()
+	h.WatchRead = h.Paused && e.readsThroughPause() && !e.watchFailing()
 	e.recovering = false
 	if e.misses > 0 {
 		// The next read, as Take would make it: the retry, or the first
