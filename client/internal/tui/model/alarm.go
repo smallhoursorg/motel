@@ -28,7 +28,8 @@ const (
 // alarm is this session's own: what arrived and is not yet seen, when
 // the newest arrived, whether a bell is owed, and when one last rang.
 type alarm struct {
-	unseen map[unseenKey]bool
+	// unseen is what arrived and is not yet seen, with when it arrived.
+	unseen map[unseenKey]time.Time
 	newAt  time.Time
 	owed   bool
 	rungAt time.Time
@@ -49,10 +50,10 @@ func (a *alarm) took(src string, set map[string]bool, fresh []string, at time.Ti
 		return
 	}
 	if a.unseen == nil {
-		a.unseen = map[unseenKey]bool{}
+		a.unseen = map[unseenKey]time.Time{}
 	}
 	for _, k := range fresh {
-		a.unseen[unseenKey{src, k}] = true
+		a.unseen[unseenKey{src, k}] = at
 	}
 	a.newAt, a.owed = at, true
 }
@@ -86,12 +87,14 @@ func (s *Session) Ring(now time.Time) bool {
 	return true
 }
 
-// Seen is a key pressed at now: what is new is seen, unless it arrived
+// Seen is a key pressed at now: what is new is seen, but what arrived
 // less than SeenAfter ago. The count stays while the alerts fire.
 func (s *Session) Seen(now time.Time) {
 	s.seen(now)
-	if a := &s.alarm; len(a.unseen) > 0 && now.Sub(a.newAt) >= SeenAfter {
-		a.unseen = nil
+	for k, at := range s.alarm.unseen {
+		if now.Sub(at) >= SeenAfter {
+			delete(s.alarm.unseen, k)
+		}
 	}
 }
 
@@ -116,8 +119,8 @@ func marks(c Class, long, short, tiny, glyph string) MarkForms {
 // count is old, `alerts not known` (`alerts ?`, `?`) when it is not
 // known, `alerts…` before the first answer, a dim `no monitor` in the
 // long form alone when the box has none, and nothing when none fires.
-// An old count of none says `0?`: nothing drawn would read as nothing
-// firing. While something is new it is reversed on alternate seconds
+// An old count of none says `0?`, and one the box sent with more
+// held `0+`: nothing drawn would read as nothing firing. While something is new it is reversed on alternate seconds
 // of the wall clock for MoveFor, then reversed and still until seen.
 func (s *Session) Mark(now time.Time) MarkForms {
 	f := s.Firing(now)
@@ -130,6 +133,9 @@ func (s *Session) Mark(now time.Time) MarkForms {
 		return marks(Warn, "alerts not known", "alerts ?", "?", "?")
 	case f.Off:
 		return MarkForms{Long: Line{ownC("no monitor", Dim)}}
+	case f.N == 0 && f.More:
+		// The box sent none that is counted, and holds more than it sent.
+		return marks(Plain, "0+ firing", "0+", "0+", "?")
 	case f.N == 0 && !f.Old:
 		return MarkForms{}
 	case f.N == 0:

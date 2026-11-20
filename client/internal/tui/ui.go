@@ -141,20 +141,23 @@ func New(s *model.Session, colour bool, start model.View) *UI {
 	u.App.SetRoot(u.root, true).SetInputCapture(u.key)
 	u.App.SetBeforeDrawFunc(func(scr tcell.Screen) bool {
 		u.w, u.h = scr.Size()
+		now := u.now()
+		// The bell owed, at the frame that shows its mark, or says the
+		// window is too small for it: taken whether or not it rings, so
+		// its floor counts the same with it off. A lone BEL written by
+		// tcell, outside the frame's own bytes.
+		defer func() {
+			if u.S.Ring(now) && u.Bell {
+				_ = scr.Beep()
+			}
+		}()
 		if u.w < minW || u.h < minH {
 			// Below this nothing lays out; say what is needed instead.
 			door.PrintAt(scr, 0, 0, u.w, "window too small: the screen needs "+itoa(minW)+"x"+itoa(minH)+
 				", this one is "+itoa(u.w)+"x"+itoa(u.h)+". q quits.")
 			return true
 		}
-		now := u.now()
 		u.render(now)
-		// The bell owed, at the frame that shows its mark: taken whether
-		// or not it rings, so its floor counts the same with it off. A
-		// lone BEL written by tcell, outside the frame's own bytes.
-		if u.S.Ring(now) && u.Bell {
-			_ = scr.Beep()
-		}
 		return false
 	})
 	u.show()

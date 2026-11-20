@@ -266,3 +266,27 @@ func TestDemoArrivals(t *testing.T) {
 		t.Errorf("after a key the mark is %q", got)
 	}
 }
+
+// beeps is a simulation screen that counts the bells rung on it.
+type beeps struct {
+	sizedSim
+	n int
+}
+
+func (b *beeps) Beep() error { b.n++; return nil }
+
+// TestBellWhileTooSmall: in a window under the smallest the screens lay
+// out, a new alert still rings the bell.
+func TestBellWhileTooSmall(t *testing.T) {
+	crit := alertRow("cert_failed", "critical", t0.Add(-time.Hour))
+	scr := &beeps{sizedSim: sizedSim{tcell.NewSimulationScreen("UTF-8"), 50, 10}}
+	h := startOn(t, scr, func(f *demo.Fake) { f.Body("box-alerts.json", boxAlerts(crit)) })
+	h.on(func() { h.u.Bell = true })
+	h.fake.Body("box-alerts.json", boxAlerts(alertRow("disk_low", "warning", h.now), crit))
+	h.watchNext()
+	n := 0
+	h.on(func() { n = scr.n })
+	if n != 1 {
+		t.Errorf("in a 50x10 window, %d bells for a new alert", n)
+	}
+}

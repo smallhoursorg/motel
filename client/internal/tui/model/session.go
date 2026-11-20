@@ -193,6 +193,10 @@ func (s *Session) seen(now time.Time) {
 			}
 		}
 		move(&s.last, &s.backAt, &s.alarm.newAt, &s.alarm.rungAt)
+		for k, at := range s.alarm.unseen {
+			move(&at)
+			s.alarm.unseen[k] = at
+		}
 		for _, w := range s.watch.srcs {
 			move(&w.at)
 		}

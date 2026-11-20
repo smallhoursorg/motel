@@ -825,3 +825,35 @@ func TestWatchAppsHeldNotBudgeted(t *testing.T) {
 		t.Errorf("with every app's alerts held a status comes every %s, want %s as with no watch", got, want)
 	}
 }
+
+// TestWatchMoreNoneCounted: the box holding more than it sends, and
+// none it sends counted (held quiet, info), the mark says 0+, not
+// nothing.
+func TestWatchMoreNoneCounted(t *testing.T) {
+	s, f, now := watcher(t)
+	f.Body("box-alerts.json", alerts(true, alert("disk_low", "warning", "suppressed", t0, "")))
+	for range 3 {
+		step(t, s, f, now)
+	}
+	if m := s.Mark(*now); m.Long.Text() != "0+ firing" || m.Tiny.Text() != "0+" {
+		t.Errorf("the mark says %q, %q", m.Long.Text(), m.Tiny.Text())
+	}
+}
+
+// TestSeenEach: a key sees what arrived SeenAfter or more before it,
+// though something else arrived since that it does not yet see.
+func TestSeenEach(t *testing.T) {
+	s, f, now := watcher(t)
+	for range 3 {
+		step(t, s, f, now)
+	}
+	x := alert("disk_low", "warning", "active", *now, "")
+	f.Body("box-alerts.json", alerts(false, x))
+	watchRead(t, s, f, now)
+	f.Body("box-alerts.json", alerts(false, alert("cert_failed", "critical", "active", *now, ""), x))
+	watchRead(t, s, f, now)
+	s.Seen(now.Add(model.SeenAfter / 2))
+	if fw := s.Firing(now.Add(model.SeenAfter / 2)); fw.New != 1 {
+		t.Errorf("a key half a second after the second: %d new, want 1", fw.New)
+	}
+}

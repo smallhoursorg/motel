@@ -125,3 +125,25 @@ func TestArriveOnTheApps(t *testing.T) {
 		}
 	}
 }
+
+// TestArriveBesideReads: the script's step and a read of the app it
+// fires on at once: the read's default body for an app with no fixture
+// never replaces the step's.
+func TestArriveBesideReads(t *testing.T) {
+	now := time.Date(2026, 11, 20, 12, 0, 0, 0, time.UTC)
+	for range 50 {
+		f := &Fake{Now: func() time.Time { return now }}
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			_, _ = f.Alerts(context.Background(), "shop")
+		}()
+		f.Arrive(0)
+		f.Arrive(1)
+		<-done
+		g, err := f.Alerts(context.Background(), "shop")
+		if err != nil || len(g.V.Alerts) != 1 {
+			t.Fatalf("shop's alerts after the step: %v, %v", g.V.Alerts, err)
+		}
+	}
+}
