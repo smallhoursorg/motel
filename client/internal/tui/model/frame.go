@@ -617,6 +617,11 @@ func (s *Session) freshness(now time.Time) Line {
 	switch {
 	case s.Signing && s.Key.Hardware:
 		return Line{ownC("TOUCH YOUR KEY to sign", Warn)}
+	case s.Signing && !s.SigningAt.IsZero() && now.Sub(s.SigningAt) >= WaitingAfter:
+		// A key that needs no touch signs in well under a second; one
+		// that takes longer has an agent that asks first, or a stuck
+		// one: not live while it waits, and SignWithin ends it.
+		return Line{ownC("waiting "+Ago(now.Sub(s.SigningAt))+" for the key to sign · "+ago, Warn)}
 	case h.Stop == SignedOut:
 		return Line{ownC("SIGNED OUT: the box refused the key (401) · r asks again", Bad)}
 	case h.Stop == NotSigned:
@@ -627,6 +632,9 @@ func (s *Session) freshness(now time.Time) Line {
 		// 57 cells: every word here fits the smallest window, 60, the
 		// left side cut before it (TestTitleWordsAt60).
 		return Line{ownC("STOPPED: answered about another key or box · r asks again", Bad)}
+	case h.Paused && h.WatchRead:
+		// 53 cells: the tiny mark beside it fits 60.
+		return Line{ownC("PAUSED (idle 10m), alerts still read: any key resumes", Warn)}
 	case h.Paused:
 		return Line{ownC("PAUSED (idle 10m): any key resumes", Warn)}
 	case h.SlowIn > 0:
@@ -698,8 +706,12 @@ func (s *Session) MeViewFit(now time.Time, width int, cells Cells) []Line {
 	if s.TokenExpires != nil {
 		if exp := s.TokenExpires(); !exp.IsZero() {
 			if left := exp.Sub(now); left > 0 {
+				again := "             signed again a minute before it ends; after ten idle minutes only the alerts are read, about once a minute, and it is signed for them"
+				if s.Key.Hardware {
+					again = "             signed again a minute before it ends, and only while you use the screen: a hardware key is not asked for a touch while you are away, so the alerts are not read then"
+				}
 				out = append(out, laid(width, cells, field("token", own("good until "+hms(exp)+" UTC ("+Ago(left)+" left)")),
-					Line{own("             signed again a minute before it ends, and only while you use the screen")})...)
+					Line{own(again)})...)
 			} else {
 				out = append(out, Sentence(field("token", own("expired at "+hms(exp)+" UTC; signed again on the next read")), width, cells)...)
 			}

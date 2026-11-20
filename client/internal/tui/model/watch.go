@@ -44,6 +44,11 @@ const (
 	// AppWatchEvery is the shortest interval of a background app's
 	// alerts read.
 	AppWatchEvery = 30 * time.Second
+	// PausedWatchEvery is the shortest interval of the watch's reads
+	// while the TUI is paused (Idle): the token's life, not the read's
+	// pace, sets how often a key signs, so a minute costs a viewer of
+	// the box 480 reads in 8 hours and no more signatures than 15 s.
+	PausedWatchEvery = 60 * time.Second
 )
 
 // Unknown is why the watch's count is not known.
@@ -184,6 +189,7 @@ func (s *Session) follow(now time.Time) {
 	case len(s.Me.V.Roles) > 0:
 		w = WatchApps
 	}
+	s.Engine.SetHardwareKey(s.Key.Hardware)
 	changed := w != s.watch.mode || s.watch.forgotten
 	if changed {
 		// What arrived under the watch left is not new to the one taken:
@@ -317,10 +323,10 @@ func (s *Session) watchRead(j Job, at time.Time, err error) {
 	switch monitor {
 	case wire.MonitorOn:
 		fresh = src.take(rows, more, false, at)
-		src.every = s.Engine.WatchInterval(j)
+		src.every = s.Engine.WatchInterval(j, at)
 	case wire.MonitorOff:
 		fresh = src.take(nil, false, true, at)
-		src.every = s.Engine.WatchInterval(j)
+		src.every = s.Engine.WatchInterval(j, at)
 	case wire.MonitorUnanswered:
 		src.why, src.failed = Unanswered, false
 		return
@@ -405,7 +411,7 @@ func (s *Session) Firing(now time.Time) Firing {
 			if w.mode == WatchApps {
 				job = Job{Kind: KAlerts, App: n}
 			}
-			if src.failed || now.Sub(src.at) > max(src.every, s.Engine.WatchInterval(job))+WaitingAfter {
+			if src.failed || now.Sub(src.at) > max(src.every, s.Engine.WatchInterval(job, now))+WaitingAfter {
 				f.Old = true
 			}
 		}
@@ -418,7 +424,7 @@ func (s *Session) Firing(now time.Time) Firing {
 	case pending:
 		return Firing{Why: NotAsked}
 	}
-	if (stopped || s.Engine.Paused(now)) && !f.At.IsZero() {
+	if (stopped || s.Engine.WatchPaused(now)) && !f.At.IsZero() {
 		// With nothing to read (no app listed) nothing is old.
 		f.Old = true
 	}

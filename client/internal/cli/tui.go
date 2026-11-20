@@ -41,15 +41,19 @@ const screenLong = "motel alone shows them on screens in the terminal, over the 
 	"On every screen the title bar counts what fires that you may see, and the\n" +
 	"terminal's bell rings when a new alert arrives (MOTEL_BELL=off turns it off).\n" +
 	"It only reads, well inside the box's limit of 2 requests a second and 60 at\n" +
-	"once: up to 30 at once to start, then at most 1.5 a second. It signs one token\n" +
-	"for ten minutes at a time, so a hardware key is touched about every nine, and\n" +
-	"never asks for a passphrase or a PIN: a key with a passphrase must be in the\n" +
-	"agent (ssh-add), and a hardware key that requires its PIN cannot be used there\n" +
-	"yet. ? lists the keys; c shows the command for a screen that reads the box, y\n" +
-	"the box's answer as JSON. It is asked with your own key only, and takes no\n" +
-	"--json. With no arguments at all it prints this help instead when stdout is not\n" +
-	"a terminal, and, with a line under it saying\n" +
-	"why, when it finds no box or key to read with, or no screen to draw on."
+	"once: up to 30 at once to start, then at most 1.5 a second. After ten minutes\n" +
+	"with no key pressed it reads only the alerts, about once a minute; with a\n" +
+	"hardware key it reads nothing then, so no touch is asked for while you are\n" +
+	"away. It signs one token for ten minutes at a time, so a hardware key is\n" +
+	"touched about every nine minutes while you use it, a signature that takes\n" +
+	"over a minute stops the reads (r asks again), and it never asks for a\n" +
+	"passphrase or a PIN: a key with a passphrase must be in the agent (ssh-add),\n" +
+	"and a hardware key that requires its PIN cannot be used there yet. ? lists the\n" +
+	"keys; c shows the command for a screen that reads the box, y the box's answer\n" +
+	"as JSON. It is asked with your own key only, and takes no --json.\n" +
+	"With no arguments at all it prints this help instead when stdout is not a\n" +
+	"terminal, and, with a line under it saying why, when it finds\n" +
+	"no box or key to read with, or no screen to draw on."
 
 // screen makes motel alone, the root, open the screens: with its own
 // --box and --key, as every command that asks the box has, and the
@@ -344,7 +348,7 @@ func forTUI(c *client.Client, now func() time.Time) *signer {
 		k.NoTerminal = true
 		pt.Signer = k
 	}
-	sig := &signer{inner: pt.Signer, now: now}
+	sig := &signer{inner: pt.Signer, now: now, within: signWithin}
 	pt.Signer = sig
 	c.NoWait = true
 	return sig
@@ -490,14 +494,25 @@ func failure(err error) error {
 	return m
 }
 
+// signWithin is the longest the TUI waits for a token to be signed. A
+// key in the agent signs in well under a second, and a hardware key's
+// touch is given by a person at the keys; an agent that asks before each
+// signature, with nobody there to answer while the alerts are read
+// through the pause, would hold every read for ever, the title bar
+// saying it waits. Past it the signature fails, every read stops, and
+// the screen says why: r asks again.
+const signWithin = 60 * time.Second
+
 // signer tells the screen while a token is being signed, and says when
 // the token last signed ends.
 type signer struct {
 	inner sshkey.Signer
 	now   func() time.Time
-	mu    sync.Mutex
-	note  func(bool)
-	at    time.Time
+	// within is how long a signature may take (signWithin).
+	within time.Duration
+	mu     sync.Mutex
+	note   func(bool)
+	at     time.Time
 }
 
 // Expires is when the token last signed stops being taken: sshkey's
@@ -529,7 +544,12 @@ func (s *signer) Sign(ctx context.Context, key sshkey.Key, namespace string, mes
 		note(true)
 		defer note(false)
 	}
-	out, err := s.inner.Sign(ctx, key, namespace, message)
+	sctx, cancel := context.WithTimeout(ctx, s.within)
+	defer cancel()
+	out, err := s.inner.Sign(sctx, key, namespace, message)
+	if err != nil && ctx.Err() == nil && errors.Is(sctx.Err(), context.DeadlineExceeded) {
+		return nil, fmt.Errorf("%s did not sign within %d s: an agent that asks before each signature (ssh-add -c, a password manager's) may be waiting for an answer, or a hardware key for its touch. r asks again", key.Shown, int(s.within/time.Second))
+	}
 	if err == nil {
 		s.mu.Lock()
 		s.at = now
