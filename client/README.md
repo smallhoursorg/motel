@@ -47,6 +47,14 @@ motel metrics <app> [--range 1h|24h|7d|14d]
 motel                               on a terminal, screens over the same reads (below)
 ```
 
+Later than v0.8.0: `status --follow`, which a client built from
+v0.8.0's source does not have (it follows a box at v0.8.0); and
+`backup status`, `monitor alerts`, `monitor rules` and `metrics`, with
+the screens' `:backups`, `:alerts`, `:rules` and `:metrics` (`g` on an
+app's screen), whose reads a box has on each release after v0.8.0
+only: a box at v0.8.0 answers them `404`, the command exits 6, and the
+screen says the box answered 404.
+
 Each command takes `--json`; `motel` alone, the screens, does not. `whoami`, `apps`, `backup status`, `monitor alerts`, `monitor rules` and `metrics` are asked with your own key
 only: with `MOTEL_TOKEN` set, name the key with `--key` (else exit 2,
 nothing sent). `<app>` is a name, or the app's URL
