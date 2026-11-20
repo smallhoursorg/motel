@@ -940,8 +940,9 @@ Presets:
 a job on another CI, and the token's format for minting it elsewhere.
 
 Sub-directives: `audience` (required for OIDC — never trust an
-unaudienced token; in an app's block, the name of this box, see below;
-a `box` block's is one name for all the boxes `bin/apply` pushes to),
+unaudienced token; in a `liveswap` block, global or an app's, the
+name of this box, see below; a `box` block's is one name for all the
+boxes `bin/apply` pushes to),
 `claim <name> <value>` (exact-match, repeatable — pin `repository`,
 `ref`, `environment`, etc.; a claim named `@id` is refused, because
 Caddy deletes that key from the config before motel reads it),
@@ -1010,7 +1011,7 @@ liveswap {
 
 	# Everyday path: CI deploys on merge, no secret anywhere.
 	deploy_trust github {
-		audience blog.example.com
+		audience deploy.example.com
 		claim repository   your-org/blog
 		claim ref          refs/heads/main
 		claim workflow_ref your-org/blog/.github/workflows/deploy.yml@refs/heads/main
@@ -1020,15 +1021,15 @@ liveswap {
 	# block; no shared secret, no effect on the others. The audience
 	# names this box (its deploy hostname), so a token minted for
 	# another box that trusts the same key is refused here; mint with
-	# `--audience blog.example.com --subject alice`.
+	# `--audience deploy.example.com --subject alice`.
 	deploy_trust local {
 		public_key /etc/motel/alice.pub
-		audience blog.example.com
+		audience deploy.example.com
 		subject alice
 	}
 	deploy_trust local {
 		public_key /etc/motel/bob.pub
-		audience blog.example.com
+		audience deploy.example.com
 		subject bob
 	}
 
@@ -1040,8 +1041,9 @@ liveswap {
 
 A `github` block's `audience` is what the job must ask GitHub for. The
 templates' `scripts/deploy.sh` asks for the host of `MOTEL_URL`,
-lowercase and without a port, so `audience blog.example.com` above
-matches a job whose `MOTEL_URL` is `https://blog.example.com/blog`.
+lowercase, without a port or a trailing dot, so `audience
+deploy.example.com` above matches a job whose `MOTEL_URL` is
+`https://deploy.example.com/blog`.
 Another audience needs `MOTEL_AUDIENCE` in the job's `env:`, beside
 `MOTEL_URL`, so the rollback step gets it too, or the box answers
 401.

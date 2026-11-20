@@ -22,8 +22,8 @@
 #   MOTEL_TOKEN        a deploy token. Not needed in GitHub Actions: with
 #                         `permissions: id-token: write` one is minted per run.
 #   MOTEL_AUDIENCE     the audience the box's deploy_trust expects (default:
-#                         MOTEL_URL's host, the box's deploy host, lowercase
-#                         and without a port: deploy.example.com)
+#                         MOTEL_URL's host, the box's deploy host, lowercase,
+#                         without a port or a trailing dot: deploy.example.com)
 #   ARTIFACT_AUTH_HEADER  sent by the box as Authorization when it fetches the
 #                         URL: "token <github token>" reads a release asset by
 #                         its API URL, private repo or not (the workflow sends

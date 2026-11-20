@@ -380,8 +380,9 @@ will change that.
 ## An app's deploy token names its box
 
 An app set up from a template of v0.8.0 or earlier has `audience
-motel` in its `deploy_trust github` block on the box, and its
-`scripts/deploy.sh` asks GitHub for `motel`. Every box shares that
+motel` in its `deploy_trust github` block on the box (`hotserve` from
+a template before v0.6.0), and its `scripts/deploy.sh` asks GitHub
+for that name. Every box shares that
 name, so a token sent to one box is accepted by any other that trusts
 the same repository and branch, a second box or a staging one, for as
 long as the token lives. This release's template names the box: the
@@ -410,8 +411,10 @@ order:
    in `refused()`. A workflow `env:` that sets `MOTEL_AUDIENCE` keeps
    asking for that name: remove it, unless the name is already this
    box's alone. Push; the deploy goes through the new block.
-3. **Remove the old block**, the one with `audience motel`, signed and
-   pushed. A token for another box is now refused here.
+3. **Remove the old block**, the one with the audience the old
+   script asked for (`motel`, `hotserve` before v0.6.0, or the
+   workflow's `MOTEL_AUDIENCE`), signed and pushed. A token for
+   another box is now refused here.
 
 None of this is the `.deb`'s: going back to an earlier `moteld`
 changes neither side, and deploys still go through.
