@@ -67,8 +67,11 @@ func (k *PeopleNetworks) settle(t testing.TB, stop bool) {
 		k.mu.Lock()
 		busy := k.state == networksReading || k.telling > 0 || k.writing || (!stop && k.timer != nil)
 		if !busy && stop && k.timer != nil {
-			k.timer.Stop()
-			k.timer = nil
+			// A timer that has fired already has its flush to come,
+			// which clears it: waited for, so none runs past the test.
+			if busy = !k.timer.Stop(); !busy {
+				k.timer = nil
+			}
 		}
 		k.mu.Unlock()
 		if !busy {
@@ -799,6 +802,7 @@ const gatedNetwork = "203.0.113.0/24"
 // slow at the moment a stop or a write comes.
 type gated struct {
 	heard
+	all     bool // every network's announcements held, not gatedNetwork's alone
 	entered chan struct{}
 	release chan struct{}
 	once    sync.Once
@@ -807,7 +811,7 @@ type gated struct {
 // gate installs a gated announcer on k, opened when the test ends,
 // before the record settles.
 func gate(t testing.TB, k *PeopleNetworks) *gated {
-	g := &gated{entered: make(chan struct{}, 64), release: make(chan struct{})}
+	g := &gated{entered: make(chan struct{}, 1024), release: make(chan struct{})}
 	k.mu.Lock()
 	k.announcer = g
 	k.mu.Unlock()
@@ -817,7 +821,7 @@ func gate(t testing.TB, k *PeopleNetworks) *gated {
 
 func (g *gated) Announce(a Announcement) {
 	g.heard.Announce(a)
-	if a.From == gatedNetwork {
+	if g.all || a.From == gatedNetwork {
 		g.entered <- struct{}{}
 		<-g.release
 	}
@@ -991,6 +995,45 @@ func TestNetworksToldBeforeWritten(t *testing.T) {
 				t.Errorf("once told, written %q, %v", b, err)
 			}
 		})
+	}
+}
+
+// TestNetworksUntoldBounded: a key's requests from more new networks
+// than a key holds, at once, while every announcement blocks, keep at
+// most networksHeldPerKey of them in memory; once told, each is told
+// and the key keeps its sixteen.
+func TestNetworksUntoldBounded(t *testing.T) {
+	people := newTestPeople(t)
+	fp := people.alice.Fingerprint()
+	k, _ := testNetworks(t, filepath.Join(t.TempDir(), "people-networks.json"))
+	k.now = steppingClock()
+	k.seen(people.reg, fp, "alice", addr("198.51.100.9"), zap.NewNop())
+	k.settle(t, false)
+	g := gate(t, k)
+	g.all = true
+	const burst = 2 * networksHeldPerKey
+	var wg sync.WaitGroup
+	for i := range burst {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			k.seen(people.reg, fp, "alice", addr(fmt.Sprintf("10.0.%d.1", i)), zap.NewNop())
+		}()
+	}
+	for range burst {
+		g.held(t)
+	}
+	if n := len(k.nets(fp)); n > networksHeldPerKey {
+		t.Errorf("%d networks kept while their announcements block", n)
+	}
+	g.open()
+	wg.Wait()
+	k.settle(t, false)
+	if got := g.take(); len(got) != burst {
+		t.Errorf("told %d of %d", len(got), burst)
+	}
+	if n := len(k.nets(fp)); n != networksPerKey {
+		t.Errorf("kept %d", n)
 	}
 }
 

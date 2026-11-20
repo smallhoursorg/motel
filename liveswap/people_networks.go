@@ -331,7 +331,9 @@ func (k *PeopleNetworks) seen(reg *access.Registry, fp, person string, addr neti
 	kn.nets = slices.Insert(kn.nets, 0, seenNetwork{net: net, untold: true})
 	// Cut to the networks a key keeps once told (toldLocked): an
 	// announcement cut short then forgets no network told before it.
-	if k.state != networksRead && len(kn.nets) > networksHeldPerKey {
+	// Until then, the cut of the held: announcements that block (on
+	// notify's engine) leave the key no longer than that.
+	if len(kn.nets) > networksHeldPerKey {
 		kn.nets = kn.nets[:networksHeldPerKey]
 	}
 	if k.state != networksRead {
