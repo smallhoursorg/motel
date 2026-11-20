@@ -166,16 +166,31 @@ else
 fi
 
 # The Actions dressing. `field` reads one string field out of the
-# response (no jq here: this also runs from laptops): the last
-# occurrence, which for "phase" is the failing phase inside last_deploy
-# and for "error" its cause, with JSON's \" and \\ unescaped so a quote
-# in the cause does not cut it short. `prop` and `msg` escape what a
+# response (no jq here: this also runs from laptops): its last
+# occurrence, with JSON's \" and \\ unescaped so a quote in the cause
+# does not cut it short; `lead` reads it only as the body's first key.
+# `failed` reads a failure body with them. `prop` and `msg` escape what a
 # workflow command's property and message may not contain. The
 # commands are written with printf, never echo: dash's echo turns a
 # JSON-escaped \n in a cause into a real newline and splits the line.
 actions=${GITHUB_ACTIONS:-}
 field() {
 	printf '%s' "$1" | sed -n 's/.*"'"$2"'":"\(\([^\\"]*\\.\)*[^\\"]*\)".*/\1/p' | sed 's/\\\(["\\]\)/\1/g'
+}
+lead() {
+	printf '%s' "$1" | sed -n 's/^{"'"$2"'":"\(\([^\\"]*\\.\)*[^\\"]*\)".*/\1/p' | sed 's/\\\(["\\]\)/\1/g'
+}
+# failed <body> <version sent>: sets why, the body's own error (the
+# box puts it first, and a filtered body's sorted keys keep it first),
+# and phase, where the deploy stopped: last_deploy's, only when that
+# is a deploy of the version sent. last_deploy's first key is its
+# version, and no "phase" after its opening is another's. A body about
+# another deploy, or a failure before the first phase, gives no phase
+# (#533).
+failed() {
+	why=$(lead "$1" error)
+	phase= rest=${1#*\"last_deploy\":\{}
+	case $rest in "\"version\":\"$2\","*) phase=$(field "$rest" phase) ;; esac
 }
 msg() { printf '%s' "$1" | sed 's/%/%25/g' | tr '\r\n' '  '; }
 prop() { msg "$1" | sed 's/:/%3A/g; s/,/%2C/g'; }
@@ -301,7 +316,7 @@ refused() {
 	echo "(journalctl -u moteld, 'webhook auth failed') names the app asked for and the"
 	echo "check that refused it, unless the box's budget for logging failed authentications is spent."
 }
-finish() { # <what>: dresses the outcome, exits on failure
+finish() { # <what> <version sent>: dresses the outcome, exits on failure
 	what=$1
 	echo
 	[ -n "$actions" ] && printf '::endgroup::\n'
@@ -312,9 +327,7 @@ finish() { # <what>: dresses the outcome, exits on failure
 		[ -n "${GITHUB_STEP_SUMMARY:-}" ] && printf '**motel:** %s live, %s\n\n' "$what" "$took" >>"$GITHUB_STEP_SUMMARY"
 		return 0 ;;
 	esac
-	last=$(tail -n 1 "$body")
-	phase=$(field "$last" phase)
-	why=$(field "$last" error)
+	failed "$(tail -n 1 "$body")" "$2"
 	hint=
 	! boxrefused || hint=$(refused)
 	[ -z "$hint" ] || printf '%s\n' "$hint"
@@ -339,7 +352,7 @@ if [ -n "$rollback" ]; then
 	what="$app rollback to $rollback"
 	printf '%srolling %s back to %s\n' "${actions:+::group::}" "$url" "$rollback"
 	send -X POST "$url?rollback=$rollback"
-	finish "$what"
+	finish "$what" "$rollback"
 	exit 0
 fi
 
@@ -359,4 +372,4 @@ else
 	send -X POST -H "Content-Type: application/json" \
 		-d "{\"url\":\"$(json "$artifact")\",\"version\":\"$(json "$version")\"$auth$sha}" "$url"
 fi
-finish "$what"
+finish "$what" "$version"

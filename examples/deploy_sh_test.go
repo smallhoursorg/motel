@@ -764,3 +764,83 @@ func gitCheckout(t *testing.T, files map[string]string) (string, func(...string)
 	git("commit", "-q", "-m", "initial")
 	return repo, git
 }
+
+// The bodies a box answers a failed deploy with, as liveswap writes
+// them (paths shortened), and what the script names as the failure
+// (#533): the body's own cause, and last_deploy's phase only when it is
+// a deploy of the version sent.
+const (
+	linkRefusal = `refusing to deploy: /srv/motel/demo/tmp is a link, which is not followed under the liveswap root`
+	// A push refused before staging by a box older than #533's fix: the
+	// refusal, and the status as it was, whose last_deploy and deploys
+	// are v2's, failed in starting.
+	refusedWithOldStatus = `{"error":"` + linkRefusal + `","status":{"app":"demo","phase":"idle","current_version":"v1","running":true,"deploys":[{"version":"v2","status":"failed","phase":"starting","started_at":"t","finished_at":"t"},{"version":"v1","status":"succeeded","started_at":"t","finished_at":"t"}],"last_deploy":{"version":"v2","status":"failed","error":"start failed: boom","phase":"starting","started_at":"t","finished_at":"t","artifact_entries":0,"artifact_bytes":0,"phases":[{"name":"downloading","started_at":"t","seconds":0},{"name":"starting","started_at":"t","seconds":0}]},"available_versions":["v1"]}}`
+	// The same after v1 succeeded: the only phase is the app's "idle".
+	refusedAfterSuccess = `{"error":"` + linkRefusal + `","status":{"app":"demo","phase":"idle","current_version":"v1","running":true,"deploys":[{"version":"v1","status":"succeeded","started_at":"t","finished_at":"t"}],"last_deploy":{"version":"v1","status":"succeeded","started_at":"t","finished_at":"t","artifact_entries":0,"artifact_bytes":0},"available_versions":["v1"]}}`
+	// v3 failed in the pipeline before its first phase: last_deploy is
+	// its own, with no phase; v2's failed record is in deploys.
+	failedBeforeAnyPhase = `{"error":"` + linkRefusal + `","status":{"app":"demo","phase":"idle","current_version":"v1","running":true,"deploys":[{"version":"v2","status":"failed","phase":"starting","started_at":"t","finished_at":"t"}],"last_deploy":{"version":"v3","status":"failed","error":"` + linkRefusal + `","started_at":"t","finished_at":"t","artifact_entries":0,"artifact_bytes":0},"available_versions":["v1"]}}`
+	// v3 failed in starting, as a stream's last line.
+	failedInStarting = `{"at":"t","event":"phase","phase":"downloading"}` + "\n" + `{"error":"start failed: boom","status":{"app":"demo","phase":"idle","current_version":"v1","running":true,"deploys":[{"version":"v3","status":"failed","phase":"starting","started_at":"t","finished_at":"t"}],"last_deploy":{"version":"v3","status":"failed","error":"start failed: boom","phase":"starting","started_at":"t","finished_at":"t","artifact_entries":0,"artifact_bytes":0},"available_versions":["v1"]},"event":"done","http_status":500}`
+	// A body the filter changed: its top level re-marshalled with its
+	// keys sorted, redacted_env among them; v1 failed in starting.
+	failedRedacted = `{"error":"start failed: [redacted]","redacted_env":["API_KEY"],"status":{"app":"demo","phase":"idle","current_version":"v0","running":true,"deploys":[{"version":"v0","status":"failed","phase":"soaking","started_at":"t","finished_at":"t"}],"last_deploy":{"version":"v1","status":"failed","error":"start failed: [redacted]","phase":"starting","started_at":"t","finished_at":"t","artifact_entries":0,"artifact_bytes":0},"available_versions":["v0"]}}`
+)
+
+func TestDeployShNamesTheFailureOfTheVersionSent(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, body, version string
+		rollback            string // --rollback's version; none is a deploy of version
+		stream              bool
+		annotation          string // the ::error message
+		summary             string // the job summary's first line, after "**motel:** "
+	}{
+		{"a refusal with the status as it was (an older box)", refusedWithOldStatus, "v3", "", false, linkRefusal, "demo v3 failed, "},
+		{"a refusal with the status after a success (an older box)", refusedAfterSuccess, "v3", "", false, linkRefusal, "demo v3 failed, "},
+		{"a refusal alone", `{"error":"` + linkRefusal + `"}`, "v3", "", false, linkRefusal, "demo v3 failed, "},
+		{"a failure before the first phase", failedBeforeAnyPhase, "v3", "", false, linkRefusal, "demo v3 failed, "},
+		{"a failure in starting, streamed", failedInStarting, "v3", "", true, "in starting: start failed: boom", "demo v3 failed in `starting`, "},
+		{"a filtered body", failedRedacted, "v1", "", false, "in starting: start failed: [redacted]", "demo v1 failed in `starting`, "},
+		{"a rollback to last_deploy's version", failedRedacted, "v3", "v1", false, "in starting: start failed: [redacted]", "demo rollback to v1 failed in `starting`, "},
+		{"a rollback to another version", failedRedacted, "v3", "v0", false, "start failed: [redacted]", "demo rollback to v0 failed, "},
+		// Not the box's: its cause is not the first key, so the
+		// annotation points at the body, which the log printed.
+		{"JSON that is not the box's", `{"code":7,"error":"bad gateway","phase":"x"}`, "v3", "", false, "see the response above", "demo v3 failed, "},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if tc.stream {
+					w.Header().Set("Content-Type", "application/x-ndjson")
+					w.WriteHeader(http.StatusOK)
+				} else {
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusInternalServerError)
+				}
+				_, _ = w.Write([]byte(tc.body + "\n"))
+			}))
+			defer srv.Close()
+			args := []string{"https://example.test/a.tgz"}
+			if tc.rollback != "" {
+				args = []string{"--rollback", tc.rollback}
+			}
+			summary := filepath.Join(t.TempDir(), "summary.md")
+			out, code := deployShArgs(t, srv, args, "VERSION="+tc.version, "MOTEL_TOKEN=x", "GITHUB_ACTIONS=true",
+				"ACTIONS_ID_TOKEN_REQUEST_URL=", "GITHUB_STEP_SUMMARY="+summary)
+			var annotation string
+			for _, l := range strings.Split(out, "\n") {
+				if strings.HasPrefix(l, "::error ") {
+					annotation = l[strings.LastIndex(l, "::")+2:]
+				}
+			}
+			sum, err := os.ReadFile(summary)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if code != 1 || annotation != tc.annotation || !strings.HasPrefix(string(sum), "**motel:** "+tc.summary) {
+				t.Errorf("exit %d, annotation %q (want %q), summary %q (want it to begin %q)\n%s", code, annotation, tc.annotation, sum, tc.summary, out)
+			}
+		})
+	}
+}
