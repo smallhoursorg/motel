@@ -185,8 +185,8 @@ lead() {
 # and phase, where the deploy stopped: last_deploy's, only when that
 # is a deploy of the version sent. last_deploy's first key is its
 # version, and no "phase" after its opening is another's. A body about
-# another deploy, or a failure before the first phase, gives no phase
-# (#533).
+# a deploy of another version, or a failure before the first phase,
+# gives no phase (#533).
 failed() {
 	why=$(lead "$1" error)
 	phase= rest=${1#*\"last_deploy\":\{}

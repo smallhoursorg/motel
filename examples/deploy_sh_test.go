@@ -789,6 +789,9 @@ const (
 
 func TestDeployShNamesTheFailureOfTheVersionSent(t *testing.T) {
 	t.Parallel()
+	if _, err := exec.LookPath("curl"); err != nil {
+		t.Fatal("deploy.sh needs curl; install it to run this test")
+	}
 	for _, tc := range []struct {
 		name, body, version string
 		rollback            string // --rollback's version; none is a deploy of version
