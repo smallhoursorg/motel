@@ -305,6 +305,30 @@ func TestDeployShPinsTheArtifactDigest(t *testing.T) {
 	}
 }
 
+// In Actions the run's token names the box: its audience is
+// MOTEL_URL's host, lowercase and without a port (the aud a person's
+// token names the box by), unless MOTEL_AUDIENCE names another.
+func TestDeployShAsksForTheBoxsDeployHost(t *testing.T) {
+	t.Parallel()
+	if _, err := exec.LookPath("curl"); err != nil {
+		t.Fatal("deploy.sh needs curl; install it to run this test")
+	}
+	srv := box(t, "stream")
+	defer srv.Close()
+	_, port, _ := strings.Cut(srv.URL, "://127.0.0.1:")
+	for _, tc := range []struct{ url, audience, want string }{
+		{"http://LocalHost:" + port + "/demo", "", "localhost"},
+		{srv.URL + "/demo/", "", "127.0.0.1"},
+		{srv.URL + "/demo", "blog", "blog"},
+	} {
+		out, code := deploySh(t, srv, "GITHUB_ACTIONS=true", "MOTEL_URL="+tc.url, "MOTEL_AUDIENCE="+tc.audience,
+			"ACTIONS_ID_TOKEN_REQUEST_URL="+srv.URL+"/token?api-version=1", "ACTIONS_ID_TOKEN_REQUEST_TOKEN=run", "MOTEL_TOKEN=")
+		if code != 0 || !strings.Contains(out, "::add-mask::minted-"+tc.want+"\n") {
+			t.Errorf("MOTEL_URL %s, MOTEL_AUDIENCE %q: exit %d, want the token minted for %s:\n%s", tc.url, tc.audience, code, tc.want, out)
+		}
+	}
+}
+
 // In Actions a refused OIDC token is followed by the claims the run
 // minted it with — every value the run's own, so the box gives nothing
 // away — in the log, the error annotation and the job summary.
@@ -325,8 +349,8 @@ func TestDeployShSaysWhatARefusedRunMustBeTrustedFor(t *testing.T) {
 		t.Fatalf("exit %d, want 1:\n%s", code, out)
 	}
 	for _, want := range []string{
-		"::add-mask::minted-motel",
-		"audience           motel",
+		"::add-mask::minted-127.0.0.1",
+		"audience           127.0.0.1",
 		"claim repository   org/blog",
 		"claim ref          refs/heads/main",
 		"claim workflow_ref org/blog/.github/workflows/deploy.yml@refs/heads/main",

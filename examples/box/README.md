@@ -124,7 +124,11 @@ what it runs.
    account) three times more: the `artifact_allowlist` entry pins the
    organization or account alone, and the app's `deploy_trust` its
    repo and its deploy workflow, in its `claim repository` and `claim
-   workflow_ref`. This lists the lines left to change, comments aside,
+   workflow_ref`, and this box, in its `audience`: the deploy host,
+   which the app repo's `scripts/deploy.sh` asks for (the host of its
+   `MOTEL_URL`), so no other box takes the token. The `box` block's
+   `audience motel` stays: `bin/apply` sends one token to every box.
+   This lists the lines left to change, comments aside,
    and prints nothing once all are changed:
 
    ```sh
