@@ -775,11 +775,11 @@ plugin's handler can take its ID.
 | `people_networks.go` | the networks each person's key was used from, and the two events a stolen key should set off; told, never a gate (access/DESIGN-access.md, "A key used from somewhere new") |
 | `motel_routes.go` | the box-wide rows under `/_motel/`: `whoami`, `apps`, `backups`, `alerts` and `rules`, and the dispatch to the app-scoped rows |
 | `motel_approutes.go` | the app-scoped rows, `/_motel/apps/<app>/<read>`: `alerts` (served here) and `rules` |
-| `motel_alerts.go` / `alerts.go` | `GET /_motel/alerts`, every alert and silence for a viewer of the box; `AlertsSource`, what Alertmanager holds, which notify installs |
+| `motel_alerts.go` / `alerts.go` | `GET /_motel/alerts`, the alerts and silences a viewer of the box reads (access/DESIGN-access.md, "The answers"); `AlertsSource`, what Alertmanager holds, which notify installs |
 | `motel_rules.go` | `RulesSource`, the rules the box alerts on, which notify installs, and the two rules rows |
 | `motel_backups.go` | `GET /_motel/backups`; `BackupsSource`, which moteld installs (cmd/moteld/backups.go) |
 | `wiretypes.go` | liveswap's names for the bodies, which are package `wire`'s types |
-| `wire/` | leaf package: every body the webhooks answer with, which a client decodes into without linking Caddy; `testdata/wire` pins the bytes |
+| `wire/` | leaf package: every body liveswap's webhook answers with, and the box webhook's `GET /`, which a client decodes into without linking Caddy; `testdata/wire` pins the bytes |
 | `redact.go` | the response filter (`Redactor`) that `RespondJSON` applies: known `env_file` values in their encoded forms, a safe list, shape rules, entropy; the four rules every writer of a body holds head the file |
 | `deploytrust/` | leaf package: deploy auth — the `deploy_trust` grammar (`Parse`), its sources and verifiers (OIDC + local-key JWT verification), the webhook preamble (`Limiter.Authenticate`) and what a failed attempt costs the journal (`Limiter`, on an injected clock). Imports nothing of liveswap's; the box webhook authenticates through it too. `trusttest/` beside it mints tokens and runs an issuer for tests |
 | `internal/dispenser/` | leaf package: the one Caddyfile rule the parsers here and `deploytrust.Parse` apply alike — a repeated subdirective is refused — in one place so the two cannot drift |

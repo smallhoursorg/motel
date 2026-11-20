@@ -86,17 +86,20 @@ There is no deploy secret on the box. Deploys are authenticated by a
 verified JWT (CI OIDC or a local public key); the verifier holds only
 public material — see "Reducing the asset".
 
-A pull may bring one credential with it: `auth_header`, the token that
-reads a private artifact (for a private GitHub release asset, the
-job's own token, which expires when the job ends; liveswap/README.md).
-moteld holds it in memory for that one download, sends it verbatim as
-`Authorization` to the allowlisted host and its subdomains and to
-nothing past a redirect off them (`downloadArtifact`,
-liveswap/download.go; "Artifact fetching"), and writes it nowhere: its
-errors name the URL's host and path alone, and no deploy record,
-marker or response holds it. A compromised moteld reads every such
-header that reaches it while it runs, and gains the token's own scope
-until the token expires.
+A pull may bring credentials with it: `auth_header`, the token that
+reads a private artifact, and a presigned URL's query. The
+`auth_header` of liveswap/README.md's recipes is, for a GitHub release
+asset, the job's own token, which expires when the job ends, and for
+GitLab a project access token with `read_api`, which lasts until it
+expires or is revoked. moteld holds them in memory for the deploy that
+carries them, sends `auth_header` verbatim as `Authorization` to the
+allowlisted host and its subdomains and to nothing past a redirect off
+them (`downloadArtifact`, liveswap/download.go; "Artifact fetching"),
+and writes neither anywhere: its errors name the URL's host and path
+alone (`redactURL`), and no deploy record, marker or response holds
+them. A compromised moteld reads every such credential that reaches it
+while it runs, and gains each one's own scope for as long as it is
+good.
 
 ## Trust boundaries and entry points
 
@@ -171,15 +174,15 @@ Properties that matter to the model:
   The caller is trusted to run code on the box; the log's readers are
   not. A failed deploy's body carries the app's own bytes on purpose
   (liveswap/journal.go, `deployDetail` in liveswap/app.go): the last
-  lines its units wrote, read back with `journalctl` — run with
-  argument lists of motel's own making; the serving process runs no
-  other program but, for a push to `box_webhook`, `ssh-keygen` (the
-  signature) and `moteld validate`, `moteld adapt` and `motel-backup
-  validate` (the staged Caddyfile; box/validate.go), and the root
-  applier runs `ssh-keygen` and `systemctl` ("Config webhook") —
-  bounded by `deploy_log_lines` (default 40) and 8 KiB; the
-  first 512 bytes of a failing health probe's body; and the exit status
-  the runner recorded. A line is the units' when journald named one of
+  lines its units wrote, read back with `journalctl`, run with
+  argument lists of motel's own making, bounded by `deploy_log_lines`
+  (default 40) and 8 KiB; the first 512 bytes of a failing health
+  probe's body; and the exit status the runner recorded. (`journalctl`
+  is the one program the serving process runs for a deploy; it runs
+  others only for a push to `box_webhook`: `ssh-keygen` for the
+  signature, and `moteld validate`, `moteld adapt` and `motel-backup
+  validate` on the staged Caddyfile, box/validate.go. The root applier
+  runs `ssh-keygen` and `systemctl`, "Config webhook".) A line is the units' when journald named one of
   them on it, or when it is in one of their output streams —
   journald's `_STREAM_ID`, which no client can set and only the unit's
   processes hold — learnt from the lines that name a unit and from
@@ -433,7 +436,7 @@ Properties that matter to the model:
   release directory exists is refused 422 (the release-directory check
   in `managedApp.deployLocked`, liveswap/app.go), so replaying the
   payload of an older version still on disk does not downgrade the app.
-  Two cases pass that check. The running version asked for again with
+  Besides a rollback (below), two cases pass that check. The running version asked for again with
   the same artifact (the request's `sha256` equal to its record's;
   `relaunchRefusal`) is relaunched from its release on disk, nothing
   fetched: a replay of it restarts the bytes already running. A
@@ -444,8 +447,10 @@ Properties that matter to the model:
   `sha256` names when it carries one, else what the allowlisted URL
   serves then. A token-holder can still downgrade deliberately
   via `?rollback=<version>` — an explicit, audited operation
-  (`deployed_by` + a `source:rollback` log), not a silent replay
-  side-effect.
+  (`deployed_by` + a `source:rollback` log) that skips the check by
+  design. A captured rollback request replays like any other within the
+  token's lifetime: a downgrade to a release still on disk, recorded as
+  a rollback.
 
 ### Artifact fetching — `liveswap/download.go` + `allowlist.go`
 

@@ -59,8 +59,9 @@ release's notes describe it.
   [liveswap/README.md](liveswap/README.md)).
 - The webhook endpoint is not the only surface. The others: the config
   channel (`box_webhook`) and its root applier
-  ([box/DESIGN-box.md](box/DESIGN-box.md)); people's reads under
-  `/_motel/`, their token and their grants
+  ([box/DESIGN-box.md](box/DESIGN-box.md)); people's reads (an app's
+  status and deploy records, the box's `GET /` and the routes under
+  `/_motel/`), their token and their grants
   ([liveswap/access/DESIGN-access.md](liveswap/access/DESIGN-access.md));
   the backups, `motel-backup`, whose units start as root
   ([backups/README.md](backups/README.md)); notify's and the metrics
