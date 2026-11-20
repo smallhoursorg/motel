@@ -275,7 +275,9 @@ line.
   files it does not own, in a view that holds one app and nothing else.
   The run passes the *path* of `repository.env` to systemd, which reads
   it as root for each restic unit; the run itself reads it only to
-  refuse, before any unit, a file the manager would refuse whole, a
+  refuse, before any unit, a file that is not root's alone (another
+  uid's, or one its group or others may read, write or run), a file
+  the manager would refuse whole, a
   `RESTIC_REPOSITORY_FILE` and a `b2:` repository (`repositoryInUse`) —
   not every repository `setup` refuses (Accepted residuals). `setup` is
   its one writer, and `status`, as root, its one other reader.
@@ -766,7 +768,8 @@ account on the box, and so are the app names, data paths, snapshot ids
 and cleaned error text in it; nothing of the credentials is, and of
 the repository's location only what a run's refusal of it names: the
 bucket and path of a `b2:` repository, in the S3 URL that moves it. Run as root, `status` also reads the credential file
-and says, as `warning:` lines, where a hand-edited line is not what the
+and says, as `warning:` lines, first what a run refuses of whose it is
+and its mode, in the run's words ("What it refuses"), then where a hand-edited line is not what the
 manager reads (a key with whitespace around it, a key set twice — the
 last wins — a line that is not `KEY=value` or whose name the manager
 does not take, a quote never closed, which takes the rest of the file,
@@ -1099,7 +1102,18 @@ It needs no privilege.
   quotes, so that the command pasted as it is reaches setup whole, the
   escaping leaving no `'` in it, and short enough that the record's
   300 runes keep all of it for a bucket and path of up to 58
-  characters as escaped. A credential file they cannot read is refused there
+  characters as escaped. A credential file that is not root's alone is
+  refused there before anything it holds is looked at, as ssh refuses a private key
+  others can read: one of another uid, "the credential file <path>
+  belongs to uid <n>, not root, and it holds the repository's password
+  and the storage key: chown root:root <path> && chmod 0600 <path>, as
+  root", and one its group or others may read, write or run, "the
+  credential file <path> is open to others than root (mode 0644), and
+  it holds the repository's password and the storage key: chmod 0600
+  <path>, as root" — asked of the descriptor the run read, not of the
+  name again (`CredentialRootsAlone`). Setup writes it so, and so does
+  the "By hand" recipe; one made with an editor under umask 022 is
+  0644, which the `motel` uid could read. A credential file they cannot read is refused there
   too, "the credential file <path> could not be read: <why>", where
   every unit would otherwise fail to start — one that is not a
   regular file among them, "it is not a regular file (p---------)"
@@ -1585,7 +1599,16 @@ cron entry of your own, or `status` goes unhealthy after 3 hours.
 For `rest:`, `gs:` and `swift:`, or a provisioning tool, the file setup would
 have written — one `KEY=value` a line, a backslash doubled, a value
 with whitespace at an end or a leading quote in double quotes with `\`
-and `"` escaped, as systemd reads it:
+and `"` escaped, as systemd reads it. Make it root's alone, as root,
+before anything is written into it — a run, a restore and a drill
+refuse a file of another uid, or one its group or others may read
+("What it refuses"), and an editor under umask 022 makes one 0644 —
+then write the lines into it:
+
+```sh
+install -d -o root -g root -m 0755 /etc/motel-backup
+install -o root -g root -m 0600 /dev/null /etc/motel-backup/repository.env
+```
 
 ```
 # /etc/motel-backup/repository.env — root:root 0600, in a root 0755 directory
