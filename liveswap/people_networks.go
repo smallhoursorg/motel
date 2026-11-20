@@ -329,11 +329,10 @@ func (k *PeopleNetworks) seen(reg *access.Registry, fp, person string, addr neti
 	}
 	first := len(kn.nets) == 0
 	kn.nets = slices.Insert(kn.nets, 0, seenNetwork{net: net, untold: true})
-	if limit := networksPerKey; len(kn.nets) > limit && (k.state == networksRead || len(kn.nets) > networksHeldPerKey) {
-		if k.state != networksRead {
-			limit = networksHeldPerKey
-		}
-		kn.nets = kn.nets[:limit]
+	// Cut to the networks a key keeps once told (toldLocked): an
+	// announcement cut short then forgets no network told before it.
+	if k.state != networksRead && len(kn.nets) > networksHeldPerKey {
+		kn.nets = kn.nets[:networksHeldPerKey]
 	}
 	if k.state != networksRead {
 		if k.state == networksUnread {
@@ -360,10 +359,11 @@ func (k *PeopleNetworks) seen(reg *access.Registry, fp, person string, addr neti
 	told = true
 }
 
-// toldLocked marks key fp's network net told, and has it written; or,
-// its announcement cut short (told false), forgets it, so its next use
-// tells it. A network dropped meanwhile (its key removed, or cut by the
-// networks a key keeps) is not written.
+// toldLocked marks key fp's network net told, cuts the key to the
+// networks it keeps (the one used longest ago dropped), and has it
+// written; or, its announcement cut short (told false), forgets it, so
+// its next use tells it. A network dropped meanwhile (its key removed,
+// or cut by the networks a key keeps) is not written.
 func (k *PeopleNetworks) toldLocked(fp string, net netip.Prefix, told bool) {
 	kn := k.keys[fp]
 	if kn == nil {
@@ -374,6 +374,9 @@ func (k *PeopleNetworks) toldLocked(fp string, net netip.Prefix, told bool) {
 	case i < 0:
 	case told:
 		kn.nets[i].untold = false
+		if len(kn.nets) > networksPerKey {
+			kn.nets = kn.nets[:networksPerKey]
+		}
 		k.changedLocked(true)
 	default:
 		kn.nets = slices.Delete(kn.nets, i, i+1)

@@ -895,7 +895,10 @@ func TestNetworksStopWaitsForTheTelling(t *testing.T) {
 	// request) leaves no stop waiting.
 	t.Run("an announcer that panics", func(t *testing.T) {
 		k, _ := testNetworks(t, filepath.Join(t.TempDir(), "people-networks.json"))
-		k.seen(people.reg, fp, "alice", addr("198.51.100.9"), zap.NewNop())
+		k.now = steppingClock()
+		for i := range networksPerKey {
+			k.seen(people.reg, fp, "alice", addr(fmt.Sprintf("198.51.%d.1", i)), zap.NewNop())
+		}
 		k.settle(t, false)
 		k.announcer = panics{}
 		func() {
@@ -908,10 +911,16 @@ func TestNetworksStopWaitsForTheTelling(t *testing.T) {
 			t.Errorf("a stop waited %s after an announcer panicked", took)
 		}
 		// Not told, so neither kept nor written: its next use tells it.
-		if n := k.nets(fp); slices.Contains(n, gatedNetwork) {
+		// And the key's sixteen told before it are all kept, the one used
+		// longest ago among them.
+		if n := k.nets(fp); slices.Contains(n, gatedNetwork) || len(n) != networksPerKey || n[len(n)-1] != "198.51.0.0/24" {
 			t.Errorf("kept %v", n)
 		}
-		if b, err := os.ReadFile(k.file); err != nil || strings.Contains(string(b), gatedNetwork) {
+		k.mu.Lock()
+		k.dirty = true
+		k.mu.Unlock()
+		k.flushWithin(5 * time.Second)
+		if b, err := os.ReadFile(k.file); err != nil || strings.Contains(string(b), gatedNetwork) || !strings.Contains(string(b), "198.51.0.0/24") {
 			t.Errorf("written %q, %v", b, err)
 		}
 		h := &heard{}
