@@ -97,9 +97,7 @@ allowlisted host and its subdomains and to nothing past a redirect off
 them (`downloadArtifact`, liveswap/download.go; "Artifact fetching"),
 and writes neither anywhere: its errors name the URL's host and path
 alone (`redactURL`), and no deploy record, marker or response holds
-them, with one exception owed (liveswap/DESIGN-liveswap.md, "Owed"): a
-`url` that does not parse is refused with Go's parse error, which
-quotes the whole URL, query included. A compromised moteld reads every such credential that reaches it
+them. A compromised moteld reads every such credential that reaches it
 while it runs, and gains each one's own scope for as long as it is
 good.
 
@@ -412,8 +410,7 @@ Properties that matter to the model:
   snapshot: it is the place secrets are meant to go, and unlike the argv
   it answers no question about what is running. Artifact URLs *are*
   redacted before logs/errors (`redactURL`, liveswap/download.go), so
-  query signatures do not leak, but for a `url` that does not parse
-  (owed: liveswap/DESIGN-liveswap.md, "Owed").
+  query signatures do not leak.
   A viewer reads most of this too, through the same filter: `GET /<app>`
   is the body a deploy token reads (liveswap/access/DESIGN-access.md,
   "The answers"), for one app with the viewer role on it, for every app
