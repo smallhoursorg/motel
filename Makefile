@@ -17,9 +17,10 @@ PKGS ?= ./... ./backups/... ./box/... ./client/... ./liveswap/... ./notify/... .
 # and its single quotes escaped for the shell.
 RUN ?=
 
-# PKGS or RUN left in the environment narrows test and vet as on the
-# command line, but unseen, and a narrowed run passes: such a run ends
-# by naming them.
+# PKGS, RUN or an e2e lane's splits or suites left in the environment
+# narrow a run as on the command line, but unseen, and a narrowed run
+# passes: such a run ends by naming them. An empty PKGS, or an empty
+# list of splits or suites, is refused: it would run next to nothing.
 # $(call narrowed_note,<the variables the target reads>).
 env_narrowed = $(strip $(foreach v,$(1),$(if $(and $(filter environment,$(origin $(v))),$(value $(v))),$(v))))
 narrowed_note = $(if $(call env_narrowed,$(1)),@echo "════ make $@: $(call env_narrowed,$(1)) from the environment: only what it names ran ════")
@@ -34,6 +35,7 @@ DISTRO ?= debian:13
 .PHONY: test help test-integration vet tidy tidy-check lint fuzz fuzz-list vulncheck pin-watch-check ci-changes-check secretscan usage usage-claude usage-check build build-client package clean-dist install-test e2e e2e-backup e2e-notify e2e-metrics soak e2e-logs clean
 
 test: ## unit tests, all modules (race + coverage); PKGS= some packages, RUN= a go test -run pattern
+	$(if $(strip $(PKGS)),,$(error PKGS is empty: name packages, or leave it unset))
 	$(COMPOSE) run --rm dev go test -race -cover $(if $(value RUN),-run '$(subst ','\'',$(value RUN))') $(PKGS)
 	$(call narrowed_note,PKGS RUN)
 
@@ -92,6 +94,7 @@ test-integration: ## real deploys through caddytest, under a real systemd user m
 # stays invisible until the integration lane boots a whole systemd
 # container to find out.
 vet: ## go vet, both tag sets
+	$(if $(strip $(PKGS)),,$(error PKGS is empty: name packages, or leave it unset))
 	$(COMPOSE) run --rm dev go vet $(PKGS)
 	$(COMPOSE) run --rm dev go vet -tags integration $(PKGS)
 	$(call narrowed_note,PKGS)
@@ -470,6 +473,7 @@ e2e-notify: ## the notify suite; NOTIFY_SPLITS= core reload (the default), heart
 	$(COMPOSE) rm -sf e2e-notify-box e2e-sink >/dev/null; \
 	$(if $(filter heartbeat all,$(NOTIFY_SPLITS)),,echo "════ heartbeat split not run (notify 15, motel's 5-minute hold, ~9.5 min): CI runs it; NOTIFY_SPLITS=heartbeat runs it here ════";) \
 	exit $$status
+	$(call narrowed_note,NOTIFY_SPLITS)
 
 # The metrics suite: notify's box with Debian's victoria-metrics, and the
 # same stub receiver; its own target and CI job, as notify's. Its parts
@@ -513,6 +517,7 @@ e2e-metrics: ## the metrics suite; METRICS_SPLITS= view vmalert store rules (the
 	rm -rf $$logs; \
 	$(COMPOSE) rm -sf e2e-metrics-box e2e-sink >/dev/null; \
 	exit $$status
+	$(call narrowed_note,METRICS_SPLITS)
 
 # The backup suite: a box with systemd, Debian's restic and sqlite3, and
 # an S3 server for the repository. Its own target and its own CI job —
@@ -540,6 +545,7 @@ BACKUP_SUITES ?= setup backup units status restore check
 SUITE_LIMIT ?= 600
 e2e-backup: ## the backup suites, a box each; BACKUP_SUITES= setup backup units status restore check (the default)
 	$(cgroup2_preflight)
+	$(if $(strip $(BACKUP_SUITES)),,$(error BACKUP_SUITES is empty: name a suite, or leave it unset))
 	$(COMPOSE) run --rm -e CGO_ENABLED=0 dev sh -c '\
 		go build -trimpath -o build/e2e-backup/moteld ./cmd/moteld & p1=$$!; \
 		(cd backups && go build -trimpath -tags e2e -o ../build/e2e-backup/motel-backup ./cmd/motel-backup) & p2=$$!; \
@@ -570,6 +576,7 @@ e2e-backup: ## the backup suites, a box each; BACKUP_SUITES= setup backup units 
 	rm -rf $$logs; \
 	$(COMPOSE) rm -sf e2e-backup-box e2e-s3 >/dev/null; \
 	exit $$status
+	$(call narrowed_note,BACKUP_SUITES)
 
 # Leak-hunting soak against the product binary: deploy/reload/traffic
 # churn, then goroutine/fd return-to-baseline assertions over the admin
