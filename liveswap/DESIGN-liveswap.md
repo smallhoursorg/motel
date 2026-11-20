@@ -784,7 +784,7 @@ plugin's handler can take its ID.
 | `extract.go` | validate-then-extract hardened tar handling |
 | `elf.go` | the pre-flight's ELF check: a release's command built for another machine, or 32-bit, is refused before any unit exists. It also declares `preflightError`, the type every pre-flight refusal shares, reported as a 422 |
 | `health.go` | prober with soak/deadline arithmetic on an injected clock |
-| `journal.go` | the journal tail a failed deploy's response carries: `journalctl` run with argument lists built here, its output bounded |
+| `journal.go` | the journal tail a failed deploy's response carries: `journalctl` run with argument lists built here and an empty environment, its output bounded |
 | `watchdog.go` | continuous crash/health supervision: per-app loop, restart budget, backoff, the wait for a deploy holding the lock |
 | `state.go` | `state.json` atomic persistence; the release order (deploy time) that keep-N GC and `available_versions` share |
 | `deploying.go` | the deploy marker, `<app>/deploying.json`: a URL or push deploy in flight, so the next start or deploy removes the release of one moteld stopped during, and records it failed |
