@@ -359,8 +359,9 @@ is the exception, and takes this release's template before its next
 push: in one commit, copy `.github/workflows/apply.yml`,
 `.gitattributes`, `Makefile` and `bin/` from `examples/box/` over its
 own, and delete its `bin/install-motel` (`bin/install-hotserve` in one
-from before v0.6.0). Until it does, no push applies. With no pin,
-`bin/install-hotserve` asks the latest release for a `hotserve_…`
+from before v0.6.0). With no pin, neither the repository variable nor
+a box's file, no push applies until it does: `bin/install-hotserve`
+asks the latest release for a `hotserve_…`
 archive, which no release since v0.5.0 has, and both of the workflow's
 jobs fail at their install step, naming the address tried.
 `bin/install-motel` asks it for `motel_<version>_linux_<arch>.tar.gz`,
