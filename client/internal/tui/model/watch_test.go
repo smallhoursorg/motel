@@ -1016,3 +1016,23 @@ func TestWatchOffOld(t *testing.T) {
 		t.Errorf("after a read that failed: %q, %q", m.Long.Text(), m.Short.Text())
 	}
 }
+
+// TestWatchAppsSlowReads: reads that take 2 s each, so the statuses of
+// 40 apps are always due: every app's alerts are still read, taking
+// their turn by when each is due.
+func TestWatchAppsSlowReads(t *testing.T) {
+	e := model.NewEngine(t0)
+	e.SetWatch(model.WatchApps, t0)
+	calls := sim(e, names(40), t0, 15*time.Minute, 2*time.Second, ok)
+	read := map[string]int{}
+	for _, c := range calls {
+		if c.j.Kind == model.KAlerts {
+			read[c.j.App]++
+		}
+	}
+	for _, a := range names(40) {
+		if read[a] < 2 {
+			t.Errorf("%s's alerts read %d times in 15 minutes", a, read[a])
+		}
+	}
+}

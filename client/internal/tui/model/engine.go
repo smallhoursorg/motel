@@ -200,6 +200,9 @@ type Engine struct {
 	// alerts in the background, or none. listed is the list's names.
 	watch  Watch
 	listed map[string]bool
+	// unasked: a status was never asked yet (next), so the apps screen
+	// fills before the watch reads each app's alerts.
+	unasked bool
 }
 
 type entry struct {
@@ -864,6 +867,13 @@ func (e *Engine) next(at time.Time, skip *Job) (Job, time.Time, bool) {
 	var best Job
 	var bestDue, bestKey time.Time
 	bestRank, found := 99, false
+	e.unasked = false
+	for j, en := range e.jobs {
+		if j.Kind == KStatus && en.asked.IsZero() {
+			e.unasked = true
+			break
+		}
+	}
 	for j, en := range e.jobs {
 		if en.held || j.Kind == KBox && !e.boxOpen || j.Kind == KBackups && !e.backupsOpen || j.Kind == KBoxAlerts && !e.boxAlertsOpen && e.watch != WatchBox || j.Kind == KAlerts && j.App != e.alertsApp && (e.watch != WatchApps || !e.listed[j.App]) ||
 			j.Kind == KBoxRules && !e.boxRulesOpen || j.Kind == KRules && j.App != e.rulesApp || j.Kind == KSeries && j != e.series || skip != nil && j == *skip {
@@ -913,8 +923,13 @@ func (e *Engine) rank(j Job, en *entry) int {
 		return 3
 	case j.Kind == KAlerts && j.App != e.alertsApp:
 		// The watch's read of a background app's alerts: after every
-		// status due, so the apps screen fills first.
-		return 6
+		// status while one was never asked, so the apps screen fills
+		// first; then beside the statuses, by when each is due, so slow
+		// reads that keep statuses due starve no app's alerts.
+		if e.unasked {
+			return 6
+		}
+		return 5
 	case j.Kind == KBox, j.Kind == KBackups, j.Kind == KAlerts, j.Kind == KBoxAlerts, j.Kind == KRules, j.Kind == KBoxRules, j.Kind == KSeries:
 		return 4
 	}
