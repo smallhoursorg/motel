@@ -940,7 +940,8 @@ Presets:
 a job on another CI, and the token's format for minting it elsewhere.
 
 Sub-directives: `audience` (required for OIDC — never trust an
-unaudienced token; the name of this box, see below),
+unaudienced token; in an app's block, the name of this box, see below;
+a `box` block's is one name for all the boxes `bin/apply` pushes to),
 `claim <name> <value>` (exact-match, repeatable — pin `repository`,
 `ref`, `environment`, etc.; a claim named `@id` is refused, because
 Caddy deletes that key from the config before motel reads it),

@@ -108,10 +108,13 @@ fetches them in the background as it starts and no token waits on that,
 so the first issuer's token after a restart (a GitHub Actions deploy's)
 can still be answered 401 once; the script sends it again 3 seconds
 later, which goes through once the keys are in.
-That is this release's script. A `scripts/deploy.sh` copied from a
-template of v0.4.0 to v0.7.0 sends a request once more only after a
-401, and one from an earlier template never, so after the 503 that
-run fails. `diff` the copy against this release's
+That is this release's script, which also asks for a new audience:
+before it goes in over a copy from an earlier template, give the box
+the block [An app's deploy token names its
+box](#an-apps-deploy-token-names-its-box) says to add first. A
+`scripts/deploy.sh` copied from a template of v0.4.0 to v0.7.0 sends
+a request once more only after a 401, and one from an earlier
+template never, so after the 503 that run fails. `diff` the copy against this release's
 `examples/node/scripts/deploy.sh` (or `examples/deno/`'s): with no
 change of your own in it, copy the template's over it; with some,
 carry across `boxstarting()` and the `elif` branch of `send()` that
@@ -385,8 +388,8 @@ long as the token lives. This release's template names the box: the
 app's block says `audience deploy.example.com`, the box's deploy host,
 and `scripts/deploy.sh` asks for the host of `MOTEL_URL`, lowercase
 and without a port. The box's own code is unchanged, and so is the
-`box` block's `audience motel`: `bin/apply` sends its one token to
-every box of the repository.
+`box` block's `audience motel`: `bin/apply` asks for that one name
+for every box of the repository.
 
 With the box and the app repository out of step, a deploy is answered
 401 and the running version keeps serving; the step's output names
@@ -401,11 +404,12 @@ order:
    --config` it and `systemctl reload moteld`).
 2. **Take this release's `scripts/deploy.sh`** in the app
    repository: with no change of your own in it, copy the template's
-   over it; with some, carry across the lines that set `audience`
-   before the mint and the `"$audience"` in `refused()`. A workflow
-   `env:` that sets `MOTEL_AUDIENCE` keeps asking for that name:
-   remove it, unless the name is already this box's alone. Push; the
-   deploy goes through the new block.
+   over it; with some, carry across the mint in the `if` on
+   `ACTIONS_ID_TOKEN_REQUEST_URL` whole (the lines that set
+   `audience` and the `curl` that asks for it) and the `"$audience"`
+   in `refused()`. A workflow `env:` that sets `MOTEL_AUDIENCE` keeps
+   asking for that name: remove it, unless the name is already this
+   box's alone. Push; the deploy goes through the new block.
 3. **Remove the old block**, the one with `audience motel`, signed and
    pushed. A token for another box is now refused here.
 

@@ -156,16 +156,18 @@ if [ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
 	# GitHub Actions OIDC. The token stays in this process: handing it
 	# to another step as an output would print it in the job log, and it
 	# can deploy until it expires. Its audience names the box: MOTEL_URL's
-	# host, lowercase and without a port, as a person's token names it
-	# (its aud), so a token sent to one box is refused by another that
-	# trusts the same repository.
+	# host, lowercase, without a port or a trailing dot, as a person's
+	# token names it (its aud), so a token sent to one box is refused by
+	# another that trusts the same repository. -G appends it to the
+	# URL's own query, encoded.
 	host=${url#*://}
 	host=${host%%[/?#]*}
 	host=${host##*@}
 	case ${host##*:} in *[!0-9]*) ;; *) host=${host%:*} ;; esac
+	host=${host%.}
 	audience=${MOTEL_AUDIENCE:-$(printf '%s' "$host" | tr 'A-Z' 'a-z')}
 	token=$(curl -fsS -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-		"$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$audience" |
+		-G --data-urlencode "audience=$audience" "$ACTIONS_ID_TOKEN_REQUEST_URL" |
 		sed -n 's/.*"value" *: *"\([^"]*\)".*/\1/p')
 	[ -n "$token" ] || { echo "deploy.sh: could not mint an OIDC token" >&2; exit 1; }
 	printf '::add-mask::%s\n' "$token"

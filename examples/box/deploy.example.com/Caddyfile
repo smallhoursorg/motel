@@ -12,7 +12,7 @@
 	# repo: workflow_ref names the file), and the box applies it only if
 	# every commit since the one it runs is signed by a key listed here.
 	# `make signer` adds yours under the marker; keep the marker.
-	# One audience for every box: bin/apply sends all one token.
+	# One audience for all the boxes: bin/apply asks it for each.
 	box {
 		deploy_trust github {
 			audience motel

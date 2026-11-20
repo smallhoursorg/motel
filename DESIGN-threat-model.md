@@ -1146,8 +1146,8 @@ scope for the runtime model, in scope for release signing (roadmap).
   template's app block has `audience <deploy host>`, and its
   `scripts/deploy.sh` asks for the host of `MOTEL_URL`), so another
   box that trusts the same repository refuses it. A `box` block's
-  token names no box (`audience motel`: `bin/apply` sends one token
-  to every box of the repository), and sent to a sibling it gets only
+  token names no box (`audience motel`: `bin/apply` asks for that one
+  name for every box of the repository), and sent to a sibling it gets only
   what `bin/apply` sends that box: its `sha` binds the bundle to one
   commit, and the sibling applies it only if every commit is signed
   (T6's replay of `HEAD`). It can rewrite the record of the networks
