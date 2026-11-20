@@ -167,14 +167,16 @@ fi
 
 # The Actions dressing. `field` reads one string field out of the
 # response (no jq here: this also runs from laptops): its last
-# occurrence, with JSON's escapes undone by `unjson` so a quote in the
+# occurrence, with the escapes `unjson` names undone so a quote in the
 # cause does not cut it short; `lead` reads it only as the body's first
 # key. `unjson` undoes \" and \\, the \u003c, \u003e and \u0026 Go's
 # JSON writes for <, > and &, and makes \n, \r and \t a space; an
 # escaped backslash stands aside (as a newline, which sed's line holds
 # no other of) while the rest are undone, so a JSON \\u003c reads \u003c.
 # `failed` reads a failure body with them. `prop` and `msg` escape what a
-# workflow command's property and message may not contain. The
+# workflow command's property and message may not contain, and `md`
+# what the job summary, Markdown that GitHub renders with its HTML,
+# would take as markup. The
 # commands are written with printf, never echo: dash's echo turns a
 # JSON-escaped \n in a cause into a real newline and splits the line.
 actions=${GITHUB_ACTIONS:-}
@@ -202,6 +204,7 @@ failed() {
 }
 msg() { printf '%s' "$1" | sed 's/%/%25/g' | tr '\r\n' '  '; }
 prop() { msg "$1" | sed 's/:/%3A/g; s/,/%2C/g'; }
+md() { printf '%s' "$1" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g'; }
 began=$(date +%s)
 # One temp directory, trapped before anything is put in it.
 tmpd=$(mktemp -d)
@@ -348,7 +351,7 @@ finish() { # <what> <version sent>: dresses the outcome, exits on failure
 	fi
 	[ -n "$actions" ] && printf '::error title=%s::%s\n' "$(prop "motel: $what failed")" "$(msg "${phase:+in $phase: }${why:-see the response above}${hint:+; the log says what the box must trust}")"
 	if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
-		printf '**motel:** %s failed%s, %s\n\n%s\n\n' "$what" "${phase:+ in \`$phase\`}" "$took" "${why:-see the log}" >>"$GITHUB_STEP_SUMMARY"
+		printf '**motel:** %s failed%s, %s\n\n%s\n\n' "$what" "${phase:+ in \`$phase\`}" "$took" "$(md "${why:-see the log}")" >>"$GITHUB_STEP_SUMMARY"
 		# Tildes: a git ref or repository name cannot hold one, so the
 		# run's own values cannot end the fence early.
 		[ -z "$hint" ] || printf '~~~\n%s\n~~~\n\n' "$hint" >>"$GITHUB_STEP_SUMMARY"

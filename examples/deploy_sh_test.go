@@ -852,6 +852,19 @@ func TestDeployShNamesTheFailureOfTheVersionSent(t *testing.T) {
 			if code != 1 || annotation != tc.annotation || !strings.HasPrefix(string(sum), "**motel:** "+tc.summary) {
 				t.Errorf("exit %d, annotation %q (want %q), summary %q (want it to begin %q)\n%s", code, annotation, tc.annotation, sum, tc.summary, out)
 			}
+			// The summary's second paragraph is the cause, as Markdown
+			// that GitHub renders with its HTML: <, > and & as text.
+			cause := tc.annotation
+			if _, after, ok := strings.Cut(cause, ": "); ok && strings.HasPrefix(cause, "in ") {
+				cause = after
+			}
+			if cause == "see the response above" {
+				cause = "see the log"
+			}
+			cause = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;").Replace(cause)
+			if !strings.Contains(string(sum), "\n\n"+cause+"\n") {
+				t.Errorf("summary %q lacks the cause %q", sum, cause)
+			}
 		})
 	}
 }
