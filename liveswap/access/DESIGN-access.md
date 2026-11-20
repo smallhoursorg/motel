@@ -380,9 +380,13 @@ name and unit) pass the app's filter; the store's word and the window,
 the box's own of closed sets, and its numbers (the step, the end, every
 point) pass none: they are taken
 out before the filter and put back after its last pass, as an app's
-alerts' times are (`filterSeries`), since an env_file value that is a
-run of digits, a unix time or a date would otherwise be replaced inside
-a point and leave a body no client reads. A body the filter withheld,
+alerts' times are (`filterSeries`). The step and the points are
+numbers, which pass no layer of any body's filter (rule 7 of
+`redact.go`); the end is a time under a key rule 7 does not hold, so an
+env_file value that is a date or a piece of one would otherwise be
+replaced inside it, as a value equal to the store's word would be in
+that word, and leave a body no client reads. Taken out, they also leave
+the filter a few hundred bytes to read, not the points. A body the filter withheld,
 or whose words' structure it changed, goes whole through the filter as
 any body would. `TestTwoAppsTwoPeople` gives each app a series whose
 point is a number of its own, and asserts for every caller that no
@@ -701,7 +705,7 @@ access's examples:
 | 56 | the record on disk | the removal of a temp file a crash left, run beside the read, removes the temp file of a write begun after the wait, which fails and is said (found in the self-review) | 2 | 2 | 1 | fix: size 1, risk 1 | leftovers removed by the writer, before its own temp file, where no other write of this process is under way (`TestNetworksFile`) |
 | 69 | an app's series | another app's numbers in an app's answer | 5 | 5 | 5 | fix | the source asked for the handle's app by its name, every query built from it and the window alone; `TestTwoAppsTwoPeople` with a number of each app's in its series; `TestSeriesChosenByTheHandle` |
 | 70 | an app's series | a query taken loosely, a window outside the set reaching the store, or the request's text echoed | 5 | 5 | 3 | fix | the row's declared key and its closed set, parsed strictly, the row's own word passed on; any other query the 422 in the route's words (`TestSeriesRouteQuery`, `FuzzNoRouteNoAnswer` with an oracle of its own, `queryTaken`) |
-| 71 | an app's series | an env_file value shaped like a number of the body (a unix time, digits inside a memory value, a date) replaced inside a point, so no client reads the answer | 3 | 5 | 3 | fix | the numbers pass no filter (`filterSeries`, `TestSeriesNumbersPassNoFilter`, which shows the whole body through the filter breaking) |
+| 71 | an app's series | an env_file value shaped like a number or time of the body (a unix time, digits inside a memory value, a date) replaced inside a point or the end, so no client reads the answer | 3 | 5 | 3 | fix | the numbers and the end pass no filter (`filterSeries`; since #612 no body's numbers do, rule 7 of `redact.go`, and the end is the time it does not hold); `TestSeriesNumbersPassNoFilter` |
 | 72 | an app's series | the store loaded by series reads at the rate, or a store that does not answer holding the read | 2 | 5 | 3 | fix | four fixed range queries per app and window, shared for 30 s by every person and config, a 3 s budget a caller going away does not cut, a failure kept as long and journalled once, `"store":"unanswered"` (`TestSeriesViewShares`); measured under the box's caps (notify/DESIGN-metrics.md) |
 
 ### Accepted residuals
