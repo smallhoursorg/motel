@@ -332,8 +332,11 @@ The `case` names the archive from `uname`; on any other machine (an
 Intel Mac, Linux on another architecture, Windows) it says so, and the
 block stops before it downloads an archive. The two lines after it take
 the latest release's tag without its `v`; for a release candidate, or
-any other release, write the tag in their place instead, without its
-`v` and with its hyphen: `v=0.8.1-rc1`. The `&&`s stop the block at
+any other release after v0.8.0, write the tag in their place instead,
+without its `v` and with its hyphen: `v=0.8.1-rc1`. Not an earlier
+one: v0.6.0 to v0.7.0 have a `motel_<version>_linux_<arch>.tar.gz`
+too, which is the old server, and on Linux the block would install
+that as `motel`. The `&&`s stop the block at
 the first step that fails, and the checksum step checks the one line
 of `checksums.txt` that names the archive, with macOS's `shasum -a
 256` or Linux's `sha256sum` (GNU's, or BusyBox's on Alpine): with no

@@ -24,7 +24,7 @@ Built in:
 | **[access](liveswap/access/DESIGN-access.md)** | People, not CI, reading a box from a laptop: `person` and `grant` lines in the box's Caddyfile give a person's ssh key the `viewer` role on one app or on the whole box, and the key signs a short token the box checks on every read. Reads only: no person can deploy, roll back or push. |
 | **cache** | HTTP page caching via [Souin](https://github.com/darkweak/souin) with in-memory [Otter](https://github.com/darkweak/storages) storage. |
 | everything Caddy has | Automatic HTTPS, HTTP/2 + HTTP/3, the Caddyfile, the admin API — motel *is* Caddy underneath, with the modules above compiled in. |
-| **[motel, the client](client/)** | Not in the server: the laptop client (experimental), which reads a box over HTTPS with that token — an app's status and deploys, a deploy as it runs, the box's backups, alerts and rules — from the command line or its screens. Each release after v0.8.0 carries it for an M-series Mac; elsewhere it builds from this repository. |
+| **[motel, the client](client/)** | Not in the server: the laptop client (experimental), which reads a box over HTTPS with that token — an app's status and deploys, a deploy as it runs, the box's backups, alerts and rules — from the command line or its screens. Each release after v0.8.0 carries it for an M-series Mac and for Linux on amd64 and arm64; elsewhere it builds from this repository. |
 | **[packaging](packaging/)** | The `.deb`: what ships and at which mode (`packaging/nfpm.yaml`'s comments), the maintainer scripts and the units. The triage of the scripts is [packaging/DESIGN-packaging.md](packaging/DESIGN-packaging.md). |
 
 ## Install
@@ -124,8 +124,8 @@ is on the same page from the first release after v0.8.0 on, for an
 M-series Mac and for Linux on amd64 and arm64:
 `motel_<version>_<os>_<arch>.tar.gz` (`darwin_arm64`, `linux_amd64`,
 `linux_arm64`), with the release's own number. No release up to v0.8.0
-carries it, so on those there is nothing to download: build it from a
-clone. Its README's "Getting it" fetches and checks the one for the
+carries it (the `motel_<version>_linux_<arch>.tar.gz` of v0.6.0 to
+v0.7.0 is the old server), so on those build it from a clone. Its README's "Getting it" fetches and checks the one for the
 machine it runs on, and on any other (an Intel Mac, say) builds it from
 a clone.
 
