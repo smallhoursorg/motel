@@ -9,7 +9,8 @@ so security reports are taken seriously and handled with priority.
 The package also installs root units, each with a bounded set of
 capabilities: the box applier (`motel-box-apply.service`), which
 installs a signed config push, and the backups (`motel-backup.service`,
-and its restore drill).
+and its restore drill); `moteld monitor setup --metrics` adds one more,
+`motel-metrics-netns.service`, the metrics store's network namespace.
 
 ## Reporting a vulnerability
 
@@ -57,8 +58,8 @@ release's notes describe it.
   outside the configured trust claims, is in scope — as is any deploy
   reaching outside `artifact_allowlist` (see
   [liveswap/README.md](liveswap/README.md)).
-- The webhook endpoint is not the only surface. The others: the config
-  channel (`box_webhook`) and its root applier
+- The webhook endpoint is not the only surface. Among the others: the
+  config channel (`box_webhook`) and its root applier
   ([box/DESIGN-box.md](box/DESIGN-box.md)); people's reads (an app's
   status and deploy records, the box's `GET /` and the routes under
   `/_motel/`), their token and their grants

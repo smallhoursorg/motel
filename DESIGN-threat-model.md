@@ -97,7 +97,9 @@ allowlisted host and its subdomains and to nothing past a redirect off
 them (`downloadArtifact`, liveswap/download.go; "Artifact fetching"),
 and writes neither anywhere: its errors name the URL's host and path
 alone (`redactURL`), and no deploy record, marker or response holds
-them. A compromised moteld reads every such credential that reaches it
+them, with one exception owed (liveswap/DESIGN-liveswap.md, "Owed"): a
+`url` that does not parse is refused with Go's parse error, which
+quotes the whole URL, query included. A compromised moteld reads every such credential that reaches it
 while it runs, and gains each one's own scope for as long as it is
 good.
 
@@ -436,10 +438,12 @@ Properties that matter to the model:
   release directory exists is refused 422 (the release-directory check
   in `managedApp.deployLocked`, liveswap/app.go), so replaying the
   payload of an older version still on disk does not downgrade the app.
-  Besides a rollback (below), two cases pass that check. The running version asked for again with
-  the same artifact (the request's `sha256` equal to its record's;
-  `relaunchRefusal`) is relaunched from its release on disk, nothing
-  fetched: a replay of it restarts the bytes already running. A
+  Besides a rollback (below), two cases pass that check. The running
+  version asked for again while its instance is alive, with the same
+  artifact (the request's `sha256` equal to its record's, and its URL
+  still one the allowlist takes; `relaunchRefusal`), is relaunched from
+  its release on disk, nothing fetched: a replay of it restarts the
+  bytes already running; with its instance dead, it is the 422 above. A
   version whose release is gone (pruned past `keep`, removed after its
   deploy failed, or removed by hand) is fetched and admitted again: a
   replay of its payload within the token's lifetime deploys it, a
@@ -1240,7 +1244,8 @@ scope for the runtime model, in scope for release signing (roadmap).
   copied from a laptop, or an agent socket used by malware on it, of a
   person whose only grant is `viewer` on one app
   (liveswap/access/DESIGN-access.md). Can read that app's status,
-  deploys and deploy records, from any address their grant's `from`
+  deploys and deploy records, its alerts and the rules that apply to
+  it, from any address their grant's `from`
   list allows (any address, with no list), until a push removes the
   key's line and the box reloads. Cannot read another app (each read
   takes the app handle `Decide` allowed for the path's app, and the
@@ -1259,11 +1264,13 @@ scope for the runtime model, in scope for release signing (roadmap).
   be used without a touch.
 - **T8 — A person's key, stolen, with a role on the box.** As T7, for
   every app and the box's status: the commit, the host, the
-  Caddyfile's digest, the box's key for secrets. This is the operator's
-  viewing key, and the one an address list is most worth having on. It
-  reads what the box webhooks answer through the same filtered bodies,
-  and nothing root alone reads (the journal, backups, the admin
-  socket).
+  Caddyfile's digest, the box's key for secrets; and the box-wide reads:
+  the backups' status as any account looks at them, every alert and
+  silence (a silence's creator and comment included) and every rule.
+  This is the operator's viewing key, and the one an address list is
+  most worth having on. It reads what the box webhooks answer through
+  the same filtered bodies, and nothing root alone reads (the journal,
+  the backup repository and its credential, the admin socket).
 
 For **T2**: deploy-arbitrary-code (a push is contained by nothing but
 the claim scope; a pull additionally by the allowlist); deliberate
