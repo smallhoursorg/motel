@@ -12,21 +12,18 @@ import (
 )
 
 // away lets d pass with no key pressed, a second at a time, the reads
-// made as they come due, each answer applied on the event loop, and
-// draws one frame at the end. The product draws a frame each second
-// (the clock's tick) and one with each answer; here none is drawn
-// before the end, so a state the walk passes and leaves is not drawn
-// (an accepted residual, client/README.md). What these tests read is
-// the session's state and the bells, and with the clock only going
-// forward a frame changes nothing but whether a bell owed has rung
-// (Ring): the one bell these tests count (TestPausedStillWatches's) has
-// none before it, so no floor holds it, and the frame at the end rings
-// it as the answer's frame would have. Under -race a frame a second
-// for these hours was most of the package's time.
+// made as they come due, each answer applied with its frame, and one
+// frame more at the end. The product draws a frame each second too (the
+// clock's tick); those between answers are not drawn here: with the
+// clock only going forward such a frame changes nothing but whether a
+// bell owed has rung (Ring), so a bell held by its floor rings at the
+// next answer's frame or the last, not at the next second, and the
+// floor counts from then. Under -race a frame a second for these hours
+// was most of the package's time.
 func (h *harness) away(d time.Duration) {
 	for end := h.now.Add(d); h.now.Before(end); {
 		h.now = h.now.Add(time.Second)
-		h.pumpUnseen()
+		h.pump()
 	}
 	h.sync()
 }
