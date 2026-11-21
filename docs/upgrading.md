@@ -471,9 +471,9 @@ motel-backup status
 and anything it calls a problem is what will be told, its first
 problem line in the summary. From a laptop, `motel backup status`
 reads the same. Going back to a release without it resolves the
-alert within minutes, although nothing changed. The other backup
-alerts' summaries now name `motel backup status` first and
-`motel-backup status` second.
+alert within minutes, although nothing changed. The summaries of
+`backup_run_failed` and `drill_failed` now name `motel backup status`
+first and `motel-backup status` second.
 
 ## A person's key, told once after the install
 

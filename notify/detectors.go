@@ -1,7 +1,6 @@
 package notify
 
 import (
-	"cmp"
 	"context"
 	"fmt"
 	"os"
@@ -180,8 +179,8 @@ type backupPoller struct {
 	readAt time.Time
 	// readPath is the record read is from: another path's is dropped.
 	readPath string
-	// envFile is the credential file looked at for the verdict;
-	// DefaultBackupEnvFile when empty.
+	// envFile is the credential file looked at for backup_unhealthy's
+	// verdict: theEngine's is DefaultBackupEnvFile; none, no verdict.
 	envFile string
 }
 
@@ -257,8 +256,12 @@ func (b *backupPoller) poll(now time.Time, path string) []Event {
 	// Anything else status calls unhealthy, while none of the four above
 	// says so: status's own verdict, so that no list of its conditions
 	// has to be kept in step here. Its first problem line, after the
-	// pointer, which a cut at maxSummary must not take.
-	if len(fire) == 0 {
+	// pointer, which a cut at maxSummary must not take. Once fired, a
+	// warning beside it does not clear it: a channel that takes critical
+	// alerts alone would be told it resolved, and then nothing.
+	critical := slices.ContainsFunc(fire, func(e Event) bool { return e.Severity == SeverityCritical })
+	_, firing := b.set.prev[ev("backup_unhealthy", "", "", "").key()]
+	if !critical && (len(fire) == 0 || firing) {
 		if line, bad := b.verdict(st, now); bad {
 			fire = append(fire, ev("backup_unhealthy", SeverityCritical, "",
 				"backups unhealthy; "+statusSays("what")+", first: "+line))
@@ -288,7 +291,10 @@ const DefaultBackupEnvFile = "/etc/motel-backup/repository.env"
 // never judges. Where backups are not set up, or whether they are cannot
 // be told from here, status gives no verdict, and neither does this.
 func (b *backupPoller) verdict(st *record.Status, now time.Time) (string, bool) {
-	env, err := os.Lstat(cmp.Or(b.envFile, DefaultBackupEnvFile))
+	if b.envFile == "" {
+		return "", false
+	}
+	env, err := os.Lstat(b.envFile)
 	if err != nil {
 		return "", false
 	}

@@ -804,8 +804,11 @@ func TestBackupUnhealthyQuiet(t *testing.T) {
 }
 
 // TestBackupUnhealthyStandsAsideForTheFour: where one of the four
-// existing alerts explains the box, it fires alone; backup_unhealthy
-// clears when it does, and comes back once it has cleared.
+// existing alerts explains the box, it fires alone. A critical one
+// clears backup_unhealthy, which comes back once it has cleared; a
+// warning (backup_run_failed) raises none over a quiet box, and clears
+// none that fires, so that a channel taking critical alerts alone is
+// never told it resolved while status is still unhealthy.
 func TestBackupUnhealthyStandsAsideForTheFour(t *testing.T) {
 	r := newUnhealthyRig(t, 60*24*time.Hour)
 	at := func() time.Time { return r.now.Add(backupEvery) }
@@ -814,15 +817,28 @@ func TestBackupUnhealthyStandsAsideForTheFour(t *testing.T) {
 		st.Unlisted = &u
 		return st
 	}
-	if got := names(r.poll(t, unlisted(soundRecord(at())))); !got["backup_unhealthy"] || len(got) != 1 {
+	runFailed := func(st *record.Status) *record.Status { st.Error = "the repository refused"; return st }
+	if got := names(r.poll(t, runFailed(soundRecord(at())))); !got["backup_run_failed"] || len(got) != 1 {
+		t.Fatalf("a failed run over a quiet box: %v", got)
+	}
+	if got := names(r.poll(t, unlisted(soundRecord(at())))); !got["backup_unhealthy"] || !got["-backup_run_failed"] || len(got) != 2 {
 		t.Fatalf("unlisted: %v", got)
+	}
+	evs := r.poll(t, runFailed(unlisted(soundRecord(at()))))
+	if got := names(evs); !got["backup_run_failed"] || !got["backup_unhealthy"] || got["-backup_unhealthy"] {
+		t.Fatalf("a failed run beside a firing backup_unhealthy: %v", got)
+	}
+	if s, _ := summaryOf(evs, "backup_unhealthy"); !strings.Contains(s, "first: the repository has not been listed since") {
+		t.Fatalf("summary = %q", s)
+	}
+	if got := names(r.poll(t, unlisted(soundRecord(at())))); !got["-backup_run_failed"] || !got["backup_unhealthy"] {
+		t.Fatalf("the run put right: %v", got)
 	}
 	for _, c := range []struct {
 		alert  string
 		change func(st *record.Status)
 	}{
 		{"backup_stale/blog", func(st *record.Status) { st.Apps["blog"].LastOK.Time = at().Add(-4 * time.Hour) }},
-		{"backup_run_failed", func(st *record.Status) { st.Error = "the repository refused" }},
 		{"drill_failed", func(st *record.Status) {
 			st.Apps["blog"].RestoreDrill = &record.Drill{Time: at(), Detail: "the restored database fails its integrity check"}
 		}},
@@ -830,7 +846,7 @@ func TestBackupUnhealthyStandsAsideForTheFour(t *testing.T) {
 		st := unlisted(soundRecord(at()))
 		c.change(st)
 		got := names(r.poll(t, st))
-		if !got[c.alert] || got["backup_unhealthy"] {
+		if !got[c.alert] || !got["-backup_unhealthy"] || len(got) != 2 {
 			t.Errorf("%s explains the box: %v", c.alert, got)
 		}
 		got = names(r.poll(t, unlisted(soundRecord(at()))))
@@ -876,9 +892,11 @@ func TestBackupUnhealthyClearsAndKeepsItsKey(t *testing.T) {
 	}
 }
 
-// TestBackupSummaries: the four messages' wording, each pointing to the
-// laptop client's read first, the box's command second; and the pointer
-// survives the cut at maxSummary, the line or the apps cut after it.
+// TestBackupSummaries: the wording of the four messages that point to
+// status (backup_run_failed, drill_failed in its two forms and
+// backup_unhealthy), the laptop client's read first, the box's command
+// second; and the pointer survives the cut at maxSummary, the line or
+// the apps cut after it.
 func TestBackupSummaries(t *testing.T) {
 	const ptr = "motel backup status says %s (on the box: motel-backup status)"
 	r := newUnhealthyRig(t, 60*24*time.Hour)
@@ -916,5 +934,18 @@ func TestBackupSummaries(t *testing.T) {
 	}
 	if c := cleanText(nil, s); len(c) > maxSummary || !strings.Contains(c, fmt.Sprintf(ptr, "what")) {
 		t.Errorf("cut: %q", c)
+	}
+}
+
+// startEngine is theEngine as the process starts, before any test
+// replaces it.
+var startEngine = theEngine
+
+// TestTheEngineJudgesTheBoxsCredentialFile: the process's poller takes
+// status's verdict from the box's credential file; a test's never reads
+// the host's.
+func TestTheEngineJudgesTheBoxsCredentialFile(t *testing.T) {
+	if startEngine.backup.envFile != DefaultBackupEnvFile || newEngine().backup.envFile != "" {
+		t.Fatalf("theEngine's %q, a test's %q", startEngine.backup.envFile, newEngine().backup.envFile)
 	}
 }
