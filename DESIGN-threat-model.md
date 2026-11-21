@@ -1211,8 +1211,17 @@ scope for the runtime model, in scope for release signing (roadmap).
   shipped mechanism"). It holds the people's public keys and grants and
   could answer any person's request with anything, as it answers any
   deploy's; it holds no private key and so can mint no person's token
-  for another box. It can rewrite the record of the networks each person's
-  key was used from (`/var/lib/motel/people-networks.json`, motel's
+  for another box. It reads each deploy token sent to this box, live
+  until its `exp`. On the paved road an app's names this box (the
+  template's app block has `audience <deploy host>`, and its
+  `scripts/deploy.sh` asks for the host of `MOTEL_URL`), so another
+  box that trusts the same repository refuses it. A `box` block's
+  token names no box (`audience motel`: `bin/apply` asks for that one
+  name for every box of the repository), and sent to a sibling it gets only
+  what `bin/apply` sends that box: its `sha` binds the bundle to one
+  commit, and the sibling applies it only if every commit is signed
+  (T6's replay of `HEAD`). It can rewrite the record of the networks
+  each person's key was used from (`/var/lib/motel/people-networks.json`, motel's
   own) to hold any network, which silences `person_new_network` for it
   on this box only (deleting it has every key told again):
   nothing it could not already do, since it answers every request and
@@ -1259,7 +1268,16 @@ scope for the runtime model, in scope for release signing (roadmap).
   trusted without `trusted_proxies_strict` every forwarded request is
   one network, so only its first use through the proxy is told
   (`moteld validate` warns of such a server). A hardware-held key cannot
-  be used without a touch.
+  be used without a touch. A key whose grant is `logs` on the app reads
+  all that and the app's logs too: whatever the app printed, its
+  customers' data and secrets it made or fetched while it ran among
+  them, which the response filter cannot know to hide (it masks the
+  app's `env_file` values and some shapes of credential). That is why
+  docs/people.md advises a `from` list on every `logs` grant; a `viewer`
+  grant never reads logs. With a listed `logs` grant beside an unlisted
+  `viewer` grant, the key read from outside the list is told only as a
+  new network, never `person_outside_list` (a grant applies there), and
+  its logs read is refused.
 - **T8 — A person's key, stolen, with a role on the box.** As T7, for
   every app and the box's status: the commit, the host, the
   Caddyfile's digest, the box's key for secrets; and the box-wide reads:
@@ -1273,7 +1291,9 @@ scope for the runtime model, in scope for release signing (roadmap).
   most worth having on. It reads what the box webhooks answer through
   the same filtered bodies, and nothing the webhooks do not answer: not
   the journal, the backup repository and its credential, or the admin
-  socket.
+  socket. With `logs` on the box it also reads every app's logs (the
+  apps' own lines of the journal), as T7's `logs` key reads one app's,
+  and that key is worth a list most of all.
 
 For **T2**: deploy-arbitrary-code (a push is contained by nothing but
 the claim scope; a pull additionally by the allowlist); deliberate
@@ -1295,8 +1315,10 @@ no age-out and one in root's hands, and the handler's validate on a
 signer's file; a signer's software key gets the box, and — with secrets
 in the repository — every value encrypted to it, offline. For **T7** and
 **T8**: disclosure of what the grant reads, bounded by the response
-filter as every body is ("Webhook endpoint"), and the CPU of reads up
-to the rate per person (2 a second, 60 at once).
+filter as every body is ("Webhook endpoint"), but for an app's logs
+under a `logs` grant, which hold what the app printed and which the
+filter bounds only for the values it knows; and the CPU of reads up to
+the rate per person (2 a second, 60 at once).
 
 ## The shared-UID rule
 
@@ -1547,8 +1569,13 @@ only public material:
   provider's public JWKS and a claim allowlist (`deploy_trust github |
   gitlab | oidc`). Nothing high-value on the box, nothing stored in CI;
   the token is minted per run, short-lived, and scoped to the claims
-  the block pins. An identity claim (`repository`, `project_path`,
-  `sub`, …) is required at config load; a branch binding (`ref` —
+  the block pins and to its audience: an app's, on the paved road,
+  is the box's deploy host, which the templates' `scripts/deploy.sh`
+  asks for, so a token sent to one box is refused by another that
+  trusts the same repository (a block's audience is the operator's,
+  and two blocks that share one share their tokens). An identity
+  claim (`repository`, `project_path`, `sub`, …) is required at config
+  load; a branch binding (`ref` —
   `ref_path` on GitLab — `sha`, `workflow_ref`, a `ref_protected` not
   pinned false, or a default-form `subject`, which carries one) is the
   operator's to add, and a `github` or `gitlab` block some app

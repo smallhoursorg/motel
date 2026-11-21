@@ -30,8 +30,8 @@ that commit, with the commit and the
 commits before it back to the one the box runs. The box applies the
 file only if:
 
-- the workflow's token says it ran for this repo's `main` (the box
-  block's `deploy_trust`);
+- the workflow's token says it ran from this repo's `apply.yml` on
+  `main` (the box block's `deploy_trust`);
 - a key the box's own Caddyfile lists signed that commit and every
   commit between it and the one the box runs (`signer` lines);
 - the file is the one in that commit, for this box's host and path;
@@ -115,15 +115,22 @@ what it runs.
    anything it `import`s, since a box refuses a file that imports, and
    delete `template.caddy`. On a fresh box there is nothing to bring
    over. Either way, replace `your-org/boxes`, in the `box`
-   block's `claim repository`, with this repo's `owner/name`: the box
-   takes pushes from that repository's workflow alone, so a placeholder
-   left there refuses the first one. On a fresh box, also replace
-   `example.com`, `deploy.example.com` and `your-org/example`
-   with yours — `your-org` (your organization, or your username if the
-   repos are in your own account) twice more: the `artifact_allowlist`
-   entry pins the organization or account alone, and the app's
-   `deploy_trust` its repo. This lists the lines left to change,
-   comments aside, and prints nothing once all are changed:
+   block's `claim repository` and `claim workflow_ref`, with this
+   repo's `owner/name`: the box takes pushes from that repository's
+   apply workflow alone, so a placeholder left there refuses the first
+   one. On a fresh box, also replace `example.com`,
+   `deploy.example.com` and `your-org/example` with yours — `your-org`
+   (your organization, or your username if the repos are in your own
+   account) three times more: the `artifact_allowlist` entry pins the
+   organization or account alone, and the app's `deploy_trust` its
+   repo and its deploy workflow, in its `claim repository` and `claim
+   workflow_ref`. `deploy.example.com` is also the app's `audience`:
+   it names this box, the host of the app repo's `MOTEL_URL`, which
+   its `scripts/deploy.sh` asks for, so no other box takes the token.
+   The `box` block's `audience motel` stays: `bin/apply` asks for
+   that one name for every box.
+   This lists the lines left to change, comments aside,
+   and prints nothing once all are changed:
 
    ```sh
    grep -En '^([^#]*[^#A-Za-z0-9-])?(your-org|example\.com)([^A-Za-z0-9.-]|$)' */Caddyfile
@@ -354,7 +361,9 @@ One directory per box, each named for its deploy host. Every push goes
 to every box: each one's history must keep up, even when its own file
 did not change, and then the box answers that it already runs that
 Caddyfile. Each box is set up with `moteld init` from its own
-directory.
+directory. An app block's `audience` is its box's deploy host, so one
+copied from another box's file takes the directory's name there; the
+`box` block's `audience motel` is the same in every file.
 
 ### A box on another release
 
