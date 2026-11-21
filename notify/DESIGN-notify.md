@@ -270,7 +270,7 @@ Rendered by `render` (notify/render.go); the golden file is
 | # | Route | Receiver | Timing |
 |---|---|---|---|
 | 1 | `alertname="Watchdog"` | `heartbeat` (the heartbeat's `url_file`), or a blackhole | `group_by [alertname]`, wait 0 s, interval 5 m, repeat 4 m (under the interval, so each 5 m flush re-sends) |
-| 2 | `notify_channel=~".+"` (ChannelFailed, NotifyTest), one child per channel | `ch-<channel>` | `group_by ['...']`, wait 0 s, interval 1 m |
+| 2 | `notify_channel=~".+"` (ChannelFailed, NotifyTest), one child per channel; ChannelFailed's read-only copy (`notify_channel="-"`, which no channel can be named) matches no child and ends at this route's own blackhole ("Failed delivery") | `ch-<channel>`; the read-only copy `blackhole` | `group_by ['...']`, wait 0 s, interval 1 m |
 | 3 | `alertname="deploy_in_progress"` | blackhole: it exists to inhibit | — |
 | 4 | `kind="state", alertname="disk_low"`, the operator's audience | `state-<severity>-<channel>` | wait 30 s, interval 1 m, repeat 24 h |
 | 5 | `kind="event"`, an audience per app with channels of its own, then the operator's | `event-<severity>-<channel>` | `group_by ['...']`, wait 0 s, interval 1 m |
@@ -390,7 +390,7 @@ only root and the motel uid can send.
 | `cert_failed/<identifier>` | tls | state | warning; critical with under 7 days left | CertMagic's `cert_failed` | its `cert_obtained`, or 13 h with no report (a name no config manages any more) |
 | `disk_low/<path>` | disk | state | warning at 80 % used, critical at 90 | statfs, every minute, one per device, of the liveswap root, Caddy's data and the state directory, each on its own goroutine within 2 s (a path not back is not measured, and starts no other statfs until it is back); the level is held per device, whichever path stands for it | five points under its threshold |
 | `Watchdog` | notify | heartbeat | none | every minute, alive 4 m | — |
-| `ChannelFailed` | notify | direct | warning | Alertmanager's failure counter rose ("Failed delivery") | `endsAt` +15 m |
+| `ChannelFailed` | notify | direct | warning | Alertmanager's failure counter rose ("Failed delivery"): a copy to each channel told, and the read-only copy, told to no channel; the read-only copy again at every read while a hold stands, from the hold's start | `endsAt` +15 m from its last post |
 | `person_new_network` | access | event | warning | a person's key accepted from a network (`client_ip` cut to a /24 or a /48) it was never accepted from, its first use among them (liveswap/access/DESIGN-access.md, "A key used from somewhere new"); instance the key's fingerprint, so the limit per key bounds a thief who cycles networks; no `app` label, whatever the person may read. One told while no config runs notify (a start's first seconds) is kept, up to 64 and four a key, and told when one does, if within a minute (`engine.early`); an older one has its journal line alone. Neither, nor a silence of either, is in the people's alerts reads (`personAlerts`) | — |
 | `person_outside_list` | access | event | warning | a valid signature by a person's key from outside every address list on their grants, refused with the flat 401; at most once per key an hour; instance the key's fingerprint | — |
 | `post_deploy_regressed` | rules | event | warning | a `post_deploy` rule's checks after a deploy or a rollback of the app failed `failures` times in a row: the new release over a bound and worse than the one it replaced (DESIGN-metrics.md, "Operator rules"); once per deploy, and it never acts | — |
@@ -616,6 +616,38 @@ the reload has reset the counters, so it reads as a rise; it is no
 channel's failure, and the new config sends it again wherever it still
 routes it, so neither this read nor vmalert's rules count it.
 
+**The read-only copy.** Each rise also posts one more `ChannelFailed`,
+with the same labels but `notify_channel="-"`, whoever else is told
+(`readOnlyCopy`). `-` is no channel's name (`channelNameRe` starts with
+a letter or a digit), so route 2 matches it, none of its leaves does,
+and it ends at route 2's own blackhole ("The route tree"): Alertmanager
+holds it, `active`, and no channel is told it. It needs no route of its
+own, so no render (an older moteld's, after a downgrade, too) can send
+it anywhere else; without the label it would fall to the fallback and
+reach every operator channel, the failing one and one kept for
+criticals too (measured 2026-11-21 on Debian's 0.28.1). The blackhole
+has no integration, so Alertmanager keeps no counter and no
+notification-log entry for it (measured): the copy is no failure, no
+delivery, and ends no hold. It exists for the people's reads: on a box
+whose one operator channel fails, it is the only `ChannelFailed`
+Alertmanager holds, so `GET /_motel/alerts` (the TUI's title bar and
+bell, `:alerts`, `motel monitor alerts`) shows the failure, where
+before the read had nothing of it. While a hold stands ("Dead-man and
+uptime") the copy is posted again at every read from the hold's start,
+so it stays one alert with one start for as long as the hold does; once
+the hold ends, or when channels were told, the last post lives its
+15 minutes. Alertmanager keeps the earliest start of the posts it
+merges, so a re-post never moves it (measured). The box-wide read
+leaves out the copies addressed to channels when it holds the read-only
+copy of the same failure (`integration` and `suspects`,
+`foldChannelFailed`), and sends the addressed ones as before when it
+does not (vmalert's rules alone, while moteld was not running; a box
+whose moteld is older). The copy carries no `app` label, so no app's
+read has it, as no app's read has the addressed copies; its summary is
+theirs, which a viewer of the box reads already wherever another
+channel is told. It has no vmalert rule (DESIGN-metrics.md,
+"ChannelFailed, a second source").
+
 What a rise is rests on when the counters last started from 0.
 With `receiver-name-in-metrics` Alertmanager 0.28.1 resets all three
 at every config load (`notify.Metrics.InitializeFor`), its start's
@@ -692,6 +724,12 @@ delivery is counted by channel to end a hold. In a block with no
 failure is recorded but nothing is held; a load that adds the line
 holds what stands at the next read, and one that takes it away ends
 the hold (self-review of #449).
+While a failure is recorded (held or not yet), motel posts its
+`ChannelFailed` read-only copy at every read, from the time the failure
+was recorded ("Failed delivery"), so the people's reads show it for as
+long as the record stands, past the copy's own 15 minutes; it reaches
+the blackhole, which counts nothing, so the hold's start, its 5 minutes
+and its end are what they were without it.
 Runtime state, not a rendered inhibition: "a rise told to no one, and
 no delivery since" is a reading of Alertmanager's counters over time,
 which only motel's minute read sees on a notify-only box (Alertmanager

@@ -175,6 +175,7 @@ func (e *engine) scrapeFailed(ctx context.Context, read func(context.Context) ([
 		if len(sus) > 0 {
 			summary += "; failing channel: " + strings.Join(sus, " or ")
 		}
+		summary = e.clean(summary)
 		fields := []zap.Field{zap.String("key", key), zap.String("integration", s.integration), zap.String("reason", s.reason),
 			zap.String("receiver", s.receiver), zap.Strings("suspects", sus)}
 		var to []string
@@ -184,28 +185,54 @@ func (e *engine) scrapeFailed(ctx context.Context, read func(context.Context) ([
 			}
 		}
 		// No channel to tell: the heartbeat is what can, by stopping.
+		start := now
 		if len(to) == 0 {
-			e.untoldFor(key, s.receiver, sus, m, now)
+			e.untoldFor(key, s.receiver, sus, s.integration, summary, m, now)
+			// The copy of a failure a hold records keeps the hold's start,
+			// as the hold's own posts of it do (watchUntold).
+			if u := e.untold[key]; u != nil {
+				start = u.since
+			}
 		}
 		if !e.bucketFor(key).take(now) {
 			e.logger.Warn("monitor: channel failed", append(fields, zap.String("suppressed", "more than four an hour for this key"))...)
 			continue
 		}
 		e.logger.Warn("monitor: channel failed", append(fields, zap.Strings("told", to))...)
-		alerts := make([]amAlert, 0, len(to))
+		alerts := make([]amAlert, 0, len(to)+1)
 		for _, ch := range to {
 			alerts = append(alerts, amAlert{
 				Labels: map[string]string{
 					"alertname": alertChannelFailed, labelChannel: ch, "severity": SeverityWarning,
 					"subject": "box", "integration": s.integration, "suspects": strings.Join(sus, ","),
 				},
-				Annotations: map[string]string{"summary": e.clean(summary)},
+				Annotations: map[string]string{"summary": summary},
 				StartsAt:    now, EndsAt: now.Add(channelFailedLife),
 			})
 		}
-		if len(alerts) > 0 {
-			e.enqueue(&pending{key: key, alerts: alerts, first: now, journal: true})
-		}
+		alerts = append(alerts, readOnlyCopy(s.integration, sus, summary, start, now))
+		e.enqueue(&pending{key: key, alerts: alerts, first: now, journal: true})
+	}
+}
+
+// readOnlyCopy is a failure's read-only copy (DESIGN-notify.md, "Failed
+// delivery"): ChannelFailed with the addressed copies' labels but
+// notify_channel readOnlyChannel, which no channel's name can be, so
+// route 2 matches it, none of its leaves does, and it ends at that
+// route's blackhole: held by Alertmanager and read by the people's
+// box-wide read, told to no channel. It is posted with every rise,
+// whoever else is told, and while a hold stands at every read
+// (watchUntold), from the hold's start. The blackhole has no
+// integration, so the copy moves none of the counters a rise or a
+// hold's end is read from.
+func readOnlyCopy(integration string, sus []string, summary string, start, now time.Time) amAlert {
+	return amAlert{
+		Labels: map[string]string{
+			"alertname": alertChannelFailed, labelChannel: readOnlyChannel, "severity": SeverityWarning,
+			"subject": "box", "integration": integration, "suspects": strings.Join(sus, ","),
+		},
+		Annotations: map[string]string{"summary": summary},
+		StartsAt:    start, EndsAt: now.Add(channelFailedLife),
 	}
 }
 
@@ -235,6 +262,9 @@ type untold struct {
 	// fail) at the last read.
 	seen map[string]float64
 	held bool
+	// integration and summary are the failure's: the read-only copy the
+	// record keeps posting carries them.
+	integration, summary string
 }
 
 // receiversOf is every receiver that sends to one of chans.
@@ -262,7 +292,7 @@ func deliveries(m amMetrics, receiver string) float64 {
 // whose receiver is not this config's (the counter names none, or a
 // name from before a reload) has suspects that are a guess, and no
 // delivery count by channel to end a hold by. With mu held.
-func (e *engine) untoldFor(key, receiver string, sus []string, m amMetrics, now time.Time) {
+func (e *engine) untoldFor(key, receiver string, sus []string, integration, summary string, m amMetrics, now time.Time) {
 	if len(sus) == 0 {
 		return
 	}
@@ -272,7 +302,7 @@ func (e *engine) untoldFor(key, receiver string, sus []string, m amMetrics, now 
 	if _, ok := e.untold[key]; ok {
 		return
 	}
-	u := &untold{since: now, suspects: sus, seen: map[string]float64{}}
+	u := &untold{since: now, suspects: sus, seen: map[string]float64{}, integration: integration, summary: summary}
 	for _, rc := range e.fail.receiversOf(sus) {
 		u.seen[rc] = deliveries(m, rc)
 	}
@@ -281,7 +311,11 @@ func (e *engine) untoldFor(key, receiver string, sus []string, m amMetrics, now 
 
 // watchUntold is one read's part of the hold: a delivery through a
 // suspect's receivers ends what it records, and what has stood
-// heartbeatHoldAfter without one holds the heartbeat. After a config
+// heartbeatHoldAfter without one holds the heartbeat. What still stands
+// has its read-only copy posted again, from its start, so that the
+// people's reads hold one alert, with one start, for as long as the
+// record stands; once it ends, the copy's last post lives out
+// channelFailedLife. After a config
 // load (load: loadSince's answer) Alertmanager counts from 0, so any
 // delivery counted is since it: the documented mend, a reload, then
 // `moteld monitor test`. A receiver with no count from an earlier read
@@ -316,6 +350,10 @@ func (e *engine) watchUntold(m amMetrics, now time.Time, load bool) {
 				zap.Strings("suspects", u.suspects), zap.Time("failed_at", u.since),
 				zap.String("resumes", "at the next delivery through the channel: mend it, then moteld monitor test "+u.suspects[0]))
 		}
+		// No bucket: one post a read, as the heartbeat's, whatever the
+		// rises; a post that fails is the queue's to try again.
+		e.enqueue(&pending{key: key + "/read-only", first: now,
+			alerts: []amAlert{readOnlyCopy(u.integration, u.suspects, u.summary, u.since, now)}})
 	}
 }
 

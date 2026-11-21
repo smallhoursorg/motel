@@ -3,6 +3,7 @@ package notify
 import (
 	"context"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -107,7 +108,7 @@ func TestChannelFailedAcrossAConfigLoad(t *testing.T) {
 		te.advance(20 * time.Minute) // a key's bucket takes four an hour
 		*body = c.body
 		te.scrapeFailed(context.Background(), read)
-		got := te.drain()
+		got := told(te.drain())
 		if c.rises != (len(got) == 1 && got[0].Labels["suspects"] == "bob") || !c.rises && len(got) != 0 {
 			t.Fatalf("read %d: posts %+v, want a ChannelFailed: %v", i, got, c.rises)
 		}
@@ -144,7 +145,7 @@ func TestFirstReadCountsFromALoadAfterTheStart(t *testing.T) {
 		}
 		*body = metricsHead + failedLine("webhook", receiver, "clientError", 1) + loadedAt(c.stamp)
 		te.scrapeFailed(context.Background(), read)
-		if got := te.drain(); len(got) != c.want {
+		if got := told(te.drain()); len(got) != c.want {
 			t.Errorf("%+v: posts %+v, want %d", c, got, c.want)
 		}
 	}
@@ -173,7 +174,7 @@ func TestScrapeFailedTellsTheOtherOperatorChannels(t *testing.T) {
 	// and the journal says so.
 	body = metricsHead + failedLine("slack", "event-warning-ops", "clientError", 1) + failedLine("webhook", "", "other", 0)
 	te.scrapeFailed(context.Background(), read)
-	if got := te.drain(); len(got) != 0 {
+	if got := told(te.drain()); len(got) != 0 {
 		t.Fatalf("a critical-only channel was told a warning: %+v", got)
 	}
 	lines := te.lines("monitor: channel failed")
@@ -192,7 +193,7 @@ func TestScrapeFailedTellsTheOtherOperatorChannels(t *testing.T) {
 	te.setConfig(a, te.p, te.known, te.logger)
 	body = metricsHead + failedLine("slack", "event-warning-ops", "clientError", 2) + failedLine("webhook", "", "other", 0)
 	te.scrapeFailed(context.Background(), read)
-	got := te.drain()
+	got := told(te.drain())
 	if len(got) != 1 || got[0].Labels[labelChannel] != "pager" || got[0].Labels["suspects"] != "ops" || got[0].Labels["alertname"] != "ChannelFailed" {
 		t.Fatalf("posts = %+v", got)
 	}
@@ -205,7 +206,7 @@ func TestScrapeFailedTellsTheOtherOperatorChannels(t *testing.T) {
 	// bob): ops is told.
 	body = metricsHead + failedLine("slack", "event-warning-ops", "clientError", 2) + failedLine("webhook", "", "other", 4)
 	te.scrapeFailed(context.Background(), read)
-	got = te.drain()
+	got = told(te.drain())
 	if len(got) != 1 || got[0].Labels[labelChannel] != "ops" || !strings.Contains(got[0].Labels["suspects"], "pager") {
 		t.Fatalf("posts = %+v", got)
 	}
@@ -293,7 +294,7 @@ func TestScrapeFailedNamesOneWebhookChannel(t *testing.T) {
 	te.scrapeFailed(context.Background(), read)
 	body = metricsHead + failedLine("webhook", "event-critical-bob", "clientError", 1) + failedLine("webhook", "event-critical-pager", "clientError", 0)
 	te.scrapeFailed(context.Background(), read)
-	got := te.drain()
+	got := told(te.drain())
 	if len(got) != 1 || got[0].Labels[labelChannel] != "ops" || got[0].Labels["suspects"] != "bob" {
 		t.Fatalf("posts = %+v", got)
 	}
@@ -361,7 +362,7 @@ func TestHeartbeatHeldWhileAFailureIsToldToNoChannel(t *testing.T) {
 	}
 	*body = counters(1, 4, 1, 0)
 	te.scrapeFailed(context.Background(), read)
-	if got := te.drain(); len(got) != 0 {
+	if got := told(te.drain()); len(got) != 0 {
 		t.Fatalf("told someone: %+v", got)
 	}
 	l := te.lines("monitor: channel failed")
@@ -512,7 +513,7 @@ func TestHeartbeatNotHeldWhenTheChannelDeliversAgain(t *testing.T) {
 	te2.scrapeFailed(context.Background(), read2)
 	*body2 = counters(1, 4, 1, 0)
 	te2.scrapeFailed(context.Background(), read2)
-	if got := te2.drain(); len(got) != 1 || got[0].Labels[labelChannel] != "bob" || got[0].Labels["suspects"] != "ops" {
+	if got := told(te2.drain()); len(got) != 1 || got[0].Labels[labelChannel] != "bob" || got[0].Labels["suspects"] != "ops" {
 		t.Fatalf("posts = %+v", got)
 	}
 	if len(te2.untold) != 0 {
@@ -632,5 +633,186 @@ func TestHeartbeatHoldNeedsAHeartbeatLine(t *testing.T) {
 	te.scrapeFailed(context.Background(), read)
 	if te.heartbeatHeld() {
 		t.Fatal("held again with no heartbeat line")
+	}
+}
+
+// told is what was posted to channels: every alert but ChannelFailed's
+// read-only copies, which readOnly picks out.
+func told(posts []amAlert) []amAlert {
+	return slices.DeleteFunc(slices.Clone(posts), func(a amAlert) bool { return a.Labels[labelChannel] == readOnlyChannel })
+}
+
+func readOnly(posts []amAlert) []amAlert {
+	return slices.DeleteFunc(slices.Clone(posts), func(a amAlert) bool { return a.Labels[labelChannel] != readOnlyChannel })
+}
+
+// TestReadOnlyCopyNameIsNoChannel: no channel can be named the read-only
+// copy's notify_channel, so no channel's route can be told it.
+func TestReadOnlyCopyNameIsNoChannel(t *testing.T) {
+	if channelNameRe.MatchString(readOnlyChannel) {
+		t.Fatalf("%q is a channel name", readOnlyChannel)
+	}
+	if err := (Channel{Name: readOnlyChannel, Kind: "json", Secret: "NOTIFY_OPS_URL"}).check(); err == nil {
+		t.Fatalf("a channel named %q passes check", readOnlyChannel)
+	}
+}
+
+// TestReadOnlyCopyOnAOneChannelBox: ops, the one operator channel,
+// fails. No channel can be told, and the read-only copy is posted all
+// the same: ChannelFailed's six labels, notify_channel "-", the same
+// summary the told copies carry, alive 15 minutes.
+func TestReadOnlyCopyOnAOneChannelBox(t *testing.T) {
+	te, _, body, read := holdEngine(t, oneChannelBlock)
+	*body = counters(0, 3, 0, 0)
+	te.scrapeFailed(context.Background(), read)
+	*body = counters(1, 4, 1, 0)
+	te.scrapeFailed(context.Background(), read)
+	got := te.drain()
+	if len(got) != 1 {
+		t.Fatalf("posts = %+v, want the read-only copy alone", got)
+	}
+	c := got[0]
+	want := map[string]string{"alertname": alertChannelFailed, labelChannel: readOnlyChannel, "severity": SeverityWarning,
+		"subject": "box", "integration": "webhook", "suspects": "ops"}
+	if !maps.Equal(c.Labels, want) {
+		t.Fatalf("labels = %v, want %v", c.Labels, want)
+	}
+	if !strings.Contains(c.Annotations["summary"], "failing channel: ops") || !c.StartsAt.Equal(te.at) || !c.EndsAt.Equal(te.at.Add(channelFailedLife)) {
+		t.Fatalf("copy = %+v", c)
+	}
+	if l := te.lines("monitor: channel failed"); len(l) != 1 || len(l[0].ContextMap()["told"].([]interface{})) != 0 {
+		t.Fatalf("journal: %+v (the copy is told to no channel)", l)
+	}
+}
+
+const fourChannelBlock = `monitor {
+	channel ops json {secret.NOTIFY_OPS_URL}
+	channel pager json {secret.NOTIFY_PAGER_URL}
+	channel alice json {secret.NOTIFY_ALICE_URL}
+	channel bob json {secret.NOTIFY_BOB_URL}
+	operator ops pager alice bob
+	heartbeat {secret.NOTIFY_HC_URL}
+}`
+
+// TestReadOnlyCopyBesideTheAddressedOnes: four operator channels, ops
+// fails: the three others are told, each its own copy, and the read-only
+// copy is posted beside them with the same failure's labels and summary.
+// Someone was told, so nothing is held and nothing keeps the copy alive:
+// it ends 15 minutes after its post.
+func TestReadOnlyCopyBesideTheAddressedOnes(t *testing.T) {
+	te, _, body, read := holdEngine(t, fourChannelBlock)
+	*body = metricsHead + amLines("event-warning-ops", 0, 3, 0)
+	te.scrapeFailed(context.Background(), read)
+	posted := te.at
+	*body = metricsHead + amLines("event-warning-ops", 1, 4, 1)
+	te.scrapeFailed(context.Background(), read)
+	got := te.drain()
+	var chans []string
+	for _, a := range told(got) {
+		chans = append(chans, a.Labels[labelChannel])
+	}
+	slices.Sort(chans)
+	ro := readOnly(got)
+	if !slices.Equal(chans, []string{"alice", "bob", "pager"}) || len(ro) != 1 {
+		t.Fatalf("posts = %+v", got)
+	}
+	for _, a := range told(got) {
+		if a.Labels["integration"] != ro[0].Labels["integration"] || a.Labels["suspects"] != ro[0].Labels["suspects"] ||
+			a.Annotations["summary"] != ro[0].Annotations["summary"] || !a.StartsAt.Equal(ro[0].StartsAt) {
+			t.Fatalf("the copy %+v is not the failure %+v", ro[0], a)
+		}
+	}
+	if len(te.untold) != 0 {
+		t.Fatalf("untold = %+v", te.untold)
+	}
+	for range 20 {
+		te.advance(time.Minute)
+		te.scrapeFailed(context.Background(), read)
+		if p := readOnly(te.drain()); len(p) != 0 {
+			t.Fatalf("posted again at %v with no rise and no hold: %+v", te.at, p)
+		}
+	}
+	if !ro[0].EndsAt.Equal(posted.Add(channelFailedLife)) {
+		t.Fatalf("the copy ends %v, want 15 minutes after its post", ro[0].EndsAt)
+	}
+}
+
+// TestReadOnlyCopyKeptWhileTheHoldStands: ops, the one channel, fails
+// once. The hold records it, and at every read after it the read-only
+// copy is posted again from the hold's start, so Alertmanager holds one
+// alert with one start however long the hold stands, beyond the 15
+// minutes a post lives. The hold itself keeps its timing: held at the
+// first read heartbeatHoldAfter after the failure, the heartbeat no
+// longer posted. A delivery through ops ends the record, and the
+// re-posts end with it: the last one's 15 minutes run out.
+func TestReadOnlyCopyKeptWhileTheHoldStands(t *testing.T) {
+	te, _, body, read := holdEngine(t, oneChannelBlock)
+	*body = counters(0, 3, 0, 0)
+	te.scrapeFailed(context.Background(), read)
+	te.tick()
+	te.drain()
+	*body = counters(1, 4, 1, 0)
+	failed := te.at
+	te.scrapeFailed(context.Background(), read)
+	te.tick()
+	te.drain()
+	for i := 1; i <= 40; i++ {
+		te.advance(time.Minute)
+		te.scrapeFailed(context.Background(), read)
+		te.tick()
+		got := te.drain()
+		ro := readOnly(got)
+		if len(ro) != 1 || !ro[0].StartsAt.Equal(failed) || !ro[0].EndsAt.Equal(te.at.Add(channelFailedLife)) ||
+			ro[0].Labels["suspects"] != "ops" || ro[0].Labels["integration"] != "webhook" || !strings.Contains(ro[0].Annotations["summary"], "failing channel: ops") {
+			t.Fatalf("+%d min: read-only posts %+v, want one from %v", i, ro, failed)
+		}
+		if len(told(got)) != countAlert(got, alertWatchdog) {
+			t.Fatalf("+%d min: told %+v", i, told(got))
+		}
+		held := te.at.Sub(failed) >= heartbeatHoldAfter
+		if te.heartbeatHeld() != held || held && countAlert(got, alertWatchdog) != 0 {
+			t.Fatalf("+%d min: held %v, heartbeats %d", i, te.heartbeatHeld(), countAlert(got, alertWatchdog))
+		}
+	}
+	// The channel mended: moteld monitor test delivers through it.
+	*body = counters(1, 4, 1, 1)
+	te.advance(time.Minute)
+	te.scrapeFailed(context.Background(), read)
+	te.tick()
+	got := te.drain()
+	if ro := readOnly(got); len(ro) != 0 || te.heartbeatHeld() || countAlert(got, alertWatchdog) != 1 {
+		t.Fatalf("after the delivery: read-only %+v, held %v", ro, te.heartbeatHeld())
+	}
+	for range 20 {
+		te.advance(time.Minute)
+		te.scrapeFailed(context.Background(), read)
+		if ro := readOnly(te.drain()); len(ro) != 0 {
+			t.Fatalf("posted after the hold ended: %+v", ro)
+		}
+	}
+}
+
+// TestReadOnlyCopyOfARiseInAHold: a rise of a failure whose hold stands
+// posts its copy from the hold's start, not its own read's, so the two
+// posts are one start to the people's reads.
+func TestReadOnlyCopyOfARiseInAHold(t *testing.T) {
+	te, _, body, read := holdEngine(t, oneChannelBlock)
+	*body = counters(0, 3, 0, 0)
+	te.scrapeFailed(context.Background(), read)
+	*body = counters(1, 4, 1, 0)
+	failed := te.at
+	te.scrapeFailed(context.Background(), read)
+	te.drain()
+	te.advance(7 * time.Minute)
+	*body = counters(2, 5, 2, 0)
+	te.scrapeFailed(context.Background(), read)
+	copies := readOnly(te.drain())
+	if len(copies) != 2 { // the hold's re-post, and the rise's own
+		t.Fatalf("copies = %+v, want the hold's and the rise's", copies)
+	}
+	for _, c := range copies {
+		if !c.StartsAt.Equal(failed) {
+			t.Fatalf("a copy from %v, want the hold's start %v", c.StartsAt, failed)
+		}
 	}
 }

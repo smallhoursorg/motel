@@ -801,8 +801,10 @@ SIGINT, SIGTERM or SIGHUP sent to the process, or the terminal closed under the 
   /_motel/apps/<app>/alerts`), summed; which follows whoami's roles as
   they change. Counted is what `:alerts` marks (critical, warning, a
   severity or a state the client does not know), each once however
-  many identical rows the box sends (`ChannelFailed`, one a channel
-  told), and not what a silence or the deploy mute holds, nor an alert
+  many identical rows the box sends (a box whose moteld predates
+  `ChannelFailed`'s read-only copy sends one a channel told; a newer
+  one sends that copy alone in their place, notify/DESIGN-notify.md,
+  "Failed delivery"), and not what a silence or the deploy mute holds, nor an alert
   of severity `info`; `✖ 500+` when the box held more than it sent.
   With none firing nothing is drawn; with a box that has no monitor, a
   dim `no monitor` where the long form fits (once that answer is old,
