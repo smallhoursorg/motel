@@ -1048,22 +1048,31 @@ func scopeOK(s string) bool {
 
 // replacedKeys says which env_file keys the answer's redacted_env
 // names: the keys whose values the box's response filter replaced
-// anywhere in it (liveswap's redactJSON), each held to a key's grammar
-// (liveswap's envKeyRe), at most ten named. A body without one names
-// none: an older box's, or a value its filter changed by shape.
+// anywhere in it (liveswap's redactJSON). A key is named when it holds
+// to a key's grammar (liveswap's envKeyRe) within 128 characters, ten
+// at most; the others are counted. A key the filter replaced in the
+// list (one equal to another key's value) arrives as its marker, and is
+// counted. A body without one names none: the value was not one the
+// filter replaced (whoami's filter knows no value).
 func replacedKeys(body []byte) string {
-	var r struct {
-		Keys []string `json:"redacted_env"`
+	// The key as written: a struct's field would take any case of it.
+	var top map[string]json.RawMessage
+	var all []string
+	if json.Unmarshal(body, &top) == nil {
+		_ = json.Unmarshal(top["redacted_env"], &all) // not a list of strings: none named
 	}
-	_ = json.Unmarshal(body, &r) // not a list of strings: none named
-	keys := slices.DeleteFunc(r.Keys, func(k string) bool { return !envKeyRe.MatchString(k) })
-	switch {
-	case len(keys) == 0:
+	if len(all) == 0 {
 		return "The answer names no key whose value the filter replaced."
-	case len(keys) > 10:
-		return fmt.Sprintf("The answer says the filter replaced the values of %s and %d more.", strings.Join(keys[:10], ", "), len(keys)-10)
 	}
-	return "The answer says the filter replaced the values of " + strings.Join(keys, ", ") + "."
+	keys := slices.DeleteFunc(slices.Clone(all), func(k string) bool { return len(k) > 128 || !envKeyRe.MatchString(k) })
+	named := keys[:min(len(keys), 10)]
+	switch {
+	case len(named) == 0:
+		return "The answer says the filter replaced values in it, and names their keys in no form shown here."
+	case len(named) < len(all):
+		return "The answer says the filter replaced, somewhere in it, the values of " + strings.Join(named, ", ") + " and " + strconv.Itoa(len(all)-len(named)) + " more."
+	}
+	return "The answer says the filter replaced, somewhere in it, the values of " + strings.Join(named, ", ") + "."
 }
 
 // envKeyRe is liveswap/app.go's: an env_file key as systemd takes one.

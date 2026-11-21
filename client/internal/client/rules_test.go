@@ -323,7 +323,7 @@ func TestReadNeedsTheIdentifyingFields(t *testing.T) {
 	replaced := strings.Replace(record, `"2026-11-14T09:13:00Z"`, `"[redacted:DB_PASSWORD]"`, 1)
 	replaced = strings.TrimSuffix(replaced, "}") + `,"redacted_env":["DB_PASSWORD"]}`
 	f := failure(t, c.Read(json200(replaced), &wire.DeployResult{}))
-	if f.Exit != ExitUnknown || strings.Contains(f.Message, "not moteld's") || f.Body != nil || f.Message != "127.0.0.1 answered, but its finished_at could not be read: the box's response filter may have replaced it. The answer says the filter replaced the values of DB_PASSWORD." {
+	if f.Exit != ExitUnknown || strings.Contains(f.Message, "not moteld's") || f.Body != nil || f.Message != "127.0.0.1 answered, but its finished_at could not be read: the box's response filter may have replaced it. The answer says the filter replaced, somewhere in it, the values of DB_PASSWORD." {
 		t.Errorf("a replaced time: exit %d %q, body %q", f.Exit, f.Message, f.Body)
 	}
 }
@@ -621,18 +621,23 @@ func TestFilterMarks(t *testing.T) {
 }
 
 // The keys an unreadable answer names are its redacted_env's, each held
-// to an env_file key's grammar, at most ten; nothing else of the body.
+// to an env_file key's grammar within 128 characters, at most ten; the
+// others, a key the filter masked among them, are counted; nothing else
+// of the body.
 func TestReplacedKeys(t *testing.T) {
 	var many []string
 	for i := range 12 {
 		many = append(many, fmt.Sprintf(`"K%d"`, i))
 	}
 	for _, c := range []struct{ body, want string }{
-		{`{"redacted_env":["DB_PASSWORD","API_VERSION"]}`, "The answer says the filter replaced the values of DB_PASSWORD, API_VERSION."},
+		{`{"redacted_env":["DB_PASSWORD","API_VERSION"]}`, "The answer says the filter replaced, somewhere in it, the values of DB_PASSWORD, API_VERSION."},
 		{`{"app":"blog"}`, "The answer names no key whose value the filter replaced."},
 		{`{"redacted_env":"DB_PASSWORD"}`, "The answer names no key whose value the filter replaced."},
-		{"{\"redacted_env\":[\"[redacted:A]\",\"B \\u001b[2J\",\"\",\"OK_1\"]}", "The answer says the filter replaced the values of OK_1."},
-		{`{"redacted_env":[` + strings.Join(many, ",") + `]}`, "The answer says the filter replaced the values of K0, K1, K2, K3, K4, K5, K6, K7, K8, K9 and 2 more."},
+		{"{\"redacted_env\":[\"[redacted:A]\",\"B \\u001b[2J\",\"\",\"OK_1\"]}", "The answer says the filter replaced, somewhere in it, the values of OK_1 and 3 more."},
+		{`{"redacted_env":["[redacted:A]","` + strings.Repeat("K", 129) + `"]}`, "The answer says the filter replaced values in it, and names their keys in no form shown here."},
+		{`{"redacted_env":[]}`, "The answer names no key whose value the filter replaced."},
+		{`{"Redacted_Env":["HARMLESS"]}`, "The answer names no key whose value the filter replaced."},
+		{`{"redacted_env":[` + strings.Join(many, ",") + `]}`, "The answer says the filter replaced, somewhere in it, the values of K0, K1, K2, K3, K4, K5, K6, K7, K8, K9 and 2 more."},
 	} {
 		if got := replacedKeys([]byte(c.body)); got != c.want {
 			t.Errorf("%s:\n%s\nwant\n%s", c.body, got, c.want)
