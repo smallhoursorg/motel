@@ -219,9 +219,10 @@ func TestUnreadableFieldNamedNotQuoted(t *testing.T) {
 	body := `{"name":"alice","key":"SHA256:x","roles":[],"box":"b","version":"","protocol":1,"token_expires_at":"` + evil + `"}`
 	ans := &Answer{Code: http.StatusOK, Header: http.Header{"Content-Type": {"application/json"}}, Body: []byte(body)}
 	f := failure(t, cl.Read(ans, &wire.WhoAmI{}))
-	want := "127.0.0.1 answered, but its token_expires_at could not be read: the box's response filter may have replaced it. The box's journal says which key it replaced."
-	if f.Exit != ExitUnknown || f.Message != want {
-		t.Errorf("exit %d %q", f.Exit, f.Message)
+	want := "127.0.0.1 answered, but its token_expires_at could not be read: the box's response filter may have replaced it. If it did, the answer's redacted_env names the key whose value it replaced; --json prints the answer."
+	// The answer goes with the failure, so --json prints it.
+	if f.Exit != ExitUnknown || f.Message != want || string(f.Body) != body {
+		t.Errorf("exit %d %q, body %q", f.Exit, f.Message, f.Body)
 	}
 	ans.Body = []byte(`{"app":"blog"` + strings.Repeat(" ", 3) + `x}`)
 	if f := failure(t, cl.Read(ans, &wire.Status{})); !strings.HasSuffix(f.Message, "(HTTP 200, not moteld's answer: not JSON). Is this the box's deploy host?") {

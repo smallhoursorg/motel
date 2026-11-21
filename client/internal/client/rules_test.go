@@ -316,11 +316,13 @@ func TestReadNeedsTheIdentifyingFields(t *testing.T) {
 		}
 	}
 	// moteld's answer by its fields, with a time the response filter
-	// replaced: said as that, not as someone else's answer.
+	// replaced: said as that, not as someone else's answer, and kept
+	// with the failure for --json, its redacted_env naming the key.
 	replaced := strings.Replace(record, `"2026-11-14T09:13:00Z"`, `"[redacted:DB_PASSWORD]"`, 1)
+	replaced = strings.TrimSuffix(replaced, "}") + `,"redacted_env":["DB_PASSWORD"]}`
 	f := failure(t, c.Read(json200(replaced), &wire.DeployResult{}))
-	if f.Exit != ExitUnknown || strings.Contains(f.Message, "not moteld's") || f.Message != "127.0.0.1 answered, but its finished_at could not be read: the box's response filter may have replaced it. The box's journal says which key it replaced." {
-		t.Errorf("a replaced time: exit %d %q", f.Exit, f.Message)
+	if f.Exit != ExitUnknown || strings.Contains(f.Message, "not moteld's") || string(f.Body) != replaced+"\n" || f.Message != "127.0.0.1 answered, but its finished_at could not be read: the box's response filter may have replaced it. If it did, the answer's redacted_env names the key whose value it replaced; --json prints the answer." {
+		t.Errorf("a replaced time: exit %d %q, body %q", f.Exit, f.Message, f.Body)
 	}
 }
 

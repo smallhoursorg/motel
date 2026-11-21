@@ -491,13 +491,16 @@ func (c *Client) Read(ans *Answer, v any) error {
 		case err != nil:
 			// moteld's answer, by its fields, with a value that did not
 			// decode: the box's response filter replaces a value equal
-			// to a secret, a timestamp's included, with its marker.
+			// to a secret, a timestamp's included, with its marker, and
+			// names the key in the answer's redacted_env, which no log
+			// line of the box's does. The body goes with the failure, so
+			// --json prints it.
 			what := "a value in it"
 			if f := badField(ans.Body, v); f != "" {
 				what = "its " + f
 			}
-			return &Failure{Exit: ExitUnknown, Status: ans.Code, Message: fmt.Sprintf(
-				"%s answered, but %s could not be read: the box's response filter may have replaced it. The box's journal says which key it replaced.",
+			return &Failure{Exit: ExitUnknown, Status: ans.Code, Body: ans.Body, Message: fmt.Sprintf(
+				"%s answered, but %s could not be read: the box's response filter may have replaced it. If it did, the answer's redacted_env names the key whose value it replaced; --json prints the answer.",
 				c.Box.Addr(), what)}
 		}
 		if why := hold(v); why != "" {
