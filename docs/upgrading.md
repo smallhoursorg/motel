@@ -489,6 +489,14 @@ What changes for alerts you know:
   under its new one at the first read.
 - Each summary begins `motel backup status (on the box: motel-backup
   status) says:`, then status's line.
+- Every name starting `backup_` is motel's now, as `watchdog_` names
+  are: `moteld monitor send --name backup_…` is refused, and so is a
+  `rule backup_…` line, which fails validation and the reload. Before
+  the install, rename such a `rule` line, and resolve any event of
+  yours of such a name that fires (`--state resolved`), then send it
+  under a new name: a firing one would be told again from
+  `/var/lib/motel-notify/external.json` at every start, and its resolve
+  refused.
 
 Going back to a release without it resolves the new alerts within
 minutes, although nothing changed.
