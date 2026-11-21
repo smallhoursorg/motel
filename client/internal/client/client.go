@@ -1058,9 +1058,10 @@ func replacedKeys(body []byte) string {
 	// The key as written: a struct's field would take any case of it.
 	var top map[string]json.RawMessage
 	var all []string
-	if json.Unmarshal(body, &top) == nil {
-		_ = json.Unmarshal(top["redacted_env"], &all) // not a list of strings: none named
+	if json.Unmarshal(body, &top) != nil || json.Unmarshal(top["redacted_env"], &all) != nil {
+		all = nil // not a list of strings: none named
 	}
+	all = slices.DeleteFunc(all, func(k string) bool { return k == "" }) // a null in it
 	if len(all) == 0 {
 		return "The answer names no key whose value the filter replaced."
 	}

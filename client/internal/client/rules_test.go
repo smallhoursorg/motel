@@ -633,10 +633,12 @@ func TestReplacedKeys(t *testing.T) {
 		{`{"redacted_env":["DB_PASSWORD","API_VERSION"]}`, "The answer says the filter replaced, somewhere in it, the values of DB_PASSWORD, API_VERSION."},
 		{`{"app":"blog"}`, "The answer names no key whose value the filter replaced."},
 		{`{"redacted_env":"DB_PASSWORD"}`, "The answer names no key whose value the filter replaced."},
-		{"{\"redacted_env\":[\"[redacted:A]\",\"B \\u001b[2J\",\"\",\"OK_1\"]}", "The answer says the filter replaced, somewhere in it, the values of OK_1 and 3 more."},
+		{"{\"redacted_env\":[\"[redacted:A]\",\"B \\u001b[2J\",\"\",\"OK_1\"]}", "The answer says the filter replaced, somewhere in it, the values of OK_1 and 2 more."},
 		{`{"redacted_env":["[redacted:A]","` + strings.Repeat("K", 129) + `"]}`, "The answer says the filter replaced values in it, and names their keys in no form shown here."},
 		{`{"redacted_env":[]}`, "The answer names no key whose value the filter replaced."},
 		{`{"Redacted_Env":["HARMLESS"]}`, "The answer names no key whose value the filter replaced."},
+		{`{"redacted_env":["A",1]}`, "The answer names no key whose value the filter replaced."},
+		{`{"redacted_env":[null]}`, "The answer names no key whose value the filter replaced."},
 		{`{"redacted_env":[` + strings.Join(many, ",") + `]}`, "The answer says the filter replaced, somewhere in it, the values of K0, K1, K2, K3, K4, K5, K6, K7, K8, K9 and 2 more."},
 	} {
 		if got := replacedKeys([]byte(c.body)); got != c.want {

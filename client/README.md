@@ -387,7 +387,10 @@ only:
    (an app or version name, a phase, a deploy's status, a unit, the
    watchdog's state, the metrics' window, a
    commit, a digest, a role and its scope, whoami's name and release,
-   a backup's app, the shape of its result and a line's level,
+   a backup's app, the shape of its result and a line's level, the
+   env_file keys an answer's `redacted_env` names in the sentence for
+   a value that did not read (one outside the grammar or past 128
+   characters is counted there, not printed, and the answer stands),
    each with the server code it mirrors cited beside its pattern in
    `internal/client/client.go`), or compared with what was asked (the
    app, the version, the host, the key, the box). A value outside its
