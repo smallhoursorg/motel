@@ -80,7 +80,7 @@ var reservedNames = []string{
 	liveswap.EventWatchdogThrottled, liveswap.EventWatchdogRecovered, liveswap.EventRelaunchRefused,
 	liveswap.EventRelaunchResolved, liveswap.EventDeployFailed, liveswap.EventDeployRefused,
 	liveswap.EventDeploySucceeded, liveswap.EventRollback, liveswap.EventDeployStarted, liveswap.EventDeployEnded,
-	"backup_stale", "backup_run_failed", "backup_unreadable", "drill_failed",
+	"backup_stale", "backup_run_failed", "backup_unreadable", "backup_unhealthy", "drill_failed",
 	// A person's key (liveswap/people_networks.go).
 	liveswap.EventPersonNewNetwork, liveswap.EventPersonOutsideList,
 	// The metrics store's chain and rules (DESIGN-metrics.md).

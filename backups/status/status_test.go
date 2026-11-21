@@ -538,3 +538,35 @@ func TestTheVerdictIsTheTrueAgesNotTheSeconds(t *testing.T) {
 		t.Errorf("the seconds read %v", age)
 	}
 }
+
+// TestTheUnitsChangeNoVerdict: what the manager holds, or could not be
+// asked, is said and never judged, so a look that does not ask it
+// (notify's backup poller, backup_unhealthy) takes the same verdict and
+// the same problem lines as one that does.
+func TestTheUnitsChangeNoVerdict(t *testing.T) {
+	problems := func(r Result) (out []string) {
+		for _, l := range r.Lines {
+			if l.Level == Problem {
+				out = append(out, l.Text)
+			}
+		}
+		return out
+	}
+	for name, st := range map[string]*record.Status{
+		"healthy":  with(func(*record.App) {}),
+		"stale":    with(func(a *record.App) { a.LastOK = snap(idA, 4*time.Hour, at(9*time.Minute)) }),
+		"unlisted": func() *record.Status { st := with(func(*record.App) {}); st.Unlisted = at(4 * time.Hour); return st }(),
+		"check":    checked(record.CheckUnreachable, "no answer", time.Hour),
+	} {
+		bare := Report(Input{Record: st, Now: now})
+		for _, in := range []Input{
+			{Record: st, Now: now, Running: []Running{{Role: "upload", App: "blog", State: "activating", Since: ago(time.Minute)}, {Role: "run", State: "deactivating"}}, Unrecognised: []string{"motel_backup_x.service"}},
+			{Record: st, Now: now, RunningErr: errors.New("no bus")},
+		} {
+			r := Report(in)
+			if r.Healthy != bare.Healthy || strings.Join(problems(r), "\n") != strings.Join(problems(bare), "\n") {
+				t.Errorf("%s: with units: healthy %v, %q; without: healthy %v, %q", name, r.Healthy, problems(r), bare.Healthy, problems(bare))
+			}
+		}
+	}
+}

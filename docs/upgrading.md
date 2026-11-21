@@ -453,6 +453,28 @@ into to see whether backups are set up, and `root 600` of the file
 (`root 400` passes too). For anything else:
 `chown root:root /etc/motel-backup /etc/motel-backup/repository.env && chmod 0755 /etc/motel-backup && chmod 0600 /etc/motel-backup/repository.env`.
 
+## backup_unhealthy: what status says, as an alert
+
+On a box with backups set up and a `monitor` block, the first release
+with `backup_unhealthy` alerts whenever `motel-backup status` calls the
+backups unhealthy and none of `backup_stale`, `backup_run_failed`,
+`drill_failed` and `backup_unreadable` fires: a repository check that
+has not come to a clean verdict lately, a restore not proven lately, a
+repository not listed for hours, no run since setup, and the like. It
+is critical. A box that is unhealthy today without anyone knowing
+**alerts within five minutes of the install**: before it, as root,
+
+```sh
+motel-backup status
+```
+
+and anything it calls a problem is what will be told, its first
+problem line in the summary. From a laptop, `motel backup status`
+reads the same. Going back to a release without it resolves the
+alert within minutes, although nothing changed. The other backup
+alerts' summaries now name `motel backup status` first and
+`motel-backup status` second.
+
 ## A person's key, told once after the install
 
 On a box with `person` or `grant` lines, the first release that tells

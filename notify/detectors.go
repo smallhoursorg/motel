@@ -1,8 +1,10 @@
 package notify
 
 import (
+	"cmp"
 	"context"
 	"fmt"
+	"os"
 	"slices"
 	"sort"
 	"strings"
@@ -162,8 +164,10 @@ const DefaultBackupRecord = "/var/lib/motel-backup/status.json"
 // backupEvery is how often the record is read (#418).
 const backupEvery = 5 * time.Minute
 
-// backupPoller is #418's backup source. A box with no record has no
-// backups set up, and nothing to say. It is the engine's, and outlives
+// backupPoller is #418's backup source. A box with no record and no
+// credential file has no backups set up, and nothing to say; one with
+// the file and no record yet is status's to judge (backup_unhealthy:
+// set up hours ago, and no run since). It is the engine's, and outlives
 // a config load, so what it reported firing is cleared by whichever
 // config is serving when it clears.
 type backupPoller struct {
@@ -176,6 +180,9 @@ type backupPoller struct {
 	readAt time.Time
 	// readPath is the record read is from: another path's is dropped.
 	readPath string
+	// envFile is the credential file looked at for the verdict;
+	// DefaultBackupEnvFile when empty.
+	envFile string
 }
 
 func (b *backupPoller) poll(now time.Time, path string) []Event {
@@ -236,16 +243,63 @@ func (b *backupPoller) poll(now time.Time, path string) []Event {
 		}
 	}
 	if failed {
-		fire = append(fire, ev("backup_run_failed", SeverityWarning, "", "the last backup run failed or ended early; motel-backup status says what"))
+		fire = append(fire, ev("backup_run_failed", SeverityWarning, "", "the last backup run failed or ended early; "+statusSays("what")))
 	}
 	if d := st.LastDrill; (d != nil && d.Detail != "") || (st.LastCheck != nil && st.LastCheck.Class == record.CheckDamaged) || len(unproven) > 0 {
-		summary := "the last restore drill proved nothing or found the repository damaged; motel-backup status says what"
+		summary := "the last restore drill proved nothing or found the repository damaged; " + statusSays("what")
 		if len(unproven) > 0 {
-			summary = "the last restore drill did not prove " + strings.Join(unproven, ", ") + "; motel-backup status says why"
+			// The apps last: a summary is cut at maxSummary, and the
+			// pointer is what says where the rest is.
+			summary = "the last restore drill did not prove these apps; " + statusSays("why") + ": " + strings.Join(unproven, ", ")
 		}
 		fire = append(fire, ev("drill_failed", SeverityCritical, "", summary))
 	}
+	// Anything else status calls unhealthy, while none of the four above
+	// says so: status's own verdict, so that no list of its conditions
+	// has to be kept in step here. Its first problem line, after the
+	// pointer, which a cut at maxSummary must not take.
+	if len(fire) == 0 {
+		if line, bad := b.verdict(st, now); bad {
+			fire = append(fire, ev("backup_unhealthy", SeverityCritical, "",
+				"backups unhealthy; "+statusSays("what")+", first: "+line))
+		}
+	}
 	return b.set.diff(fire)
+}
+
+// statusSays is where a backup alert's summary sends the operator for
+// what: the laptop client's read first (a person with the viewer role
+// on the box), then the box's own command, whose look as root also
+// reports the credential file.
+func statusSays(what string) string {
+	return "motel backup status says " + what + " (on the box: motel-backup status)"
+}
+
+// DefaultBackupEnvFile is the backup credential file, whose presence
+// says backups are set up and whose time says since when. Only its name
+// is looked at (Lstat), as every account's look does (backups/look): its
+// directory is root's 0755, the file root's 0600.
+const DefaultBackupEnvFile = "/etc/motel-backup/repository.env"
+
+// verdict is the first problem line of status's verdict on the record,
+// and whether there is one: the verdict any account on the box takes
+// (backups/look, which GET /_motel/backups and `motel-backup status`
+// read), but for the units the manager holds, which status says and
+// never judges. Where backups are not set up, or whether they are cannot
+// be told from here, status gives no verdict, and neither does this.
+func (b *backupPoller) verdict(st *record.Status, now time.Time) (string, bool) {
+	env, err := os.Lstat(cmp.Or(b.envFile, DefaultBackupEnvFile))
+	if err != nil {
+		return "", false
+	}
+	r := status.Report(status.Input{Record: st, Now: now, SetUp: env.ModTime()})
+	// Only a problem line makes status unhealthy.
+	for _, l := range r.Lines {
+		if l.Level == status.Problem {
+			return l.Text, true
+		}
+	}
+	return "", false
 }
 
 // diskPoller is #418's disk source: statfs on the filesystems under

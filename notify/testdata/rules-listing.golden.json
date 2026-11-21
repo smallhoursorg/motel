@@ -71,6 +71,13 @@
       ]
     },
     {
+      "name": "backup_unhealthy",
+      "source": "motel check",
+      "severity": "critical",
+      "subject": "box",
+      "kind": "event"
+    },
+    {
       "name": "backup_unreadable",
       "source": "motel check",
       "severity": "warning",

@@ -36,6 +36,7 @@ var (
 		{"cert_failed", SeverityWarning, false}, {alertDiskLow, SeverityWarning, true},
 		{"backup_unreadable", SeverityWarning, false}, {"backup_stale", SeverityCritical, true},
 		{"backup_run_failed", SeverityWarning, false}, {"drill_failed", SeverityCritical, false},
+		{"backup_unhealthy", SeverityCritical, false},
 		{alertChannelFailed, SeverityWarning, false},
 		{liveswap.EventPersonNewNetwork, SeverityWarning, false}, {liveswap.EventPersonOutsideList, SeverityWarning, false},
 	}
