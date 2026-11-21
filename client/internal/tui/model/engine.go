@@ -75,8 +75,7 @@ const (
 	// Idle pauses polling when no key was pressed for this long, so an
 	// unattended TUI neither asks for touches nor spends the rate: every
 	// read stops but the watch's (watch.go), which go on every
-	// PausedWatchEvery, unless the key is a hardware one, which is not
-	// asked for a touch while the person is away (SetHardwareKey).
+	// PausedWatchEvery, and whoami's.
 	Idle = 10 * time.Minute
 	// StaleAfter missed reads make a value stale.
 	StaleAfter = 3
@@ -203,9 +202,6 @@ type Engine struct {
 	// alerts in the background, or none. listed is the list's names.
 	watch  Watch
 	listed map[string]bool
-	// hardware is a key that needs a touch to sign (an sk- type): every
-	// read pauses, the watch's too.
-	hardware bool
 	// unasked: a status was never asked yet (next), so the apps screen
 	// fills before the watch reads each app's alerts.
 	unasked bool
@@ -598,31 +594,8 @@ func (e *Engine) WatchInterval(j Job, now time.Time) time.Duration {
 	return e.appAlertsEvery()
 }
 
-// WatchPaused says whether the watch's reads are paused at now: no key
-// for Idle, and a hardware key (or no watch), so nothing is read. It
-// notes no time, as WatchInterval.
-func (e *Engine) WatchPaused(now time.Time) bool {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	return e.idleAt(now) && !e.readsThroughPause()
-}
-
-// SetHardwareKey says the key needs a touch to sign (an sk- type): after
-// Idle every read pauses, the watch's too, so no touch is asked for
-// while the person is away. Otherwise the watch's reads go on.
-func (e *Engine) SetHardwareKey(on bool) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	e.hardware = on
-}
-
 // idleAt says whether no key was pressed for Idle at t.
 func (e *Engine) idleAt(t time.Time) bool { return t.Sub(e.touched) >= Idle }
-
-// readsThroughPause says whether the watch's reads go on while paused:
-// for a key that needs no touch, whoami's at the least, so a grant
-// back while away is seen.
-func (e *Engine) readsThroughPause() bool { return !e.hardware }
 
 // watchAnswers says whether the watch's alerts reads are made and
 // answer: one at least has answered and is not held (a refusal), and
@@ -897,7 +870,7 @@ func (e *Engine) Take(now time.Time) (Job, bool, time.Duration) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.seen(now)
-	if e.inflight != nil || e.stopped != Running || e.idleAt(now) && !e.readsThroughPause() {
+	if e.inflight != nil || e.stopped != Running {
 		return Job{}, false, 0
 	}
 	e.refill(now)
@@ -1292,12 +1265,10 @@ type Health struct {
 	SlowIn  time.Duration
 	// Back is set once, on the first answer after a run of none.
 	Back bool
-	// ReadsOn: paused, and the watch's reads go on (a key that needs no
-	// touch). WatchRead: and they answer, the newest of each answered
-	// (one refused aside; one at least is read). While paused they are
-	// the only reads, so one that fails alone begins no run of no
-	// answer: this is what says it.
-	ReadsOn   bool
+	// WatchRead: paused, and the watch's reads answer, the newest of
+	// each answered (one refused aside; one at least is read). While
+	// paused they are the only reads, so one that fails alone begins no
+	// run of no answer: this is what says it.
 	WatchRead bool
 	// Waiting is how long the box has been waited for: since the read in
 	// flight began to wait for it (not one cancelled); or, when a read
@@ -1312,8 +1283,7 @@ func (e *Engine) Health(now time.Time) Health {
 	defer e.mu.Unlock()
 	e.seen(now)
 	h := Health{Stop: e.stopped, Paused: e.idleAt(now), Misses: e.misses, Back: e.recovering}
-	h.ReadsOn = h.Paused && e.readsThroughPause()
-	h.WatchRead = h.ReadsOn && e.watchAnswers()
+	h.WatchRead = h.Paused && e.watchAnswers()
 	e.recovering = false
 	if e.misses > 0 {
 		// The next read, as Take would make it: the retry, or the first

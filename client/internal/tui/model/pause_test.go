@@ -44,41 +44,35 @@ func unattended(e *model.Engine, apps []string, d time.Duration) (calls []call, 
 }
 
 // TestWatchThroughThePause: a viewer of the box who leaves the TUI for
-// 8 hours, its key not a hardware one: after the ten idle minutes only
-// the box's alerts are read, every minute, 470 reads in the 7 h 50 min
-// after (#576's spike measured 480 at 60 s from the start), and the key
-// signs about every 510 s of it, 54 or so in all; nothing else is read.
-// With a hardware key nothing at all is read after the pause.
+// 8 hours: after the ten idle minutes only the box's alerts are read,
+// every minute, 470 reads in the 7 h 50 min after (#576's spike
+// measured 480 at 60 s from the start), and whoami at its own pace; the
+// key signs about every 510 s of it, 54 or so in all.
 func TestWatchThroughThePause(t *testing.T) {
-	for _, hw := range []bool{false, true} {
-		e := model.NewEngine(t0)
-		e.SetWatch(model.WatchBox, t0)
-		e.SetHardwareKey(hw)
-		calls, signs := unattended(e, names(5), 8*time.Hour)
-		boxBucket(t, calls)
-		after, other := 0, 0
-		for _, c := range calls {
-			if c.at.Sub(t0) < model.Idle {
-				continue
-			}
-			switch c.j.Kind {
-			case model.KBoxAlerts:
-				after++
-			case model.KWhoAmI: // which grants hold, at its own pace
-			default:
-				other++
-			}
+	e := model.NewEngine(t0)
+	e.SetWatch(model.WatchBox, t0)
+	calls, signs := unattended(e, names(5), 8*time.Hour)
+	boxBucket(t, calls)
+	after, other := 0, 0
+	for _, c := range calls {
+		if c.at.Sub(t0) < model.Idle {
+			continue
 		}
-		switch {
-		case hw && after+other != 0:
-			t.Errorf("a hardware key: %d reads after the pause", after+other)
-		case !hw && (after < 465 || after > 475 || other != 0):
-			t.Errorf("after the pause: %d alerts reads (want about 470), %d others", after, other)
-		case !hw && (signs < 52 || signs > 58):
-			t.Errorf("%d signatures in 8 hours, want about 54", signs)
+		switch c.j.Kind {
+		case model.KBoxAlerts:
+			after++
+		case model.KWhoAmI: // which grants hold, at its own pace
+		default:
+			other++
 		}
-		t.Logf("hardware %v: %d reads in 8 h, %d of the alerts after the pause, %d signatures", hw, len(calls), after, signs)
 	}
+	if after < 465 || after > 475 || other != 0 {
+		t.Errorf("after the pause: %d alerts reads (want about 470), %d others", after, other)
+	}
+	if signs < 52 || signs > 58 {
+		t.Errorf("%d signatures in 8 hours, want about 54", signs)
+	}
+	t.Logf("%d reads in 8 h, %d of the alerts after the pause, %d signatures", len(calls), after, signs)
 }
 
 // TestAppWatchThroughThePause: a person with app grants only, left for
@@ -270,15 +264,14 @@ func TestAppPhasesAfterThePause(t *testing.T) {
 }
 
 // TestWatchIntervalNotesNoTime: asked with an answer's time from before
-// a time the reads' goroutine gave, the watch's interval and pause are
-// not taken for the clock set back: the pause begins Idle after the key.
+// a time the reads' goroutine gave, the watch's interval is not taken
+// for the clock set back: the pause begins Idle after the key.
 func TestWatchIntervalNotesNoTime(t *testing.T) {
 	e := model.NewEngine(t0)
 	e.SetWatch(model.WatchBox, t0)
 	at := t0.Add(time.Minute)
 	e.Touch(at)
 	e.WatchInterval(model.Job{Kind: model.KBoxAlerts}, at.Add(-time.Second))
-	e.WatchPaused(at.Add(-time.Second))
 	if e.Health(at.Add(model.Idle - 500*time.Millisecond)).Paused {
 		t.Error("paused before Idle after the key")
 	}

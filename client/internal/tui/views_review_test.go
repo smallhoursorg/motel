@@ -107,11 +107,12 @@ func TestTitleWordsAt60(t *testing.T) {
 			h.pump()
 			h.on(func() {})
 		}},
-		// A hardware key: every read paused, the mark's count old.
+		// Paused, the watch's read refused: nothing is said read, and
+		// the mark says the count is not known.
 		{"PAUSED (idle 10m): any key resumes", nil, func(h *harness) {
-			h.on(func() { h.s.Key.Hardware = true })
-			h.s.Engine.SetHardwareKey(true)
+			h.fake.Set("box-alerts", forbidden)
 			h.now = h.now.Add(model.Idle)
+			h.pump()
 			h.on(func() {})
 		}},
 		{"waiting 6s for the key to sign · 0s ago", nil, func(h *harness) {

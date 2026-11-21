@@ -189,7 +189,6 @@ func (s *Session) follow(now time.Time) {
 	case len(s.Me.V.Roles) > 0:
 		w = WatchApps
 	}
-	s.Engine.SetHardwareKey(s.Key.Hardware)
 	changed := w != s.watch.mode || s.watch.forgotten
 	if changed {
 		// What arrived under the watch left is not new to the one taken:
@@ -424,7 +423,7 @@ func (s *Session) Firing(now time.Time) Firing {
 	case pending:
 		return Firing{Why: NotAsked}
 	}
-	if (stopped || s.Engine.WatchPaused(now)) && !f.At.IsZero() {
+	if stopped && !f.At.IsZero() {
 		// With nothing to read (no app listed) nothing is old.
 		f.Old = true
 	}

@@ -21,8 +21,8 @@ func (h *harness) away(d time.Duration) {
 	}
 }
 
-// TestPausedStillWatches: a person away for twenty minutes, the key not
-// a hardware one: past the pause the title bar says the alerts are
+// TestPausedStillWatches: a person away for twenty minutes: past the
+// pause the title bar says the alerts are
 // still read, an alert that fires then is counted, moves the mark and
 // rings the bell, and the key that resumes sees it.
 func TestPausedStillWatches(t *testing.T) {
@@ -53,40 +53,6 @@ func TestPausedStillWatches(t *testing.T) {
 	}
 	if _, r := h.s.Title(h.now); strings.HasPrefix(r.Text(), "PAUSED") {
 		t.Errorf("after the key the title bar still says %q", r.Text())
-	}
-}
-
-// TestPausedHardwareKey: with a hardware key every read stops at the
-// pause, the watch's too: the title bar keeps today's word, the mark
-// says its count is old, an alert that fires meanwhile rings nothing,
-// and who am I says why.
-func TestPausedHardwareKey(t *testing.T) {
-	crit := alertRow("cert_failed", "critical", t0.Add(-time.Hour))
-	// The token's own life: it ends during the pause, and who am I still
-	// says why nothing is read.
-	h, tty := bellTTY(t, true, func(f *demo.Fake) { f.Body("box-alerts.json", boxAlerts(crit)) }, func(s *model.Session) { s.Key.Hardware = true })
-	h.away(model.Idle + time.Second)
-	before := len(h.fake.Calls)
-	h.fake.Body("box-alerts.json", boxAlerts(alertRow("disk_low", "warning", h.now), crit))
-	h.away(5 * time.Minute)
-	if n := len(h.fake.Calls) - before; n != 0 {
-		t.Errorf("a hardware key, paused: %d reads", n)
-	}
-	if _, r := h.s.Title(h.now); r.Text() != "PAUSED (idle 10m): any key resumes" {
-		t.Errorf("the title bar's word: %q", r.Text())
-	}
-	if m := h.s.Mark(h.now); m.Short.Text() != "✖ 1?" {
-		t.Errorf("the mark: %q", m.Short.Text())
-	}
-	if n := hostile.BareBELs(tty.Bytes()); n != 0 {
-		t.Errorf("%d bells while paused", n)
-	}
-	var me strings.Builder
-	for _, l := range h.s.MeView(h.now) {
-		me.WriteString(l.Text() + " ")
-	}
-	if !strings.Contains(me.String(), "a hardware key is not asked for a touch while you are away, so the alerts are not read then") {
-		t.Errorf("who am I does not say why:\n%s", me.String())
 	}
 }
 
@@ -145,34 +111,62 @@ func TestPausedWatchFails(t *testing.T) {
 }
 
 // TestMeSaysThePause: who am I's token sentence says what is read while
-// paused: only the alerts, each at most once a minute, for a key that
-// needs no touch; nothing for a hardware key, and why; nothing to watch
-// for a person with no grant here.
+// paused: only the alerts, each at most once a minute; with no grant
+// here, who you are alone, every five minutes.
 func TestMeSaysThePause(t *testing.T) {
 	for _, c := range []struct {
 		name, want string
-		with       func(*model.Session)
 		setup      func(*demo.Fake)
 	}{
-		{"an agent key", "only the alerts are read, each at most once a minute, and it is signed for them", nil, nil},
-		{"a hardware key", "a hardware key is not asked for a touch while you are away, so the alerts are not read then", func(s *model.Session) { s.Key.Hardware = true }, nil},
-		{"no grant, a hardware key", "signed again a minute before it ends, and only while you use the screen", func(s *model.Session) { s.Key.Hardware = true }, func(f *demo.Fake) {
+		{"a viewer of the box", "only the alerts are read, each at most once a minute, and it is signed for them", nil},
+		{"no grant", "only who you are is read, every five minutes, and it is signed for it", func(f *demo.Fake) {
 			f.Body("whoami.json", `{"name":"alice@example.com","key":"`+demo.Key.Fingerprint+`","roles":[],"box":"deploy.example.com","version":"v0.7.0","protocol":1}`)
 		}},
 	} {
-		with := func(s *model.Session) {
-			if c.with != nil {
-				c.with(s)
-			}
-		}
-		h := start(t, 100, 30, c.setup, with)
+		h := start(t, 100, 30, c.setup)
 		var me strings.Builder
 		for _, l := range h.s.MeView(h.now) {
 			me.WriteString(l.Text() + " ")
 		}
-		if got := strings.Join(strings.Fields(me.String()), " "); !strings.Contains(got, c.want) || c.name == "no grant, a hardware key" && strings.Contains(got, "the alerts are") {
+		if got := strings.Join(strings.Fields(me.String()), " "); !strings.Contains(got, c.want) {
 			t.Errorf("%s: who am I says:\n%s", c.name, got)
 		}
+	}
+}
+
+// TestPausedHardwareKeyAsAnyKey: a hardware key is read for through the
+// pause as any key is (the owner's decision of 2026-11-21: no case of
+// its own): when the token needs signing again the title bar asks for a
+// touch, and when none comes the signature fails, every read stops, and
+// the person comes back to NOT SIGNED, r signing again; a key resumes
+// nothing then.
+func TestPausedHardwareKeyAsAnyKey(t *testing.T) {
+	h := start(t, 100, 30, nil, func(s *model.Session) { s.Key.Hardware = true })
+	h.away(model.Idle + time.Second)
+	before := len(h.fake.Calls)
+	h.away(2 * time.Minute)
+	if len(h.fake.Calls) == before {
+		t.Fatal("a hardware key, paused: nothing read")
+	}
+	if _, r := h.s.Title(h.now); r.Text() != "PAUSED (idle 10m), alerts still read: any key resumes" {
+		t.Errorf("paused, a hardware key: %q", r.Text())
+	}
+	h.on(func() { h.s.Signing, h.s.SigningAt = true, h.now })
+	if _, r := h.s.Title(h.now); r.Text() != "TOUCH YOUR KEY to sign" {
+		t.Errorf("signing again while paused: %q", r.Text())
+	}
+	// No touch: the signature fails (the authenticator's own timeout, or
+	// the TUI's signer's minute), as the client says a key that did not
+	// sign.
+	h.on(func() { h.s.Signing = false })
+	h.fake.Set("box-alerts", &model.Failure{Kind: model.FailNotSigned, Message: "~/.ssh/id_ed25519_sk.pub did not sign"})
+	h.away(model.PausedWatchEvery + time.Second)
+	if _, r := h.s.Title(h.now); r.Text() != "NOT SIGNED: r signs again" {
+		t.Errorf("no touch: %q", r.Text())
+	}
+	h.press("x")
+	if _, r := h.s.Title(h.now); r.Text() != "NOT SIGNED: r signs again" {
+		t.Errorf("a key after it: %q", r.Text())
 	}
 }
 
@@ -210,20 +204,5 @@ func TestPausedGrantBack(t *testing.T) {
 	h.away(model.MeAlways + time.Minute)
 	if f := h.s.Firing(h.now); f.Why != model.Known || f.N != 2 || f.Old {
 		t.Errorf("the grant back, still paused: %+v", f)
-	}
-}
-
-// TestPausedHardwareNoWhoAmI: a hardware key whose whoami never answers
-// as the client takes it is still not read for while paused: no
-// signature, no touch asked of nobody.
-func TestPausedHardwareNoWhoAmI(t *testing.T) {
-	h := start(t, 100, 30, func(f *demo.Fake) {
-		f.Set("whoami", &model.Failure{Kind: model.FailUnusable, Message: "not moteld's answer"})
-	}, func(s *model.Session) { s.Key.Hardware = true })
-	h.away(model.Idle + time.Second)
-	before := len(h.fake.Calls)
-	h.away(10 * time.Minute)
-	if n := len(h.fake.Calls) - before; n != 0 {
-		t.Errorf("a hardware key, whoami never answered, paused: %d reads", n)
 	}
 }

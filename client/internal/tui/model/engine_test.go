@@ -172,26 +172,19 @@ func TestOneInFlight(t *testing.T) {
 	}
 }
 
-// TestIdlePause: ten minutes with no key pressed and, with a hardware
-// key, nothing is read; with another, whoami alone (no watch is set
-// here); a key resumes.
+// TestIdlePause: ten minutes with no key pressed and only whoami is
+// read (no watch is set here); a key resumes.
 func TestIdlePause(t *testing.T) {
 	e := model.NewEngine(t0)
 	e.SetApps(names(3), t0)
 	later := t0.Add(model.Idle)
 	if j, ok, _ := e.Take(later); !ok || j.Kind != model.KWhoAmI {
-		t.Fatalf("a key that needs no touch, after ten idle minutes: %v %v", j, ok)
+		t.Fatalf("after ten idle minutes: %v %v", j, ok)
 	} else {
 		e.Done(j, later, nil)
 	}
 	if j, ok, _ := e.Take(later); ok {
 		t.Fatalf("read %v after ten idle minutes", j)
-	}
-	e = model.NewEngine(t0)
-	e.SetApps(names(3), t0)
-	e.SetHardwareKey(true)
-	if _, ok, _ := e.Take(later); ok {
-		t.Fatal("a hardware key: read after ten idle minutes")
 	}
 	if h := e.Health(later); !h.Paused {
 		t.Fatal("not said to be paused")

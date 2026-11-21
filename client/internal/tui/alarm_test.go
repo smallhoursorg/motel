@@ -37,14 +37,14 @@ func (h *harness) watchNext() {
 
 // bellTTY opens the TUI on the hostile package's recording terminal,
 // the box's alerts as setup sets them, the bell on or off.
-func bellTTY(t *testing.T, bell bool, setup func(*demo.Fake), with ...func(*model.Session)) (*harness, *hostile.TTY) {
+func bellTTY(t *testing.T, bell bool, setup func(*demo.Fake)) (*harness, *hostile.TTY) {
 	t.Helper()
 	tty := hostile.NewTTY()
 	scr, err := hostile.Screen(tty)
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := startOn(t, scr, setup, with...)
+	h := startOn(t, scr, setup)
 	h.on(func() { h.u.Bell = bell })
 	return h, tty
 }

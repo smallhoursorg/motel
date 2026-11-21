@@ -40,10 +40,6 @@ type Options struct {
 // hardware key's first touch is asked for on the plain terminal.
 func Prime(ctx context.Context, o Options) model.View {
 	s := o.Session
-	// Before any read: a hardware key is never asked for a touch while
-	// the person is away, whoami's answer or not (Session.follow says it
-	// again at each).
-	s.Engine.SetHardwareKey(s.Key.Hardware)
 	for range 2 {
 		now := o.Clock.Now()
 		j, ok, _ := s.Engine.Take(now)
