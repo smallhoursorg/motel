@@ -1025,4 +1025,20 @@ func TestReadOnlyCopyAfterALoadThatAddsAChannel(t *testing.T) {
 	if len(ro) != 1 || ro[0].Labels["integration"] != "slack" || !ro[0].StartsAt.Equal(failed) {
 		t.Fatalf("the record's re-post: %+v, want the slack copy from %v", ro, failed)
 	}
+	// ops delivers again: the record ends, and with its copy the copy told
+	// to pager, which the read folded under it, is resolved too, so the
+	// read is left nothing of the failure.
+	te.advance(time.Minute)
+	*body = counters(1, 4, 1, 1) + failedLine("slack", "event-warning-ops", "clientError", 1)
+	te.scrapeFailed(context.Background(), read)
+	got = te.drain()
+	ended := map[string]bool{}
+	for _, a := range got {
+		if a.Labels["alertname"] == alertChannelFailed && a.EndsAt.Equal(te.at) {
+			ended[a.Labels[labelChannel]+"/"+a.Labels["integration"]] = true
+		}
+	}
+	if len(te.untold) != 0 || !ended["-/slack"] || !ended["pager/slack"] || len(ended) != 2 {
+		t.Fatalf("ended %v (untold %d): want the read-only copy and pager's resolved", ended, len(te.untold))
+	}
 }

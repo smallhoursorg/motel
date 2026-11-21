@@ -644,7 +644,11 @@ or a load whose config no longer has it); a later rise of the same
 failure, whether or not a load has since given it a channel to tell,
 gives the record its words, and one of another integration (a load
 changed the channel's kind) resolves the old integration's copy, which
-is another alert, as the record moves on. Alertmanager keeps the
+is another alert, as the record moves on. A record that stands across
+a load that gave its failure channels to tell keeps the copies it then
+told them, which the read folds under the read-only copy, and resolves
+them with it at its end; their receivers send no resolved, so no
+channel hears the end. Alertmanager keeps the
 earliest start of the posts it merges, so a re-post never moves it
 (measured). A post that carries the copy alone is given up at debug
 when Alertmanager does not take it, as the hold's re-posts are: no

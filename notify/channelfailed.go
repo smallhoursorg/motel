@@ -3,6 +3,7 @@ package notify
 import (
 	"context"
 	"fmt"
+	"maps"
 	"slices"
 	"sort"
 	"strings"
@@ -218,6 +219,15 @@ func (e *engine) scrapeFailed(ctx context.Context, read func(context.Context) ([
 				StartsAt:    now, EndsAt: now.Add(channelFailedLife),
 			})
 		}
+		// A record standing across a load that gave its failure channels
+		// to tell keeps what it told them, to resolve with its copy: the
+		// read folds them under the copy, and would show them once the
+		// copy is resolved.
+		if u := e.untold[key]; u != nil {
+			for _, a := range alerts {
+				u.addressed[a.Labels[labelChannel]+"\x00"+a.Labels["integration"]] = a.Labels
+			}
+		}
 		alerts = append(alerts, readOnlyCopy(s.integration, sus, summary, start, now))
 		// A post that tells no channel failing is the hold's to hear, as
 		// the hold's own re-posts are: no error line of its own.
@@ -276,6 +286,10 @@ type untold struct {
 	// integration and summary are the failure's: the read-only copy the
 	// record keeps posting carries them.
 	integration, summary string
+	// addressed is the copies told to channels while the record stood
+	// (after a load gave the failure channels to tell), by channel and
+	// integration: resolved with the read-only copy at the record's end.
+	addressed map[string]map[string]string
 }
 
 // receiversOf is every receiver that sends to one of chans.
@@ -314,7 +328,8 @@ func (e *engine) untoldFor(key, receiver string, sus []string, integration, summ
 		e.refreshUntold(key, u, integration, summary, now)
 		return
 	}
-	u := &untold{since: now, suspects: sus, seen: map[string]float64{}, integration: integration, summary: summary}
+	u := &untold{since: now, suspects: sus, seen: map[string]float64{}, integration: integration, summary: summary,
+		addressed: map[string]map[string]string{}}
 	for _, rc := range e.fail.receiversOf(sus) {
 		u.seen[rc] = deliveries(m, rc)
 	}
@@ -415,6 +430,17 @@ func (e *engine) keepUntold(channels map[string]Channel) {
 func (e *engine) endUntold(key string, u *untold, now time.Time) {
 	delete(e.untold, key)
 	e.endCopy(key, u, now)
+	// The copies told to channels while it stood: their receivers send no
+	// resolved, so ending them tells no one, and the read does not show
+	// them once the read-only copy is gone.
+	keys := slices.Sorted(maps.Keys(u.addressed))
+	var ended []amAlert
+	for _, k := range keys {
+		ended = append(ended, amAlert{Labels: u.addressed[k], Annotations: map[string]string{"summary": u.summary}, StartsAt: u.since, EndsAt: now})
+	}
+	if len(ended) > 0 {
+		e.enqueue(&pending{key: key + "/addressed", first: now, alerts: ended})
+	}
 }
 
 // refreshUntold gives a standing record a later rise's integration and
