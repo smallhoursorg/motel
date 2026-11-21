@@ -458,7 +458,9 @@ into to see whether backups are set up, and `root 600` of the file
 On a box with backups set up and a `monitor` block, the first release
 with `backup_unhealthy` alerts whenever `motel-backup status` calls the
 backups unhealthy and none of `backup_stale`, `backup_run_failed`,
-`drill_failed` and `backup_unreadable` fires: a repository check that
+`drill_failed` and `backup_unreadable` was already saying so (once it
+fires, only `backup_stale` or `drill_failed` takes its place): a
+repository check that
 has not come to a clean verdict lately, a restore not proven lately, a
 repository not listed for hours, no run since setup, and the like. It
 is critical. A box that is unhealthy today without anyone knowing
