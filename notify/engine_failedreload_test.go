@@ -59,7 +59,7 @@ func TestFailedReloadEndsNothing(t *testing.T) {
 	producer.App = "blog"
 	for _, ev := range []Event{
 		watchdog(true), producer,
-		{Name: "drill_failed", Kind: kindState, Severity: SeverityCritical, Source: "backup", Summary: "x", Firing: true},
+		{Name: "backup_drill_failed", Kind: kindState, Severity: SeverityCritical, Source: "backup", Summary: "x", Firing: true},
 		{Name: alertDiskLow, Kind: kindState, Severity: SeverityWarning, Source: "disk", Instance: "/var/lib/motel", Summary: "x", Firing: true},
 	} {
 		te.report(ev)
@@ -111,7 +111,7 @@ func TestFailedReloadEndsNothing(t *testing.T) {
 	te.advance(time.Minute)
 	te.tick()
 	if got := te.drain(); countAlert(got, "watchdog_throttled") != 1 || countAlert(got, alertDiskLow) != 1 ||
-		countAlert(got, "disk_failing") != 1 || countAlert(got, "drill_failed") != 1 || countAlert(got, alertDeployMute) != 1 {
+		countAlert(got, "disk_failing") != 1 || countAlert(got, "backup_drill_failed") != 1 || countAlert(got, alertDeployMute) != 1 {
 		t.Fatalf("not re-posted after the fallback: %+v", got)
 	}
 	same("the next minute")
@@ -122,7 +122,7 @@ func TestFailedReloadEndsNothing(t *testing.T) {
 	same("the second candidate's Start")
 	te.release(old)
 	got := ends(te, te.drain())
-	for _, n := range []string{"watchdog_throttled", "disk_failing", "drill_failed", alertDiskLow, alertDeployMute} {
+	for _, n := range []string{"watchdog_throttled", "disk_failing", "backup_drill_failed", alertDiskLow, alertDeployMute} {
 		if !got[n] {
 			t.Errorf("%s not ended at the old config's Stop: %v", n, got)
 		}

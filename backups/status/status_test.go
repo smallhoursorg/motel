@@ -580,7 +580,8 @@ func TestTheUnitsChangeNoVerdict(t *testing.T) {
 // (a call of bad) names its alert as a string that starts backup_, and
 // its level as AlertCritical or AlertWarning, at the rule; and the
 // pairs the rules write are Alerts, both ways, each name at one level.
-// A rule added with a name Alerts lacks fails here, not on a box.
+// A rule added with a name Alerts lacks, or a problem line made other
+// than by bad, fails here, not on a box.
 func TestEveryRuleNamesAListedAlert(t *testing.T) {
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, "status.go", nil, 0)
@@ -588,13 +589,19 @@ func TestEveryRuleNamesAListedAlert(t *testing.T) {
 		t.Fatal(err)
 	}
 	levels := map[string]string{"AlertCritical": AlertCritical, "AlertWarning": AlertWarning}
-	written, calls := map[Alert]bool{}, 0
+	written, calls, problems := map[Alert]bool{}, 0, 0
 	ast.Inspect(f, func(n ast.Node) bool {
 		c, ok := n.(*ast.CallExpr)
 		if !ok {
 			return true
 		}
-		if id, ok := c.Fun.(*ast.Ident); !ok || id.Name != "bad" {
+		id, ok := c.Fun.(*ast.Ident)
+		if ok && id.Name == "add" && len(c.Args) > 0 {
+			if lvl, ok := c.Args[0].(*ast.Ident); ok && lvl.Name == "Problem" {
+				problems++
+			}
+		}
+		if !ok || id.Name != "bad" {
 			return true
 		}
 		calls++
@@ -614,6 +621,10 @@ func TestEveryRuleNamesAListedAlert(t *testing.T) {
 	})
 	if calls == 0 {
 		t.Fatal("no rule found: bad's shape changed")
+	}
+	// A problem line is bad's alone: one made otherwise names no alert.
+	if problems != 1 {
+		t.Errorf("add(Problem, …) is called %d times: a problem line is made by bad alone", problems)
 	}
 	listed, names := map[Alert]bool{}, map[string]bool{}
 	for _, a := range Alerts {

@@ -438,7 +438,7 @@ The names motel uses itself are refused:
 
 ```
 $ moteld monitor send --source reboot --name watchdog_x --summary x
-Error: name is one of motel's own events, or starts with watchdog_ as theirs do; name yours something else
+Error: name is one of motel's own events, or starts with watchdog_ or backup_ as theirs do; name yours something else
 ```
 
 ### A reboot that waits

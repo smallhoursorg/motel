@@ -299,7 +299,7 @@ func TestSeverityChangeInsideTheHold(t *testing.T) {
 func TestPruneEndsWhatNoSourceClears(t *testing.T) {
 	te := newTestEngine(t)
 	te.report(watchdog(true))
-	te.report(Event{Name: "drill_failed", Kind: kindState, Severity: SeverityCritical, Source: "backup", Summary: "x", Firing: true})
+	te.report(Event{Name: "backup_drill_failed", Kind: kindState, Severity: SeverityCritical, Source: "backup", Summary: "x", Firing: true})
 	te.report(Event{Name: alertDiskLow, Kind: kindState, Severity: SeverityWarning, Source: "disk", Instance: "/var/lib/liveswap", Summary: "x", Firing: true})
 	te.mute("blog", true)
 	te.drain()
@@ -317,7 +317,7 @@ func TestPruneEndsWhatNoSourceClears(t *testing.T) {
 			ended[x.Labels["alertname"]] = true
 		}
 	}
-	for _, n := range []string{"watchdog_throttled", "drill_failed", alertDiskLow, alertDeployMute} {
+	for _, n := range []string{"watchdog_throttled", "backup_drill_failed", alertDiskLow, alertDeployMute} {
 		if !ended[n] {
 			t.Errorf("%s not ended: %+v", n, got)
 		}
@@ -820,6 +820,20 @@ func TestBackupKeptWhenTheFileCannotBeLookedAt(t *testing.T) {
 	if got := told(r.poll(t, st)); got != "" {
 		t.Fatalf("cannot be looked at, nothing fired: %q", got)
 	}
+	// backup_unreadable, firing, stays fired too.
+	r.b.envFile = file
+	if err := os.WriteFile(r.path, []byte("{not json"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r.now = r.now.Add(backupEvery)
+	if got := told(r.b.poll(r.now, r.path)); got != "backup_unreadable" {
+		t.Fatalf("unreadable: %q", got)
+	}
+	r.b.envFile = filepath.Join(file, "repository.env")
+	r.now = r.now.Add(backupEvery)
+	if got := told(r.b.poll(r.now, r.path)); got != "backup_unreadable" {
+		t.Fatalf("unreadable, then the file cannot be looked at: %q", got)
+	}
 }
 
 // TestBackupNotSetUp: a box with no credential file has no backups set
@@ -958,13 +972,17 @@ func TestStatusAlertsAreNotifysOwn(t *testing.T) {
 	if status.AlertCritical != SeverityCritical || status.AlertWarning != SeverityWarning {
 		t.Fatalf("status's levels %q %q", status.AlertCritical, status.AlertWarning)
 	}
+	// The prefix is motel's, a name status gives later included.
+	if !reservedName("backup_offsite") || checkRuleName("backup_offsite") == nil {
+		t.Errorf("backup_offsite is a producer's or a rule's to take")
+	}
 	silenceable := silenceableAlerts(&App{})
 	for _, a := range status.Alerts {
 		if m, ok := raisedBy(a.Name); !ok || m.severity != a.Severity {
 			t.Errorf("%s: raised as %+v", a.Name, m)
 		}
-		if !slices.Contains(silenceable, a.Name) || !slices.Contains(reservedNames, a.Name) {
-			t.Errorf("%s: not silenceable, or not refused from a producer", a.Name)
+		if !slices.Contains(silenceable, a.Name) || !reservedName(a.Name) || checkRuleName(a.Name) == nil {
+			t.Errorf("%s: not silenceable, or not refused from a producer or as a rule's name", a.Name)
 		}
 	}
 }

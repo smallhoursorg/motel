@@ -769,7 +769,7 @@ Each rule that makes `status` exit 1 names, where it is written in
 its level (`status.Alerts`; their table is DESIGN-notify.md's [Backup
 alerts](../notify/DESIGN-notify.md#backup-alerts-status-is-the-only-judge)).
 A new rule cannot be added without both: `TestEveryRuleNamesAListedAlert`
-fails. The name and level are not in the text or the JSON.
+fails, and so it does for a problem line made other than by a rule. The name and level are not in the text or the JSON.
 
 That anyone may run it is meant. `status.json` is readable by every
 account on the box, and so are the app names, data paths, snapshot ids

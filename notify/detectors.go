@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"slices"
 	"sort"
@@ -205,25 +206,19 @@ func (b *backupPoller) poll(now time.Time, path string) []Event {
 	}
 	b.last = now
 	// No verdict puts nothing right: what fired stays fired.
-	kept := func() (fire []Event) {
-		for _, prev := range b.set.prev {
-			if prev.Name != alertBackupUnreadable {
-				fire = append(fire, prev)
-			}
-		}
-		return fire
-	}
+	kept := slices.Collect(maps.Values(b.set.prev))
 	// In look's order: whether backups are set up, then the record.
 	env, err := os.Lstat(b.envFile)
 	if errors.Is(err, fs.ErrNotExist) {
 		b.read = nil
 		return b.set.diff(nil)
 	} else if err != nil {
-		return b.set.diff(kept())
+		return b.set.diff(kept)
 	}
 	st, err := record.Read(path)
 	if err != nil {
-		return b.set.diff(append(kept(), Event{Name: alertBackupUnreadable, Kind: kindState, Severity: SeverityWarning, Source: "backup",
+		kept = slices.DeleteFunc(kept, func(e Event) bool { return e.Name == alertBackupUnreadable })
+		return b.set.diff(append(kept, Event{Name: alertBackupUnreadable, Kind: kindState, Severity: SeverityWarning, Source: "backup",
 			Summary: "the backup record cannot be read, so whether the backups are fresh is not known"}))
 	}
 	b.read, b.readAt = map[string]time.Time{}, now
