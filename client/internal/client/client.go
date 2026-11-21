@@ -493,15 +493,14 @@ func (c *Client) Read(ans *Answer, v any) error {
 			// decode: the box's response filter replaces a value equal
 			// to a secret, a timestamp's included, with its marker, and
 			// names the key in the answer's redacted_env, which no log
-			// line of the box's does. The body goes with the failure, so
-			// --json prints it.
+			// line of the box's does: the sentence names them.
 			what := "a value in it"
 			if f := badField(ans.Body, v); f != "" {
 				what = "its " + f
 			}
-			return &Failure{Exit: ExitUnknown, Status: ans.Code, Body: ans.Body, Message: fmt.Sprintf(
-				"%s answered, but %s could not be read: the box's response filter may have replaced it. If it did, the answer's redacted_env names the key whose value it replaced; --json prints the answer.",
-				c.Box.Addr(), what)}
+			return &Failure{Exit: ExitUnknown, Status: ans.Code, Message: fmt.Sprintf(
+				"%s answered, but %s could not be read: the box's response filter may have replaced it. %s",
+				c.Box.Addr(), what, replacedKeys(ans.Body))}
 		}
 		if why := hold(v); why != "" {
 			return c.notMotel(ans, why)
@@ -1046,6 +1045,29 @@ func scopeOK(s string) bool {
 	name, ok := strings.CutPrefix(s, "app:")
 	return ok && appRe.MatchString(name)
 }
+
+// replacedKeys says which env_file keys the answer's redacted_env
+// names: the keys whose values the box's response filter replaced
+// anywhere in it (liveswap's redactJSON), each held to a key's grammar
+// (liveswap's envKeyRe), at most ten named. A body without one names
+// none: an older box's, or a value its filter changed by shape.
+func replacedKeys(body []byte) string {
+	var r struct {
+		Keys []string `json:"redacted_env"`
+	}
+	_ = json.Unmarshal(body, &r) // not a list of strings: none named
+	keys := slices.DeleteFunc(r.Keys, func(k string) bool { return !envKeyRe.MatchString(k) })
+	switch {
+	case len(keys) == 0:
+		return "The answer names no key whose value the filter replaced."
+	case len(keys) > 10:
+		return fmt.Sprintf("The answer says the filter replaced the values of %s and %d more.", strings.Join(keys[:10], ", "), len(keys)-10)
+	}
+	return "The answer says the filter replaced the values of " + strings.Join(keys, ", ") + "."
+}
+
+// envKeyRe is liveswap/app.go's: an env_file key as systemd takes one.
+var envKeyRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // badField is the first top-level field of v's type whose value in
 // body does not decode into it, by the wire type's own JSON name; ""
