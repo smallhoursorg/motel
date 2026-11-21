@@ -193,3 +193,22 @@ func TestPausedRefusalReleased(t *testing.T) {
 		t.Errorf("the box's grant back, still paused: %+v", f)
 	}
 }
+
+// TestPausedGrantBack: a viewer of the box whose grant drops out of
+// whoami while paused (another network, say) and comes back has the
+// box's alerts watched again with no key: whoami is read through the
+// pause whatever the watch.
+func TestPausedGrantBack(t *testing.T) {
+	h := start(t, 100, 30, nil)
+	h.away(model.Idle + time.Minute)
+	h.fake.Body("whoami.json", `{"name":"alice@example.com","key":"`+demo.Key.Fingerprint+`","roles":[],"box":"deploy.example.com","version":"v0.7.0","protocol":1}`)
+	h.away(model.MeAlways + time.Minute)
+	if f := h.s.Firing(h.now); !f.Nothing {
+		t.Fatalf("no grant: %+v", f)
+	}
+	delete(h.fake.Bodies, "whoami.json")
+	h.away(model.MeAlways + time.Minute)
+	if f := h.s.Firing(h.now); f.Why != model.Known || f.N != 2 || f.Old {
+		t.Errorf("the grant back, still paused: %+v", f)
+	}
+}

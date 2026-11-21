@@ -619,8 +619,10 @@ func (e *Engine) SetHardwareKey(on bool) {
 // idleAt says whether no key was pressed for Idle at t.
 func (e *Engine) idleAt(t time.Time) bool { return t.Sub(e.touched) >= Idle }
 
-// readsThroughPause says whether the watch's reads go on while paused.
-func (e *Engine) readsThroughPause() bool { return !e.hardware && e.watch != WatchNone }
+// readsThroughPause says whether the watch's reads go on while paused:
+// for a key that needs no touch, whoami's at the least, so a grant
+// back while away is seen.
+func (e *Engine) readsThroughPause() bool { return !e.hardware }
 
 // watchAnswers says whether the watch's alerts reads are made and
 // answer: one at least has answered and is not held (a refusal), and
@@ -644,13 +646,16 @@ func (e *Engine) watchAnswers() bool {
 // at their own pace, which say which apps are watched (an app added or
 // granted while paused).
 func (e *Engine) watchJob(j Job) bool {
-	switch e.watch {
-	case WatchBox:
-		// whoami too, at its own pace: it releases a read a 403 held
-		// once it lists the role again (Session.follow).
-		return j.Kind == KBoxAlerts || j.Kind == KWhoAmI
-	case WatchApps:
-		return j.Kind == KAlerts && e.listed[j.App] || j.Kind == KApps || j.Kind == KWhoAmI
+	switch {
+	case j.Kind == KWhoAmI:
+		// At its own pace, whatever the watch: it says which grants hold
+		// (one back while away, Session.follow), and releases a read a
+		// 403 held once it lists the role again.
+		return true
+	case e.watch == WatchBox:
+		return j.Kind == KBoxAlerts
+	case e.watch == WatchApps:
+		return j.Kind == KAlerts && e.listed[j.App] || j.Kind == KApps
 	}
 	return false
 }
