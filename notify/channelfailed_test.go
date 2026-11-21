@@ -945,3 +945,35 @@ func TestReadOnlyCopyAloneIsNoErrorLine(t *testing.T) {
 		}
 	}
 }
+
+// TestReadOnlyCopyOfAnotherIntegrationEnds: a load changes the held
+// channel's kind (ntfy to slack), and it fails again: the copy of the
+// old integration is another alert, so it is resolved as the record
+// moves to the new one, and the read is left one row.
+func TestReadOnlyCopyOfAnotherIntegrationEnds(t *testing.T) {
+	te, _, body, read := holdEngine(t, oneChannelBlock)
+	*body = counters(0, 3, 0, 0)
+	te.scrapeFailed(context.Background(), read)
+	*body = counters(1, 4, 1, 0)
+	te.scrapeFailed(context.Background(), read)
+	te.drain()
+	b := mustParse(t, strings.Replace(oneChannelBlock, "channel ops ntfy", "channel ops slack", 1))
+	r, err := b.resolve(testTrust(), testSecrets())
+	if err != nil {
+		t.Fatal(err)
+	}
+	b.cfg = r
+	_, _, b.receivers = render(r, testStateDir)
+	te.setConfig(b, te.p, te.known, te.logger)
+	te.advance(time.Minute)
+	*body = counters(1, 4, 1, 0) + failedLine("slack", "event-warning-ops", "clientError", 1)
+	te.scrapeFailed(context.Background(), read)
+	// The last post of each alert is what Alertmanager holds.
+	last := map[string]amAlert{}
+	for _, c := range readOnly(te.drain()) {
+		last[c.Labels["integration"]] = c
+	}
+	if len(last) != 2 || !last["webhook"].EndsAt.Equal(te.at) || !last["slack"].EndsAt.After(te.at) {
+		t.Fatalf("last posts %+v: want the webhook copy resolved and the slack one live", last)
+	}
+}

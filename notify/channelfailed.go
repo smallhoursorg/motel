@@ -307,6 +307,11 @@ func (e *engine) untoldFor(key, receiver string, sus []string, integration, summ
 		return
 	}
 	if u, ok := e.untold[key]; ok {
+		// A copy of another integration (a load changed the channel's
+		// kind) is another alert: ended, as the record moves on.
+		if u.integration != integration {
+			e.endCopy(key, u, now)
+		}
 		// The latest rise's words, which its own copy carries: the
 		// hold's re-posts say the same.
 		u.integration, u.summary = integration, summary
@@ -412,6 +417,11 @@ func (e *engine) keepUntold(channels map[string]Channel) {
 // config no longer has. With mu held.
 func (e *engine) endUntold(key string, u *untold, now time.Time) {
 	delete(e.untold, key)
+	e.endCopy(key, u, now)
+}
+
+// endCopy posts u's read-only copy resolved. With mu held.
+func (e *engine) endCopy(key string, u *untold, now time.Time) {
 	c := readOnlyCopy(u.integration, u.suspects, u.summary, u.since, now)
 	c.EndsAt = now
 	e.enqueue(&pending{key: key + "/read-only", first: now, alerts: []amAlert{c}})
