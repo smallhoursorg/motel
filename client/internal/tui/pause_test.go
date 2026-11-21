@@ -191,9 +191,10 @@ func TestPausedRefusalReleased(t *testing.T) {
 }
 
 // TestPausedGrantBack: a viewer of the box whose grant drops out of
-// whoami while paused (another network, say) and comes back has the
-// box's alerts watched again with no key: whoami is read through the
-// pause whatever the watch.
+// whoami while paused (removed by a push, the key still let in) and
+// comes back has the box's alerts watched again with no key: whoami is
+// read through the pause whatever the watch. (With no grant left at
+// all the box refuses the key, 401, and every read stops until r.)
 func TestPausedGrantBack(t *testing.T) {
 	h := start(t, 100, 30, nil)
 	h.away(model.Idle + time.Minute)
