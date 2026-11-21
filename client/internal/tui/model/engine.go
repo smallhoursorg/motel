@@ -73,9 +73,11 @@ const (
 	// in MeEvery.
 	MeAlways = 5 * time.Minute
 	// Idle pauses polling when no key was pressed for this long, so an
-	// unattended TUI neither asks for touches nor spends the rate: every
-	// read stops but the watch's (watch.go), which go on every
-	// PausedWatchEvery, and whoami's.
+	// unattended TUI does not spend the rate: every read stops but the
+	// watch's (watch.go), which go on every PausedWatchEvery, and
+	// whoami's. Their token is signed again as at the keys: a key that
+	// cannot sign with nobody there (a hardware key's touch, an agent
+	// that asks) stops every read at its next signature.
 	Idle = 10 * time.Minute
 	// StaleAfter missed reads make a value stale.
 	StaleAfter = 3

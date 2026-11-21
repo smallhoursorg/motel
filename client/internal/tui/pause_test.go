@@ -112,14 +112,14 @@ func TestPausedWatchFails(t *testing.T) {
 
 // TestMeSaysThePause: who am I's token sentence says what is read while
 // paused: only the alerts, each at most once a minute; with no grant
-// here, who you are alone, every five minutes.
+// here, who you are alone.
 func TestMeSaysThePause(t *testing.T) {
 	for _, c := range []struct {
 		name, want string
 		setup      func(*demo.Fake)
 	}{
 		{"a viewer of the box", "only the alerts are read, each at most once a minute, and it is signed for them", nil},
-		{"no grant", "only who you are is read, every five minutes, and it is signed for it", func(f *demo.Fake) {
+		{"no grant", "only who you are is read, and it is signed for it", func(f *demo.Fake) {
 			f.Body("whoami.json", `{"name":"alice@example.com","key":"`+demo.Key.Fingerprint+`","roles":[],"box":"deploy.example.com","version":"v0.7.0","protocol":1}`)
 		}},
 	} {
@@ -156,8 +156,10 @@ func TestPausedHardwareKeyAsAnyKey(t *testing.T) {
 		t.Errorf("signing again while paused: %q", r.Text())
 	}
 	// No touch: the signature fails (the authenticator's own timeout, or
-	// the TUI's signer's minute), as the client says a key that did not
-	// sign.
+	// the TUI's signer's minute: cli's TestSignWithin), and the client
+	// says a key that did not sign as FailNotSigned (client.read's usage
+	// failure, which cli's failure maps so: its tests in tui_test.go).
+	// Here that failure is given at the read.
 	h.on(func() { h.s.Signing = false })
 	h.fake.Set("box-alerts", &model.Failure{Kind: model.FailNotSigned, Message: "~/.ssh/id_ed25519_sk.pub did not sign"})
 	h.away(model.PausedWatchEvery + time.Second)

@@ -713,7 +713,7 @@ func (s *Session) MeViewFit(now time.Time, width int, cells Cells) []Line {
 				again := "             signed again a minute before it ends; after ten idle minutes only the alerts are read, each at most once a minute, and it is signed for them"
 				if s.watch.mode == WatchNone {
 					// whoami goes on through the pause, for a grant back.
-					again = "             signed again a minute before it ends; after ten idle minutes only who you are is read, every five minutes, and it is signed for it"
+					again = "             signed again a minute before it ends; after ten idle minutes only who you are is read, and it is signed for it"
 				}
 				out = append(out, laid(width, cells, field("token", own("good until "+hms(exp)+" UTC ("+Ago(left)+" left)")),
 					Line{own(again)})...)

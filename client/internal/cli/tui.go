@@ -43,9 +43,11 @@ const screenLong = "motel alone shows them on screens in the terminal, over the 
 	"It only reads, well inside the box's limit of 2 requests a second and 60 at\n" +
 	"once: up to 30 at once to start, then at most 1.5 a second. After ten minutes\n" +
 	"with no key pressed it reads only the alerts the title bar counts, each at most\n" +
-	"once a minute, and who you are. It signs one token for ten minutes at a time,\n" +
-	"so a hardware key is touched about every nine minutes, a signature that takes\n" +
-	"over a minute stops the reads (r asks again), and it never asks for\n" +
+	"once a minute, and what says which are counted (who you are, the apps list).\n" +
+	"It signs one token for ten minutes at a time, then too, so a hardware key is\n" +
+	"touched about every nine minutes; with nobody there to touch it, or to answer\n" +
+	"an agent that asks first, the signature fails after a minute and every read\n" +
+	"stops until r asks again. It never asks for\n" +
 	"a passphrase or a PIN: a key with a passphrase must be in the agent (ssh-add),\n" +
 	"and a hardware key that requires its PIN cannot be used there yet. ? lists the\n" +
 	"keys; c shows the command for a screen that reads the box, y the box's answer\n" +
