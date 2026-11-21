@@ -75,19 +75,19 @@ var (
 // reservedNames are what only motel posts: a producer that could post
 // them could mute an app's watchdog alerts, fake the heartbeat, or
 // speak as one of motel's own detectors.
-var reservedNames = []string{
+var reservedNames = append([]string{
 	"watchdog", alertChannelFailed, alertNotifyTest, alertDeployMute, alertDiskLow, "cert_failed",
 	liveswap.EventWatchdogThrottled, liveswap.EventWatchdogRecovered, liveswap.EventRelaunchRefused,
 	liveswap.EventRelaunchResolved, liveswap.EventDeployFailed, liveswap.EventDeployRefused,
 	liveswap.EventDeploySucceeded, liveswap.EventRollback, liveswap.EventDeployStarted, liveswap.EventDeployEnded,
-	"backup_stale", "backup_run_failed", "backup_unreadable", "backup_unhealthy", "drill_failed",
+	alertBackupUnreadable,
 	// A person's key (liveswap/people_networks.go).
 	liveswap.EventPersonNewNetwork, liveswap.EventPersonOutsideList,
 	// The metrics store's chain and rules (DESIGN-metrics.md).
 	eventStoreDown, eventRulesDown, eventStoreReadOnly, eventStoreKilled, ruleStoreDiskFill, ruleAppMemoryHigh,
 	// The operator's rules' own event (postdeploy.go).
 	eventPostDeployRegressed,
-}
+}, alertNames(backupRaised)...)
 
 const maxDetails = 2 << 10
 

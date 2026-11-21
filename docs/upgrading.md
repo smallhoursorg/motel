@@ -453,29 +453,45 @@ into to see whether backups are set up, and `root 600` of the file
 (`root 400` passes too). For anything else:
 `chown root:root /etc/motel-backup /etc/motel-backup/repository.env && chmod 0755 /etc/motel-backup && chmod 0600 /etc/motel-backup/repository.env`.
 
-## backup_unhealthy: what status says, as an alert
+## Backup alerts: one per problem status calls
 
 On a box with backups set up and a `monitor` block, the first release
-with `backup_unhealthy` alerts whenever `motel-backup status` calls the
-backups unhealthy and none of `backup_stale`, `backup_run_failed`,
-`drill_failed` and `backup_unreadable` was already saying so (once it
-fires, only `backup_stale` or `drill_failed` takes its place): a
-repository check that
-has not come to a clean verdict lately, a restore not proven lately, a
-repository not listed for hours, no run since setup, and the like. It
-is critical. A box that is unhealthy today without anyone knowing
-**alerts within five minutes of the install**: before it, as root,
+with this change raises an alert for each problem `motel-backup status`
+calls, and only those: `status` is the one judge. Each kind of problem
+has its own name, all starting `backup_`, at its own level, per app
+where the problem is an app's
+([Backup alerts](../notify/DESIGN-notify.md#backup-alerts-status-is-the-only-judge)
+lists them). A box that
+is unhealthy today without anyone knowing **alerts within five
+minutes of the install**: a repository check that has not come to a
+clean verdict lately, a restore not proven lately, a repository not
+listed for hours, no run since setup, an app whose backups have failed
+since its first run (now critical), and the like. Before the install,
+as root,
 
 ```sh
 motel-backup status
 ```
 
-and anything it calls a problem is what will be told, its first
-problem line in the summary. From a laptop, `motel backup status`
-reads the same. Going back to a release without it resolves the
-alert within minutes, although nothing changed. The summaries of
-`backup_run_failed` and `drill_failed` now name `motel backup status`
-first and `motel-backup status` second.
+and every line it calls a problem is an alert after it, its text the
+line. From a laptop, `motel backup status` reads the same.
+
+What changes for alerts you know:
+
+- `drill_failed` is now `backup_drill_failed`, per app where a drill
+  proved nothing for that app. A silence of `drill_failed` silences
+  nothing any more: add one of the new name.
+- `backup_run_failed` is now per app (`backup_run_failed/<app>`), and
+  one with no app for a run that ended early. A damaged repository is
+  `backup_repository_check_failed`, no longer `drill_failed`.
+- An alert that fires across the install under its old name or shape
+  is told `[RESOLVED]` about five minutes after it, and `[FIRING]`
+  under its new one at the first read.
+- Each summary begins `motel backup status (on the box: motel-backup
+  status) says:`, then status's line.
+
+Going back to a release without it resolves the new alerts within
+minutes, although nothing changed.
 
 ## A person's key, told once after the install
 

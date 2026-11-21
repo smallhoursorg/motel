@@ -383,11 +383,8 @@ only root and the motel uid can send.
 | `rollback` | liveswap | event | warning | `?rollback=` succeeds | — |
 | `deploy_succeeded` | liveswap | event | info | a deploy succeeds; dropped unless `deploy_succeeded on` | — |
 | `deploy_in_progress` | liveswap | the mute | none | a deploy starts; re-posted each minute while it runs | it ends, whatever it came to |
-| `backup_stale/<app>` | backup | state | critical | the app's last complete backup is older than `status.StaleAfter` (3 h) | it is fresh |
-| `backup_run_failed` | backup | state | warning | the last run ended early, or an app's class is anything but ok or pending (`motel-backup run`'s own rule for a failed run) | a run ends with every app ok or pending |
-| `drill_failed` | backup | state | critical | the last drill could not begin, the check found damage, or an app's latest drill proved nothing (`App.RestoreDrill`, as `status` reads it); the summary names the apps, never the drill's detail | the next drill that proves every app |
-| `backup_unreadable` | backup | state | warning | the record does not parse | it reads |
-| `backup_unhealthy` | backup | state | critical | `motel-backup status`'s own verdict is unhealthy, and none of the four above fires; once it fires, `backup_run_failed` and `backup_unreadable` (warnings) leave it firing, so that a channel taking critical alerts alone is not told it resolved; a process's first poll, which does not know what the last one told, counts it as firing. The verdict is `status.Report` of the record, the time and the credential file's time (its name alone, `Lstat`), the look any account takes (`backups/look`, which `GET /_motel/backups` reads) but for the running units, which status never judges; no verdict where the file is not there or cannot be looked at, as status gives none; one that cannot be looked at (an `Lstat` refused, an `EIO`) puts nothing right, and a firing `backup_unhealthy` stays fired. The summary is its first problem line, detail and all (the owner's choice: the record holds no secret, and sends restic's own words to the journal: backups/record, backups/engine), after the pointer, so that the cut at 200 characters takes the line's tail. One key: a new first line changes the summary, not the alert | status is healthy, or `backup_stale` or `drill_failed` fires |
+| `backup_*[/<app>]` | backup | state | the level written at its rule in `status` (below) | each problem line of `motel-backup status`'s verdict, while it stands: the alert its rule names, with the app as its instance where the line is an app's | status no longer says it |
+| `backup_unreadable` | backup | state | warning | the record does not parse (status could not tell); what fired stays fired beside it | it reads |
 | `cert_failed/<identifier>` | tls | state | warning; critical with under 7 days left | CertMagic's `cert_failed` | its `cert_obtained`, or 13 h with no report (a name no config manages any more) |
 | `disk_low/<path>` | disk | state | warning at 80 % used, critical at 90 | statfs, every minute, one per device, of the liveswap root, Caddy's data and the state directory, each on its own goroutine within 2 s (a path not back is not measured, and starts no other statfs until it is back); the level is held per device, whichever path stands for it | five points under its threshold |
 | `Watchdog` | notify | heartbeat | none | every minute, alive 4 m | — |
@@ -396,6 +393,70 @@ only root and the motel uid can send.
 | `person_outside_list` | access | event | warning | a valid signature by a person's key from outside every address list on their grants, refused with the flat 401; at most once per key an hour; instance the key's fingerprint | — |
 | `post_deploy_regressed` | rules | event | warning | a `post_deploy` rule's checks after a deploy or a rollback of the app failed `failures` times in a row: the new release over a bound and worse than the one it replaced (DESIGN-metrics.md, "Operator rules"); once per deploy, and it never acts | — |
 | `<rule name>` | rules | state, by vmalert | the rule's | an operator's `threshold` or `disk_fill` rule holds for its `for:` (DESIGN-metrics.md, "Operator rules"); `subject` is the app's, or `box` for a disk | vmalert resolves it |
+
+
+### Backup alerts: status is the only judge
+
+`motel-backup status` is the one judge of the backups (owner's
+decision, 2026-11-21; #590). Each rule in `status.Report` that makes
+the box unhealthy names its alert and its level at the rule
+(`bad("backup_stale", AlertCritical, …)`), and `status.Alerts` lists
+them; `TestEveryRuleNamesAListedAlert` holds the rules to the list both
+ways, so a new rule without a listed name fails the build. notify
+keeps no rule of its own: `backupPoller` takes status's verdict on the
+look any account on the box takes (`backups/look`, which `GET
+/_motel/backups` reads), but for the running units, which status says
+and never judges, and raises one alert per problem line. The names
+are notify's own (the rules listing, the silences, the names an
+outside producer may not post) through `backupRaised`, built from
+`status.Alerts`.
+
+| Alert | Level | status's rule |
+|---|---|---|
+| `backup_never_ran` | critical | no run yet, and backups were set up more than 3 h ago |
+| `backup_not_running` | critical | no run has finished for more than 3 h |
+| `backup_stale/<app>` | critical | the app's last complete backup is more than 3 h old |
+| `backup_never_complete/<app>` | critical | the app is past pending with no complete backup |
+| `backup_no_result/<app>` | critical | the app has no result on the record |
+| `backup_run_failed` | warning | the last run ended early |
+| `backup_run_failed/<app>` | warning | the last run failed for the app (failed, incomplete, not attempted) |
+| `backup_data_missing/<app>` | warning | the app's data was not there to back up |
+| `backup_snapshot_gone/<app>` | warning | the app's last complete snapshot is no longer in the repository |
+| `backup_repository_unchecked` | critical | no check has come to a verdict for over 8 days since drills that check began; never checked, set up over 8 days ago with no drill since; or the last clean check is over 8 days old |
+| `backup_repository_check_failed` | critical | the last check ended other than clean (damaged, unreachable, no repository, wrong password, failed) |
+| `backup_repository_unlisted` | critical | the repository has not been listed for over 3 h |
+| `backup_drill_failed` | critical | the last drill could not begin |
+| `backup_drill_failed/<app>` | critical | the drill of the app's newest snapshot proved nothing (an app over 1 GiB, whose first backup the run does not drill, is this until the weekly drill) |
+| `backup_restore_proof_old/<app>` | critical | the app's last proven restore is over 8 days old |
+| `backup_restore_unproven/<app>` | critical | the app has snapshots and no drill of it has run |
+
+- **The poll**, every five minutes and once at start: whether the
+  credential file is there (its name alone, `Lstat`; theEngine's
+  `/etc/motel-backup/repository.env`, a test's none), then the record,
+  in look's order. No file: backups are not set up, nothing fires and
+  whatever fired clears. A file that cannot be looked at, or a record
+  that cannot be read: no verdict, and what fired stays fired (beside
+  `backup_unreadable` for the record).
+- **The summary** is `motel backup status (on the box: motel-backup
+  status) says: ` and status's line: the laptop client first, the box's
+  command second, then the line, so the cut at 200 characters takes
+  the line's tail, never the pointer. The line is status's own words,
+  restic's detail and paths included: the record holds no secret.
+- **Each problem starts and ends by itself**: its own key, so a second
+  problem beside a first is a new alert, told at once (its own group in
+  Alertmanager when its name differs; the same group, re-sent with it
+  added, when it is another app's of the same name). Ten apps gone stale
+  in one run are ten keys, each with its own limit, posted together and
+  grouped by name into one message.
+- **A restart** needs no memory: the first poll finds every problem
+  that still holds under the same key. What it cannot find is an
+  accepted row below (a record unreadable at the restart).
+- **A silence** takes one name (`--alert backup_stale`): every app's
+  alert of that name, never one app's alone, since a box alert carries
+  the app as its instance.
+- **The rules listing** lists each name as a `motel check`, with each
+  app's backup age beside `backup_stale`; the others are events with no
+  number to be close to.
 
 Sources are `liveswap`, `access` (a person's key, through
 `liveswap.Announcer`, which Provision installs for the process: the
@@ -720,7 +781,7 @@ and the route check (`SendRequest.Check`):
 |---|---|
 | a source not `[a-z0-9-]{1,32}` (stamped `external:<name>`) | one grammar, so a key cannot pose as a detector's |
 | a subject not `box` or `app:<an app the box runs>` | an app subject reaches its deployers |
-| motel's own names: `Watchdog`, `ChannelFailed`, `NotifyTest`, `deploy_in_progress`, `watchdog_*`, the deploy events, `disk_low`, `cert_failed`, `backup_*`, `drill_failed`, and the metrics store's (`metrics_store_down`, `metrics_rules_down`, `metrics_store_read_only`, `metrics_store_killed`, `metrics_store_disk_fill`, `app_memory_high`) and the operator's rules' `post_deploy_regressed`, and a person's key's `person_new_network` and `person_outside_list` | a producer that could post them could mute an app, fake the heartbeat, or speak as a detector |
+| motel's own names: `Watchdog`, `ChannelFailed`, `NotifyTest`, `deploy_in_progress`, `watchdog_*`, the deploy events, `disk_low`, `cert_failed`, the backup alerts (`status.Alerts` and `backup_unreadable`), and the metrics store's (`metrics_store_down`, `metrics_rules_down`, `metrics_store_read_only`, `metrics_store_killed`, `metrics_store_disk_fill`, `app_memory_high`) and the operator's rules' `post_deploy_regressed`, and a person's key's `person_new_network` and `person_outside_list` | a producer that could post them could mute an app, fake the heartbeat, or speak as a detector |
 | a summary empty, on two lines, or over 200 characters; details over 2 KiB or with names not `[a-z][a-z0-9_]*` | #418's limits |
 | a body with unknown fields (a raw Alertmanager label set) | the route takes the request, never labels |
 | a name, instance or source the filter would mask (a channel URL or its topic or token, the heartbeat's URL or its last path segment, a secret-shaped token) | each is part of the key, the labels and the answer, which the filter does not rewrite |
@@ -1140,19 +1201,15 @@ on its general scales. notify's examples:
 | A box whose monitor units were written before the binary was `moteld`: their `Description=` lines name the command as it was then, so every validate, reload and start warns that the units differ and to run setup again, though nothing about how they run changed; `moteld monitor setup` restarts Alertmanager, which forgets the alerts it holds, and `--metrics` restarts the store and vmalert | notify/gate.go (`staleUnits` leaves out comments and layout, nothing else) | 2 | 5 | 1 | 10; loud and named, with the remedy: one run of `moteld monitor setup` (and `--metrics`) ends it, and the release's notes ask for it; telling a description from a setting is a new branch in the comparison (size 2, risk 2) for one release's change |
 | A channel or heartbeat URL that answers with a redirect: every delivery fails, and motel's words for it are Alertmanager's reason, `other` (`moteld monitor test`: `could not deliver (webhook: other); journalctl -u prometheus-alertmanager says more`; moteld's `ChannelFailed` `through webhook (other)`, the store's no reason at all), which does not say redirect | notify/render.go (`amHTTPConfig`), docs/monitor.md | 2 | 5 | 1 | 10; red, and the journal it names says `unexpected status code 307` (measured 2026-11-20), and docs/monitor.md's `channel` line says a URL that redirects fails. Telling a 3xx apart in motel's own text needs the status, which Alertmanager's counters do not carry: a read of its journal (size 3). /code-review pass 2 of the no-redirect render |
 | `TestAlertmanagerFollowsNoRedirect` picks Alertmanager's port by listening on `127.0.0.1:0` and closing it: another process that takes the port before Alertmanager binds it fails the test, red, after the 15 s the alerts' post waits, with Alertmanager's `address already in use` in its output | notify/render_test.go | 2 | 3 | 1 | 6; a flake of the metrics e2e lane that names itself. A start retried on that error is a new branch (size 2) for a window of milliseconds. /code-review pass 2 of the no-redirect render |
-| `backup_unhealthy` is one key: while it fires, a new first problem line (the one before put right, another found) changes its summary and is not told as a message of its own; the channel sees the new line at Alertmanager's next repeat of the alert (`stateRepeatInterval`, 4 h), and `status` says it at once | notify/detectors.go (`backupPoller.verdict`) | 2 | 2 | 3 | 12; the box stays red throughout, and the line that changed is a second problem after a first. A key per condition is what the owner chose against (2026-11-21: one alert, so that no list of status's conditions is kept here). #590 |
-| While `backup_stale` or `drill_failed` (both critical) fires, `backup_unhealthy` is cleared and a second problem `status` sees is not told until that alert clears; and when one of them begins over a firing `backup_unhealthy`, the channel gets `[RESOLVED] backup_unhealthy` beside the new `[FIRING]` while status is still unhealthy. A warning (`backup_run_failed`) raises no `backup_unhealthy` over a quiet box and clears none that fires, so a channel that takes critical alerts alone is never told it resolved | notify/detectors.go (`backupPoller.poll`) | 3 | 3 | 1 | 9; red and named throughout, at the same severity: the alert that fires names its cause (`drill_failed` points to status, `backup_stale` names the app and its last backup's time), and status says every problem. The owner's choice of 2026-11-21 (one alert, raised only where none of the four explains the box), costs accepted then. #590 |
-| Once `backup_unhealthy` fires, a failed run beside it keeps it firing, and its summary can then be the run's own line (`the last run ended early: …`, `blog: failed: …`) once the problem that raised it is put right: the run's failure is told critical until a run succeeds, where the same box reached in the other order (the run failed first) has `backup_run_failed` alone | notify/detectors.go (`backupPoller.poll`, `firing`) | 2 | 2 | 1 | 4; two faults, and red and named throughout, the run's failure in the summary. The alternative, a warning clearing it, told a channel that takes critical alerts alone that it resolved while status was unhealthy, which scored 45 (/code-review pass 1 of #590); skipping status's run lines here would be a list of its conditions kept in step, what the owner chose against. /code-review pass 2 of #590 |
-| A restart that lands on a failed run (`backup_run_failed` firing, no `backup_unhealthy`): the new process's first poll does not know `backup_unhealthy` was not firing, keeps it as if it were, and tells the run's failure critical (`first: the last run ended early: …`) until a run succeeds | notify/detectors.go (`backupPoller.poll`, `b.set.prev == nil`) | 2 | 4 | 1 | 8; red and named, at a higher severity than due, for an hour or so. The other way, a restart that lands on both firing told a channel that takes critical alerts alone `[RESOLVED]` while status was unhealthy (Copilot's review of #590: 3 × 4 × 3, fixed); remembering the bit across a restart is a new state on disk, size 3. #590 |
-| An app's last complete snapshot found no longer in the repository is told as `backup_run_failed`, a warning, always: a snapshot is found gone only by a run's listing, and that run did not back the app up. `backup_unhealthy` stands aside for it, so a channel that takes critical alerts alone hears nothing of it | notify/detectors.go (`backupPoller.poll`) | 2 | 3 | 1 | 6; red and named for every channel that takes warnings, and the summary points to status, which names the snapshot. #590's case F, scored on the issue |
-| A credential file removed to stop the backups, with the record left behind: `backup_stale`, `backup_run_failed` and `drill_failed` go on firing from the record, while status, and so `backup_unhealthy`, says backups are not set up | notify/detectors.go (`backupPoller.poll`: the four never look at the file) | 2 | 5 | 1 | 10; red and named, and the operator's own act: `backup_record off`, or removing the record, ends it. As before #590, which changes none of the four. #590 review |
+| moteld restarts while the backup record cannot be read, or while the credential file cannot be looked at: the new process knows nothing of what fired, its first poll gives no verdict and raises only `backup_unreadable` (or nothing), and Alertmanager resolves what the old process had firing about 270 s later: `[RESOLVED] backup_stale` and the like while nothing was put right; `[FIRING]` again at the first poll that reads | notify/detectors.go (`backupPoller.poll`, `kept`) | 3 | 2 | 3 | 18; two independent faults (the record unreadable, or the file's directory unsearchable, and a restart), and `backup_unreadable` says the verdict is not known. Measured on Alertmanager 0.28.1 in research_notes/backup-alerting-options (S7): the same on main and under every option. Remembering what fired across a restart is a state on disk, or a read of Alertmanager's alerts at start (size 3). #590 |
+| A credential file the motel user cannot `Lstat` (`/etc/motel-backup` made other than root's 0755, which docs/upgrading.md tells the admin to keep): no verdict, so no backup alert is raised at all and what fired stays fired; nothing is journalled. The client's `motel backup status` says whether backups are set up cannot be told from here | notify/detectors.go (`backupPoller.poll`) | 5 | 5 | 5 | 125; the rule says fix, but its only cause is an admin's own change against the docs, and the owner decided to accept it with this row and no guard (2026-11-21, #590). The alternative, `backup_unreadable` raised on that error too, is about two lines |
+| `backup_record <path>` other than the default (motel-backup writes nowhere else): the poller judges that record beside the box's credential file, so a record not yet written on a box set up hours ago reads "no run yet", `backup_never_ran`, critical, and `GET /_motel/backups` reads the default record still | notify/detectors.go (`backupPoller.poll`) | 2 | 5 | 3 | 30; the rule says fix, but the line is the operator's own, and the owner decided to accept it with this row and no guard (2026-11-21, #590) |
+| An app whose last complete snapshot is no longer in the repository and whose runs go on failing for it is told as warnings alone (`backup_snapshot_gone/<app>` and `backup_run_failed/<app>`), however old that backup grows: status says "snapshot gone" in place of "stale" (the one line per app about its last backup), so `backup_stale`, critical, never fires for it. A channel that takes critical alerts alone hears nothing, where the poller before #590 raised `backup_stale` after 3 h from the backup's time alone | backups/status/status.go (`Report`, the `gone` case), notify/detectors.go | 2 | 3 | 1 | 6; red and named on every channel that takes warnings, and status says it. The levels are the owner's (2026-11-21, #590); a stale line beside the gone one is a branch in status (size 2), the owner's call |
 
 ### Owed
 
 | Owed | S | O | D | Lands in |
 |---|---|---|---|---|
-| A credential file the motel user cannot `Lstat` (its directory made other than root's 0755, which docs/upgrading.md says to keep): `backup_unhealthy` gives no verdict, as status gives none from such an account (`GET /_motel/backups` says it cannot tell); the other four backup alerts still fire from the record, and the cases only `backup_unhealthy` raises are silent. The rule says fix (an alert on the look's error: size 2, risk 1); the cause is an admin's own change to a root-owned directory, and the owner's standing lean (2026-11-21) is to accept such a mistake | 3 | 5 | 5 | the owner's call, asked in #590's PR: accept (a row here), or the alert |
-| `backup_record <path>` other than the default (motel-backup writes nowhere else): `backup_unhealthy` judges that record beside the box's own credential file, so a record not yet written on a box set up hours ago reads "no run yet" (a false critical), and `GET /_motel/backups` reads the default record still. The rule says fix (no verdict off the default record: one branch); the line is the operator's own, and the owner's standing lean is to accept an admin's mistake | 2 | 5 | 3 | the owner's call, asked in #590's PR: accept, or the branch |
 | A fragment of a secret that is not a whole value, nor one of its forms, nor shaped like a secret, passes the filter: an ntfy topic alone (in `send --instance ops-alerts` or a summary, or a silence's comment, where the topic is the credential) is journalled, and a silence stores its comment in Alertmanager. Pre-existing in the filter's known-value layer (whole values and their forms), which every summary goes through; found by /code-review pass 3 on monitor/silence | 3 | 5 | 5 | the filter's own change (liveswap/redact.go: a channel URL's path part as a form of its value, as a URL's password is; size 2, risk 2), not this branch: it reaches every summary motel sends. Flagged for the owner |
 | ntfy's `auth` parameter is taken as a whole and form-decoded: the access token or password inside it (base64 of `Bearer tk_…` or `Basic …`) is not masked alone, and a raw `+` in it is read as a space, so the value as written is masked within the whole URL only. And a self-hosted ntfy under a sub-path with a topic named `publish`, `send` or `trigger` has its base path taken as the topic (the real topic, 7 characters or less, is under the filter's 8 anyway): that path is masked in summaries. /code-review pass 2 of the partial mask, findings 2 to 4 (second-pass hardening, rows by the review rule) | 3 | 5 | 5 | its own PR, "monitor: ntfy's auth token masked alone" (notify/app.go `urlCredentials`: the auth value from `RawQuery` as written, its base64 decoded and the scheme word cut, the suffix strip only on the public ntfy.sh host or for a topic that is a suffix word; size 2, risk 1) |
 | Slack and Discord with real hooks; ntfy's formatting of Alertmanager's payload (the hotserve-1 test delivered the JSON body as the message) and its title, which needs ntfy's message templating, a server feature; Discord's colour, dark red for anything firing whatever the severity (2 5 3 = 30): Alertmanager 0.28.1's `discord_config` has no colour field (amtool refuses `color`, measured 2026-11-12), and the way round it, Discord's Slack-compatible endpoint, is untried without a real hook | — | — | — | needs the owner's hooks |

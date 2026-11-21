@@ -1,9 +1,11 @@
 package notify
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -11,10 +13,12 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/caddyserver/caddy/v2"
 
 	"github.com/smallhoursorg/motel/backups/record"
+	"github.com/smallhoursorg/motel/backups/status"
 	"github.com/smallhoursorg/motel/liveswap"
 	"github.com/smallhoursorg/motel/liveswap/access/accesstest"
 )
@@ -229,116 +233,6 @@ func names(evs []Event) map[string]bool {
 		out[k] = true
 	}
 	return out
-}
-
-func TestBackupPoller(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "status.json")
-	now := time.Date(2026, 11, 10, 12, 0, 0, 0, time.UTC)
-	var b backupPoller
-	if evs := b.poll(now, path); len(evs) != 0 {
-		t.Fatalf("no record (backups not set up): %+v", evs)
-	}
-	old := &record.Snapshot{ID: "a", Time: now.Add(-4 * time.Hour)}
-	fresh := &record.Snapshot{ID: "b", Time: now.Add(-time.Hour)}
-	writeRecord(t, path, &record.Status{Apps: map[string]*record.App{
-		"blog": {Class: record.OK, LastOK: old},
-		"shop": {Class: record.Failed, LastOK: fresh},
-	}, LastDrill: &record.Drill{Time: now, Detail: "could not begin"}})
-	if evs := b.poll(now.Add(time.Minute), path); evs != nil {
-		t.Fatal("polled inside five minutes")
-	}
-	now = now.Add(5 * time.Minute)
-	evs := b.poll(now, path)
-	got := names(evs)
-	for _, want := range []string{"backup_stale/blog", "backup_run_failed", "drill_failed"} {
-		if !got[want] {
-			t.Errorf("missing %s in %v", want, got)
-		}
-	}
-	for _, e := range evs {
-		if e.App != "" || e.subject() != "box" {
-			t.Errorf("a backup event is the box's: %+v", e)
-		}
-		if e.Name == "backup_stale" && e.Severity != SeverityCritical {
-			t.Errorf("stale is critical: %+v", e)
-		}
-	}
-	// Everything put right: each clears.
-	writeRecord(t, path, &record.Status{Apps: map[string]*record.App{
-		"blog": {Class: record.OK, LastOK: &record.Snapshot{ID: "c", Time: now}},
-		"shop": {Class: record.OK, LastOK: &record.Snapshot{ID: "d", Time: now}},
-	}})
-	now = now.Add(5 * time.Minute)
-	got = names(b.poll(now, path))
-	for _, want := range []string{"-backup_stale/blog", "-backup_run_failed", "-drill_failed"} {
-		if !got[want] {
-			t.Errorf("missing %s in %v", want, got)
-		}
-	}
-	if err := os.WriteFile(path, []byte("{not json"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	now = now.Add(5 * time.Minute)
-	if got := names(b.poll(now, path)); !got["backup_unreadable"] {
-		t.Errorf("an unreadable record: %v", got)
-	}
-}
-
-// TestBackupPollerFollowsMotelBackupsVerdicts: a run is failed unless
-// every app is ok or pending (motel-backup run's own exit), and a drill
-// that did not prove an app is drill_failed, as status reads both.
-func TestBackupPollerFollowsMotelBackupsVerdicts(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "status.json")
-	now := time.Date(2026, 11, 10, 12, 0, 0, 0, time.UTC)
-	fresh := &record.Snapshot{ID: "a", Time: now.Add(-time.Hour)}
-	for _, class := range []record.Class{record.Incomplete, record.DataMissing, record.NotAttempted, record.Failed} {
-		var b backupPoller
-		writeRecord(t, path, &record.Status{Apps: map[string]*record.App{"blog": {Class: class, LastOK: fresh}}})
-		if got := names(b.poll(now, path)); !got["backup_run_failed"] {
-			t.Errorf("class %q: %v", class, got)
-		}
-	}
-	for _, class := range []record.Class{record.OK, record.Pending} {
-		var b backupPoller
-		writeRecord(t, path, &record.Status{Apps: map[string]*record.App{"blog": {Class: class, LastOK: fresh}}})
-		if got := names(b.poll(now, path)); got["backup_run_failed"] {
-			t.Errorf("class %q is no failure: %v", class, got)
-		}
-	}
-	var b backupPoller
-	writeRecord(t, path, &record.Status{Apps: map[string]*record.App{
-		"blog": {Class: record.OK, LastOK: fresh, RestoreDrill: &record.Drill{Time: now, Detail: "the restored database fails its integrity check"}},
-		"shop": {Class: record.OK, LastOK: fresh, RestoreProven: &record.Drill{Time: now}},
-	}})
-	evs := b.poll(now, path)
-	if got := names(evs); !got["drill_failed"] {
-		t.Fatalf("a per-app drill that proved nothing: %v", got)
-	}
-	for _, e := range evs {
-		if e.Name == "drill_failed" && (!strings.Contains(e.Summary, "blog") || strings.Contains(e.Summary, "shop") || strings.Contains(e.Summary, "integrity")) {
-			t.Fatalf("summary = %q", e.Summary)
-		}
-	}
-}
-
-// TestBackupPollerUnreadableKeepsWhatFired: a record that cannot be read
-// says nothing was put right.
-func TestBackupPollerUnreadableKeepsWhatFired(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "status.json")
-	now := time.Date(2026, 11, 10, 12, 0, 0, 0, time.UTC)
-	writeRecord(t, path, &record.Status{Apps: map[string]*record.App{}, LastDrill: &record.Drill{Time: now, Detail: "could not begin"}})
-	var b backupPoller
-	if got := names(b.poll(now, path)); !got["drill_failed"] {
-		t.Fatalf("first poll: %v", got)
-	}
-	if err := os.WriteFile(path, []byte("{not json"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	got := names(b.poll(now.Add(5*time.Minute), path))
-	if got["-drill_failed"] || !got["drill_failed"] || !got["backup_unreadable"] {
-		t.Fatalf("unreadable: %v", got)
-	}
 }
 
 func TestDiskLevel(t *testing.T) {
@@ -628,33 +522,47 @@ func TestDiskLevelHeldByDevice(t *testing.T) {
 	}
 }
 
-// unhealthyRig is a backup poller with a credential file set up
-// setUpAgo before now, and a record beside it.
-type unhealthyRig struct {
+// setUpBackups is a credential file in dir, set up at: whether backups
+// are set up, and since when, is all the poller looks at of it.
+func setUpBackups(t *testing.T, dir string, at time.Time) string {
+	t.Helper()
+	p := filepath.Join(dir, "repository.env")
+	if err := os.WriteFile(p, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(p, at, at); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+// backupRig is a backup poller on a box whose backups were set up
+// setUpAgo before now (0: not set up), with a record beside it.
+type backupRig struct {
 	b    backupPoller
 	path string
 	now  time.Time
 }
 
-func newUnhealthyRig(t *testing.T, setUpAgo time.Duration) *unhealthyRig {
+const day = 24 * time.Hour
+
+func newBackupRig(t *testing.T, setUpAgo time.Duration) *backupRig {
 	t.Helper()
 	dir := t.TempDir()
-	r := &unhealthyRig{path: filepath.Join(dir, "status.json"), now: time.Date(2026, 11, 21, 12, 0, 0, 0, time.UTC)}
+	r := &backupRig{path: filepath.Join(dir, "status.json"), now: time.Date(2026, 11, 21, 12, 0, 0, 0, time.UTC)}
 	r.b.envFile = filepath.Join(dir, "repository.env")
 	if setUpAgo > 0 {
-		if err := os.WriteFile(r.b.envFile, nil, 0o600); err != nil {
-			t.Fatal(err)
-		}
-		at := r.now.Add(-setUpAgo)
-		if err := os.Chtimes(r.b.envFile, at, at); err != nil {
-			t.Fatal(err)
-		}
+		setUpBackups(t, dir, r.now.Add(-setUpAgo))
 	}
 	return r
 }
 
+// next is when the next poll is: what a record written for it is aged
+// against.
+func (r *backupRig) next() time.Time { return r.now.Add(backupEvery) }
+
 // poll writes st (nil: no record) and polls five minutes on.
-func (r *unhealthyRig) poll(t *testing.T, st *record.Status) []Event {
+func (r *backupRig) poll(t *testing.T, st *record.Status) []Event {
 	t.Helper()
 	if st == nil {
 		_ = os.Remove(r.path)
@@ -677,325 +585,386 @@ func soundRecord(now time.Time) *record.Status {
 			RestoreProven: &record.Drill{Snapshot: *s, Time: now.Add(-48 * time.Hour)}}},
 		LastDrill:  &record.Drill{Time: now.Add(-72 * time.Hour)},
 		LastCheck:  &record.Check{Time: now.Add(-72 * time.Hour), Group: "38/52", Class: record.CheckClean},
-		CheckSince: at(30 * 24 * time.Hour),
+		CheckSince: at(30 * day),
 	}
 }
 
-func summaryOf(evs []Event, name string) (string, bool) {
-	for _, e := range evs {
-		if e.Name == name && e.Firing {
-			return e.Summary, true
-		}
-	}
-	return "", false
+// told is names' keys, sorted, as one string.
+func told(evs []Event) string {
+	return strings.Join(slices.Sorted(maps.Keys(names(evs))), " ")
 }
 
-// TestBackupUnhealthyTheSilentCases: each case #590 found status calling
-// unhealthy with no alert raises backup_unhealthy, alone, critical, with
-// status's first problem line after the pointer.
-func TestBackupUnhealthyTheSilentCases(t *testing.T) {
-	const day = 24 * time.Hour
+// TestBackupEachProblemIsItsAlert: each kind of problem status judges is
+// the alert its rule names, alone, at its listed level, the box's, with
+// the app as its instance where the line is an app's, and the pointer
+// then status's own line as its summary. Every name status lists is
+// raised by one case.
+func TestBackupEachProblemIsItsAlert(t *testing.T) {
 	cases := []struct {
-		name   string
+		key    string
 		setUp  time.Duration
-		change func(st *record.Status, now time.Time)
+		record func(now time.Time) *record.Status
 		says   string
 	}{
-		{"A: a check that never came to a verdict", 60 * day, func(st *record.Status, now time.Time) {
-			since := now.Add(-9 * day)
-			st.LastCheck, st.CheckSince = nil, &since
-		}, "no check of the repository has come to a verdict since"},
-		{"A: a clean check that is old", 60 * day, func(st *record.Status, now time.Time) {
+		{"backup_never_ran", 4 * time.Hour, func(time.Time) *record.Status { return nil }, "no run yet, and backups were set up"},
+		{"backup_not_running", 0, func(now time.Time) *record.Status {
+			st := soundRecord(now)
+			st.Started, st.Finished, st.Apps = now.Add(-5*time.Hour), now.Add(-4*time.Hour), map[string]*record.App{}
+			return st
+		}, "no run has finished since"},
+		{"backup_stale/blog", 0, func(now time.Time) *record.Status {
+			st := soundRecord(now)
+			st.Apps["blog"].LastOK.Time = now.Add(-4 * time.Hour)
+			return st
+		}, "blog: stale: the last complete backup is from"},
+		{"backup_never_complete/blog", 0, func(now time.Time) *record.Status {
+			st := soundRecord(now)
+			st.Apps["blog"].LastOK = nil
+			return st
+		}, "blog: no complete backup yet"},
+		{"backup_no_result/shop", 0, func(now time.Time) *record.Status {
+			st := soundRecord(now)
+			st.Apps["shop"] = nil
+			return st
+		}, "shop: no result on record"},
+		{"backup_run_failed", 0, func(now time.Time) *record.Status {
+			st := soundRecord(now)
+			st.Error = "the repository refused"
+			return st
+		}, "the last run ended early: the repository refused"},
+		{"backup_run_failed/blog", 0, func(now time.Time) *record.Status {
+			st := soundRecord(now)
+			st.Apps["blog"].Class, st.Apps["blog"].Detail = record.Failed, "restic exited 1"
+			return st
+		}, "blog: failed: restic exited 1"},
+		{"backup_data_missing/blog", 0, func(now time.Time) *record.Status {
+			st := soundRecord(now)
+			a := st.Apps["blog"]
+			a.Class, a.Detail, a.Snapshot = record.DataMissing, "the data is gone", nil
+			return st
+		}, "blog: data missing: the data is gone"},
+		{"backup_snapshot_gone/blog", 0, func(now time.Time) *record.Status {
+			st := soundRecord(now)
+			seen := now.Add(-69 * time.Minute)
+			st.Apps["blog"].LastOK = &record.Snapshot{ID: "cccccccc3333", Time: now.Add(-70 * time.Minute), Seen: &seen}
+			return st
+		}, "blog: snapshot cccccccc is no longer in the repository"},
+		{"backup_repository_unchecked", 0, func(now time.Time) *record.Status {
+			st := soundRecord(now)
 			st.LastCheck.Time = now.Add(-9 * day)
+			return st
 		}, ": clean: old, more than 8 days ago"},
-		{"A: a check that ended unreachable", 60 * day, func(st *record.Status, _ time.Time) {
+		{"backup_repository_check_failed", 0, func(now time.Time) *record.Status {
+			st := soundRecord(now)
 			st.LastCheck.Class, st.LastCheck.Detail = record.CheckUnreachable, "the storage did not answer"
+			return st
 		}, "(data group 38/52): unreachable: the storage did not answer"},
-		{"A: no check since setup", 60 * day, func(st *record.Status, _ time.Time) {
-			st.LastCheck, st.CheckSince, st.LastDrill = nil, nil, nil
-		}, "the repository has not been checked since backups were set up"},
-		{"B: a proven restore that is old", 60 * day, func(st *record.Status, now time.Time) {
-			st.Apps["blog"].RestoreProven.Time = now.Add(-9 * day)
-		}, "blog: restore last proven: "},
-		{"C: a repository not listed for over three hours", 60 * day, func(st *record.Status, now time.Time) {
+		{"backup_repository_unlisted", 0, func(now time.Time) *record.Status {
+			st := soundRecord(now)
 			u := now.Add(-4 * time.Hour)
 			st.Unlisted = &u
+			return st
 		}, "the repository has not been listed since"},
-		{"E: no run finished in three hours, every app pending", 60 * day, func(st *record.Status, now time.Time) {
-			st.Started, st.Finished = now.Add(-5*time.Hour), now.Add(-4*time.Hour)
-			st.Apps = map[string]*record.App{"blog": {Class: record.Pending, Looked: "/var/lib/liveswap/blog/shared"}}
-		}, "no run has finished since"},
-		{"E: no run finished in three hours, no app declared", 60 * day, func(st *record.Status, now time.Time) {
-			st.Started, st.Finished = now.Add(-5*time.Hour), now.Add(-4*time.Hour)
-			st.Apps = map[string]*record.App{}
-		}, "no run has finished since"},
-		{"an app with no result on the record", 60 * day, func(st *record.Status, _ time.Time) {
-			st.Apps["shop"] = nil
-		}, "shop: no result on record"},
-		{"an app past pending with no complete backup", 60 * day, func(st *record.Status, _ time.Time) {
-			a := st.Apps["blog"]
-			a.LastOK = nil // its only snapshot was made by a restore
-		}, "blog: no complete backup yet"},
+		{"backup_drill_failed", 0, func(now time.Time) *record.Status {
+			st := soundRecord(now)
+			st.LastDrill.Detail = "the plan could not be made"
+			return st
+		}, "could not begin: the plan could not be made"},
+		{"backup_drill_failed/blog", 0, func(now time.Time) *record.Status {
+			st := soundRecord(now)
+			st.Apps["blog"].RestoreDrill = &record.Drill{Time: now, Detail: "the restored database fails its integrity check"}
+			return st
+		}, "blog: restore not proven: the restored database fails its integrity check"},
+		{"backup_restore_proof_old/blog", 0, func(now time.Time) *record.Status {
+			st := soundRecord(now)
+			st.Apps["blog"].RestoreProven.Time = now.Add(-9 * day)
+			return st
+		}, "blog: restore last proven: "},
+		{"backup_restore_unproven/blog", 0, func(now time.Time) *record.Status {
+			st := soundRecord(now)
+			st.Apps["blog"].RestoreProven = nil
+			return st
+		}, "blog: restore not proven: no drill of it has run"},
 	}
+	raised := map[string]bool{}
 	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			r := newUnhealthyRig(t, c.setUp)
-			st := soundRecord(r.now.Add(backupEvery))
-			c.change(st, r.now.Add(backupEvery))
-			evs := r.poll(t, st)
-			if len(evs) != 1 || evs[0].Name != "backup_unhealthy" || !evs[0].Firing || evs[0].Severity != SeverityCritical || evs[0].Instance != "" || evs[0].subject() != "box" {
-				t.Fatalf("want backup_unhealthy alone, critical, the box's: %+v", evs)
+		t.Run(c.key, func(t *testing.T) {
+			r := newBackupRig(t, cmp.Or(c.setUp, 60*day))
+			evs := r.poll(t, c.record(r.next()))
+			if got := told(evs); got != c.key {
+				t.Fatalf("raised %q, want %q alone", got, c.key)
 			}
-			if !strings.HasPrefix(evs[0].Summary, "backups unhealthy; motel backup status says what (on the box: motel-backup status), first: ") || !strings.Contains(evs[0].Summary, c.says) {
-				t.Fatalf("summary = %q, want it to say %q", evs[0].Summary, c.says)
+			e := evs[0]
+			i := slices.IndexFunc(status.Alerts, func(a status.Alert) bool { return a.Name == e.Name })
+			if i < 0 || e.Severity != status.Alerts[i].Severity || e.Kind != kindState || e.Source != "backup" || e.App != "" || e.subject() != "box" {
+				t.Fatalf("not as listed, or not the box's: %+v", e)
 			}
+			if line, ok := strings.CutPrefix(e.Summary, backupPointer); !ok || !strings.Contains(line, c.says) {
+				t.Fatalf("summary %q, want the pointer then a line that says %q", e.Summary, c.says)
+			}
+			raised[e.Name] = true
 		})
 	}
-}
-
-// TestBackupUnhealthyNoRunSinceSetUp is case D: a credential file set up
-// more than three hours ago and no record. Inside the three hours, and
-// with no credential file, nothing.
-func TestBackupUnhealthyNoRunSinceSetUp(t *testing.T) {
-	r := newUnhealthyRig(t, 4*time.Hour)
-	s, ok := summaryOf(r.poll(t, nil), "backup_unhealthy")
-	if !ok || !strings.Contains(s, "no run yet, and backups were set up") {
-		t.Fatalf("set up four hours ago, no run: %q", s)
-	}
-	r = newUnhealthyRig(t, 2*time.Hour)
-	if evs := r.poll(t, nil); len(evs) != 0 {
-		t.Fatalf("set up two hours ago: %+v", evs)
-	}
-	r = newUnhealthyRig(t, 0)
-	if evs := r.poll(t, nil); len(evs) != 0 {
-		t.Fatalf("not set up: %+v", evs)
+	for _, a := range status.Alerts {
+		if !raised[a.Name] {
+			t.Errorf("no case raises %s", a.Name)
+		}
 	}
 }
 
-// TestBackupUnhealthyQuiet: no alert for a healthy box, a box with no
-// backups set up (whatever a record left behind says: status says "not
-// set up", and judges nothing), a new app pending its first data, or one
-// whose first good backup the run drilled there and then.
-func TestBackupUnhealthyQuiet(t *testing.T) {
-	r := newUnhealthyRig(t, 60*24*time.Hour)
-	if evs := r.poll(t, soundRecord(r.now.Add(backupEvery))); len(evs) != 0 {
-		t.Fatalf("a healthy box: %+v", evs)
-	}
-	st := soundRecord(r.now.Add(backupEvery))
-	st.Apps["shop"] = &record.App{Class: record.Pending, Looked: "/var/lib/liveswap/shop/shared"}
-	if evs := r.poll(t, st); len(evs) != 0 {
-		t.Fatalf("a new app pending its first data: %+v", evs)
-	}
-	st = soundRecord(r.now.Add(backupEvery))
-	first := *st.Apps["blog"]
-	first.RestoreProven = &record.Drill{Snapshot: *first.LastOK, Time: first.LastOK.Time.Add(time.Minute)}
-	st.Apps["shop"] = &first
-	if evs := r.poll(t, st); len(evs) != 0 {
-		t.Fatalf("a new app, its first good backup drilled by the run: %+v", evs)
-	}
-
-	r = newUnhealthyRig(t, 0)
-	st = soundRecord(r.now.Add(backupEvery))
-	u := r.now.Add(-4 * time.Hour)
-	st.Unlisted = &u
-	if evs := r.poll(t, st); len(evs) != 0 {
-		t.Fatalf("no credential file: %+v", evs)
-	}
-}
-
-// TestBackupUnhealthyStandsAsideForTheFour: where one of the four
-// existing alerts explains the box, it fires alone. A critical one
-// clears backup_unhealthy, which comes back once it has cleared; a
-// warning (backup_run_failed) raises none over a quiet box, and clears
-// none that fires, so that a channel taking critical alerts alone is
-// never told it resolved while status is still unhealthy.
-func TestBackupUnhealthyStandsAsideForTheFour(t *testing.T) {
-	r := newUnhealthyRig(t, 60*24*time.Hour)
-	at := func() time.Time { return r.now.Add(backupEvery) }
+// TestBackupProblemsStartAndEndEachByItself: a second problem that
+// starts while a first is open is raised then, beside it, and each
+// clears when it is put right, the other going on.
+func TestBackupProblemsStartAndEndEachByItself(t *testing.T) {
+	r := newBackupRig(t, 60*day)
 	unlisted := func(st *record.Status) *record.Status {
-		u := at().Add(-4 * time.Hour)
+		u := r.next().Add(-4 * time.Hour)
 		st.Unlisted = &u
 		return st
 	}
-	runFailed := func(st *record.Status) *record.Status { st.Error = "the repository refused"; return st }
-	if evs := r.poll(t, soundRecord(at())); len(evs) != 0 {
-		t.Fatalf("healthy: %+v", evs)
+	stale := func(st *record.Status) *record.Status {
+		st.Apps["blog"].LastOK.Time = r.next().Add(-4 * time.Hour)
+		return st
 	}
-	if got := names(r.poll(t, runFailed(soundRecord(at())))); !got["backup_run_failed"] || len(got) != 1 {
-		t.Fatalf("a failed run over a quiet box: %v", got)
-	}
-	if got := names(r.poll(t, unlisted(soundRecord(at())))); !got["backup_unhealthy"] || !got["-backup_run_failed"] || len(got) != 2 {
-		t.Fatalf("unlisted: %v", got)
-	}
-	evs := r.poll(t, runFailed(unlisted(soundRecord(at()))))
-	if got := names(evs); !got["backup_run_failed"] || !got["backup_unhealthy"] || got["-backup_unhealthy"] {
-		t.Fatalf("a failed run beside a firing backup_unhealthy: %v", got)
-	}
-	if s, _ := summaryOf(evs, "backup_unhealthy"); !strings.Contains(s, "first: the repository has not been listed since") {
-		t.Fatalf("summary = %q", s)
-	}
-	if got := names(r.poll(t, unlisted(soundRecord(at())))); !got["-backup_run_failed"] || !got["backup_unhealthy"] {
-		t.Fatalf("the run put right: %v", got)
-	}
-	for _, c := range []struct {
-		alert  string
-		change func(st *record.Status)
+	failed := func(st *record.Status) *record.Status { st.Error = "the repository refused"; return st }
+	for i, step := range []struct {
+		st   func() *record.Status
+		want string
 	}{
-		{"backup_stale/blog", func(st *record.Status) { st.Apps["blog"].LastOK.Time = at().Add(-4 * time.Hour) }},
-		{"drill_failed", func(st *record.Status) {
-			st.Apps["blog"].RestoreDrill = &record.Drill{Time: at(), Detail: "the restored database fails its integrity check"}
-		}},
+		{func() *record.Status { return soundRecord(r.next()) }, ""},
+		{func() *record.Status { return unlisted(soundRecord(r.next())) }, "backup_repository_unlisted"},
+		{func() *record.Status { return stale(unlisted(soundRecord(r.next()))) }, "backup_repository_unlisted backup_stale/blog"},
+		// A warning beside two criticals clears neither.
+		{func() *record.Status { return failed(stale(unlisted(soundRecord(r.next())))) }, "backup_repository_unlisted backup_run_failed backup_stale/blog"},
+		{func() *record.Status { return stale(unlisted(soundRecord(r.next()))) }, "-backup_run_failed backup_repository_unlisted backup_stale/blog"},
+		{func() *record.Status { return stale(soundRecord(r.next())) }, "-backup_repository_unlisted backup_stale/blog"},
+		{func() *record.Status { return soundRecord(r.next()) }, "-backup_stale/blog"},
+		{func() *record.Status { return soundRecord(r.next()) }, ""},
 	} {
-		st := unlisted(soundRecord(at()))
-		c.change(st)
-		got := names(r.poll(t, st))
-		if !got[c.alert] || !got["-backup_unhealthy"] || len(got) != 2 {
-			t.Errorf("%s explains the box: %v", c.alert, got)
-		}
-		got = names(r.poll(t, unlisted(soundRecord(at()))))
-		if !got["-"+c.alert] || !got["backup_unhealthy"] {
-			t.Errorf("after %s clears: %v", c.alert, got)
+		if got := told(r.poll(t, step.st())); got != step.want {
+			t.Fatalf("step %d: %q, want %q", i, got, step.want)
 		}
 	}
-	// backup_unreadable: what fired stays fired.
+}
+
+// TestBackupAcrossARestart: a new process's first poll raises each
+// problem again under the same key, and clears nothing: no memory is
+// needed to tell what still holds.
+func TestBackupAcrossARestart(t *testing.T) {
+	r := newBackupRig(t, 60*day)
+	st := soundRecord(r.next())
+	u := r.next().Add(-4 * time.Hour)
+	st.Unlisted, st.Error = &u, "the repository refused"
+	before := told(r.poll(t, st))
+	r.b = backupPoller{envFile: r.b.envFile}
+	if after := told(r.poll(t, st)); before != "backup_repository_unlisted backup_run_failed" || after != before {
+		t.Fatalf("before the restart %q, after %q", before, after)
+	}
+}
+
+// TestBackupUnreadableKeepsWhatFired: a record that cannot be read puts
+// nothing right: what fired stays fired, beside backup_unreadable; read
+// again, what is put right clears. A process that starts on such a
+// record knows nothing of what fired (an accepted row: Alertmanager then
+// resolves it).
+func TestBackupUnreadableKeepsWhatFired(t *testing.T) {
+	r := newBackupRig(t, 60*day)
+	st := soundRecord(r.next())
+	st.Apps["blog"].LastOK.Time = r.next().Add(-4 * time.Hour)
+	st.LastDrill.Detail = "could not begin"
+	if got := told(r.poll(t, st)); got != "backup_drill_failed backup_stale/blog" {
+		t.Fatalf("first: %q", got)
+	}
 	if err := os.WriteFile(r.path, []byte("{not json"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	r.now = r.now.Add(backupEvery)
-	if got := names(r.b.poll(r.now, r.path)); !got["backup_unhealthy"] || !got["backup_unreadable"] || got["-backup_unhealthy"] {
-		t.Fatalf("unreadable: %v", got)
+	if got := told(r.b.poll(r.now, r.path)); got != "backup_drill_failed backup_stale/blog backup_unreadable" {
+		t.Fatalf("unreadable: %q", got)
+	}
+	fresh := backupPoller{envFile: r.b.envFile}
+	if got := told(fresh.poll(r.now, r.path)); got != "backup_unreadable" {
+		t.Fatalf("a process that starts on it: %q", got)
+	}
+	if got := told(r.poll(t, soundRecord(r.next()))); got != "-backup_drill_failed -backup_stale/blog -backup_unreadable" {
+		t.Fatalf("read again, healthy: %q", got)
 	}
 }
 
-// TestBackupUnhealthyClearsAndKeepsItsKey: the first problem line
-// changing is the same alert, its summary new, never a clear and a
-// fire; a healthy record clears it; the ages ticking change nothing.
-func TestBackupUnhealthyClearsAndKeepsItsKey(t *testing.T) {
-	r := newUnhealthyRig(t, 60*24*time.Hour)
-	st := soundRecord(r.now.Add(backupEvery))
-	u := r.now.Add(-4 * time.Hour)
+// TestBackupKeptWhenTheFileCannotBeLookedAt: an Lstat that fails other
+// than "not there" (a directory the motel user may not search, an EIO)
+// gives no verdict and puts nothing right: what fired stays fired; and
+// raises nothing new (an accepted row: the admin's own change).
+func TestBackupKeptWhenTheFileCannotBeLookedAt(t *testing.T) {
+	r := newBackupRig(t, 60*day)
+	st := soundRecord(r.next())
+	u := r.next().Add(-4 * time.Hour)
 	st.Unlisted = &u
-	first, _ := summaryOf(r.poll(t, st), "backup_unhealthy")
-	again, _ := summaryOf(r.poll(t, st), "backup_unhealthy")
-	if first == "" || again != first {
-		t.Fatalf("five minutes on, the same record: %q, then %q", first, again)
-	}
-	st.LastCheck.Class = record.CheckFailed
-	evs := r.poll(t, st)
-	got := names(evs)
-	s, _ := summaryOf(evs, "backup_unhealthy")
-	if got["-backup_unhealthy"] || !got["backup_unhealthy"] || s == first || !strings.Contains(s, "the repository check of") {
-		t.Fatalf("another first line: %v %q", got, s)
-	}
-	if got := names(r.poll(t, soundRecord(r.now.Add(backupEvery)))); !got["-backup_unhealthy"] || len(got) != 1 {
-		t.Fatalf("healthy again: %v", got)
-	}
-	if evs := r.poll(t, soundRecord(r.now.Add(backupEvery))); len(evs) != 0 {
-		t.Fatalf("and after: %+v", evs)
-	}
-}
-
-// TestBackupSummaries: the wording of the four messages that point to
-// status (backup_run_failed, drill_failed in its two forms and
-// backup_unhealthy), the laptop client's read first, the box's command
-// second; and the pointer survives the cut at maxSummary, the line or
-// the apps cut after it.
-func TestBackupSummaries(t *testing.T) {
-	const ptr = "motel backup status says %s (on the box: motel-backup status)"
-	r := newUnhealthyRig(t, 60*24*time.Hour)
-	st := soundRecord(r.now.Add(backupEvery))
-	st.Error = "the repository refused"
-	s, _ := summaryOf(r.poll(t, st), "backup_run_failed")
-	if want := "the last backup run failed or ended early; " + fmt.Sprintf(ptr, "what"); s != want {
-		t.Errorf("backup_run_failed:\n got %q\nwant %q", s, want)
-	}
-	st = soundRecord(r.now.Add(backupEvery))
-	st.LastDrill.Detail = "could not begin"
-	s, _ = summaryOf(r.poll(t, st), "drill_failed")
-	if want := "the last restore drill proved nothing or found the repository damaged; " + fmt.Sprintf(ptr, "what"); s != want {
-		t.Errorf("drill_failed:\n got %q\nwant %q", s, want)
-	}
-	st = soundRecord(r.now.Add(backupEvery))
-	long := strings.Repeat("x", 60)
-	for _, n := range []string{"blog", long + "1", long + "2", long + "3"} {
-		a := *st.Apps["blog"]
-		a.RestoreDrill = &record.Drill{Time: r.now, Detail: "no"}
-		st.Apps[n] = &a
-	}
-	s, _ = summaryOf(r.poll(t, st), "drill_failed")
-	if want := "the last restore drill did not prove these apps; " + fmt.Sprintf(ptr, "why") + ": blog, " + long + "1"; !strings.HasPrefix(s, want) {
-		t.Errorf("drill_failed of apps:\n got %q\nwant it to begin %q", s, want)
-	}
-	if c := cleanText(nil, s); !strings.Contains(c, fmt.Sprintf(ptr, "why")) {
-		t.Errorf("the cut took the pointer: %q", c)
-	}
-	st = soundRecord(r.now.Add(backupEvery))
-	st.LastCheck.Class, st.LastCheck.Detail = record.CheckFailed, strings.Repeat("restic said something long ", 20)
-	s, _ = summaryOf(r.poll(t, st), "backup_unhealthy")
-	if want := "backups unhealthy; " + fmt.Sprintf(ptr, "what") + ", first: the repository check of "; !strings.HasPrefix(s, want) {
-		t.Errorf("backup_unhealthy:\n got %q\nwant it to begin %q", s, want)
-	}
-	if c := cleanText(nil, s); len(c) > maxSummary || !strings.Contains(c, fmt.Sprintf(ptr, "what")) {
-		t.Errorf("cut: %q", c)
-	}
-}
-
-// startEngine is theEngine as the process starts, before any test
-// replaces it.
-var startEngine = theEngine
-
-// TestTheEngineJudgesTheBoxsCredentialFile: the process's poller takes
-// status's verdict from the box's credential file; a test's never reads
-// the host's.
-func TestTheEngineJudgesTheBoxsCredentialFile(t *testing.T) {
-	if startEngine.backup.envFile != DefaultBackupEnvFile || newEngine().backup.envFile != "" {
-		t.Fatalf("theEngine's %q, a test's %q", startEngine.backup.envFile, newEngine().backup.envFile)
-	}
-}
-
-// TestBackupUnhealthyAcrossARestart: a process's first poll does not
-// know whether the last process had backup_unhealthy firing beside a
-// warning, so it keeps it firing: never a recovery told to a channel
-// that takes critical alerts alone while status is unhealthy. The cost,
-// a failed run alone told critical once a restart lands on it, is an
-// accepted row.
-func TestBackupUnhealthyAcrossARestart(t *testing.T) {
-	r := newUnhealthyRig(t, 60*24*time.Hour)
-	st := soundRecord(r.now.Add(backupEvery))
-	u := r.now.Add(-4 * time.Hour)
-	st.Unlisted, st.Error = &u, "the repository refused"
-	if got := names(r.poll(t, st)); !got["backup_unhealthy"] || !got["backup_run_failed"] || len(got) != 2 {
-		t.Fatalf("a restart's first poll, a failed run beside an unhealthy box: %v", got)
-	}
-}
-
-// TestBackupUnhealthyKeptWhenTheFileCannotBeLookedAt: an Lstat that
-// fails other than "not there" (a directory the motel user may not
-// search, an EIO) takes no verdict and puts nothing right: what fired
-// stays fired; and raises nothing new (an owed row, the owner's call).
-func TestBackupUnhealthyKeptWhenTheFileCannotBeLookedAt(t *testing.T) {
-	r := newUnhealthyRig(t, 60*24*time.Hour)
-	st := soundRecord(r.now.Add(backupEvery))
-	u := r.now.Add(-4 * time.Hour)
-	st.Unlisted = &u
-	if got := names(r.poll(t, st)); !got["backup_unhealthy"] {
-		t.Fatalf("unlisted: %v", got)
+	if got := told(r.poll(t, st)); got != "backup_repository_unlisted" {
+		t.Fatalf("unlisted: %q", got)
 	}
 	// A path through a regular file fails with ENOTDIR, not ENOENT,
 	// whoever runs the test (root searches any directory).
 	file := r.b.envFile
 	r.b.envFile = filepath.Join(file, "repository.env")
 	st.Unlisted = nil
-	if got := names(r.poll(t, st)); !got["backup_unhealthy"] || got["-backup_unhealthy"] {
-		t.Fatalf("cannot be looked at, the record healthy: %v", got)
+	if got := told(r.poll(t, st)); got != "backup_repository_unlisted" {
+		t.Fatalf("cannot be looked at, the record healthy: %q", got)
 	}
 	r.b.envFile = file
-	if got := names(r.poll(t, st)); !got["-backup_unhealthy"] {
-		t.Fatalf("looked at again: %v", got)
+	if got := told(r.poll(t, st)); got != "-backup_repository_unlisted" {
+		t.Fatalf("looked at again: %q", got)
 	}
 	r.b.envFile = filepath.Join(file, "repository.env")
 	st.Unlisted = &u
-	if evs := r.poll(t, st); len(evs) != 0 {
-		t.Fatalf("cannot be looked at, nothing fired: %+v", evs)
+	if got := told(r.poll(t, st)); got != "" {
+		t.Fatalf("cannot be looked at, nothing fired: %q", got)
+	}
+}
+
+// TestBackupNotSetUp: a box with no credential file has no backups set
+// up, and nothing is raised whatever a record left behind says; one that
+// had them and has the file removed clears what fired, as status then
+// says backups are not set up; and nothing of the record is listed.
+func TestBackupNotSetUp(t *testing.T) {
+	r := newBackupRig(t, 0)
+	st := soundRecord(r.next())
+	st.Apps["blog"].LastOK.Time = r.next().Add(-4 * time.Hour)
+	if got := told(r.poll(t, st)); got != "" || r.b.read != nil {
+		t.Fatalf("not set up: %q, read %v", got, r.b.read)
+	}
+	if got := told(r.poll(t, nil)); got != "" {
+		t.Fatalf("not set up, no record: %q", got)
+	}
+	setUpBackups(t, filepath.Dir(r.b.envFile), r.now.Add(-60*day))
+	st = soundRecord(r.next())
+	st.Apps["blog"].LastOK.Time = r.next().Add(-4 * time.Hour)
+	if got := told(r.poll(t, st)); got != "backup_stale/blog" {
+		t.Fatalf("set up: %q", got)
+	}
+	if err := os.Remove(r.b.envFile); err != nil {
+		t.Fatal(err)
+	}
+	if got := told(r.poll(t, st)); got != "-backup_stale/blog" || r.b.read != nil {
+		t.Fatalf("the file removed: %q, read %v", got, r.b.read)
+	}
+}
+
+// TestBackupAnAppGoneFromTheRecord: an app the next run no longer
+// writes clears its own alerts; another app's go on.
+func TestBackupAnAppGoneFromTheRecord(t *testing.T) {
+	r := newBackupRig(t, 60*day)
+	both := func() *record.Status {
+		st := soundRecord(r.next())
+		shop := *st.Apps["blog"]
+		shop.RestoreProven = nil
+		st.Apps["shop"] = &shop
+		st.Apps["blog"].RestoreProven = nil
+		return st
+	}
+	if got := told(r.poll(t, both())); got != "backup_restore_unproven/blog backup_restore_unproven/shop" {
+		t.Fatalf("both: %q", got)
+	}
+	st := both()
+	delete(st.Apps, "shop")
+	if got := told(r.poll(t, st)); got != "-backup_restore_unproven/shop backup_restore_unproven/blog" {
+		t.Fatalf("shop gone: %q", got)
+	}
+}
+
+// TestBackupManyAppsAtOnce: ten apps gone stale in one run are ten
+// alerts of one name, each its own key, so the limit per key holds none
+// back; all ten are posted at once (Alertmanager groups them by name:
+// one message that lists them).
+func TestBackupManyAppsAtOnce(t *testing.T) {
+	te := newTestEngine(t)
+	dir := t.TempDir()
+	te.backup.envFile = setUpBackups(t, dir, te.at.Add(-60*day))
+	te.backupPath = filepath.Join(dir, "status.json")
+	st := soundRecord(te.at)
+	blog := st.Apps["blog"]
+	delete(st.Apps, "blog")
+	for i := range 10 {
+		a := *blog
+		seen := te.at.Add(-9 * time.Minute)
+		a.LastOK = &record.Snapshot{ID: fmt.Sprintf("%08d", i), Time: te.at.Add(-4 * time.Hour), Seen: &seen}
+		st.Apps[fmt.Sprintf("app%d", i)] = &a
+	}
+	writeRecord(t, te.backupPath, st)
+	te.poll(t.Context())
+	keys := map[string]bool{}
+	for _, a := range te.drain() {
+		if a.Labels["alertname"] == "backup_stale" && a.Labels["severity"] == SeverityCritical && a.EndsAt.IsZero() {
+			keys[a.Labels["key"]] = true
+		}
+	}
+	if len(keys) != 10 || !keys["backup/box/backup_stale/app9"] {
+		t.Fatalf("posted %d stale apps: %v", len(keys), keys)
+	}
+	for _, l := range te.lines("monitor: event") {
+		if l.ContextMap()["suppressed"] != nil {
+			t.Fatalf("held back: %v", l.ContextMap())
+		}
+	}
+}
+
+// TestBackupSummaries: the pointer comes first, the laptop client's read
+// then the box's command, and survives the cut at maxSummary: the
+// line's tail is what goes.
+func TestBackupSummaries(t *testing.T) {
+	if backupPointer != "motel backup status (on the box: motel-backup status) says: " {
+		t.Errorf("pointer %q", backupPointer)
+	}
+	r := newBackupRig(t, 60*day)
+	st := soundRecord(r.next())
+	st.Error = "the repository refused"
+	if s := summaryOf(r.poll(t, st), "backup_run_failed"); s != backupPointer+"the last run ended early: the repository refused" {
+		t.Errorf("backup_run_failed: %q", s)
+	}
+	st = soundRecord(r.next())
+	st.LastCheck.Class, st.LastCheck.Detail = record.CheckFailed, strings.Repeat("restic said something long ", 20)
+	s := summaryOf(r.poll(t, st), "backup_repository_check_failed")
+	if c := cleanText(nil, s); !strings.HasPrefix(c, backupPointer+"the repository check of ") || utf8.RuneCountInString(c) > maxSummary {
+		t.Errorf("cut: %q", c)
+	}
+}
+
+// summaryOf is the summary of the firing alert name, none if none.
+func summaryOf(evs []Event, name string) string {
+	for _, e := range evs {
+		if e.Name == name && e.Firing {
+			return e.Summary
+		}
+	}
+	return ""
+}
+
+// startEngine is theEngine as the process starts, before any test
+// replaces it.
+var startEngine = theEngine
+
+// TestTheEngineJudgesTheBoxsCredentialFile: the process's poller looks
+// at the box's credential file; a test's never at the host's.
+func TestTheEngineJudgesTheBoxsCredentialFile(t *testing.T) {
+	if startEngine.backup.envFile != DefaultBackupEnvFile || newEngine().backup.envFile != "" {
+		t.Fatalf("theEngine's %q, a test's %q", startEngine.backup.envFile, newEngine().backup.envFile)
+	}
+}
+
+// TestStatusAlertsAreNotifysOwn: every alert status's rules name is one
+// of motel's own here: raised at its level, listed, silenceable, and
+// refused from an outside producer; its levels are notify's.
+func TestStatusAlertsAreNotifysOwn(t *testing.T) {
+	if status.AlertCritical != SeverityCritical || status.AlertWarning != SeverityWarning {
+		t.Fatalf("status's levels %q %q", status.AlertCritical, status.AlertWarning)
+	}
+	silenceable := silenceableAlerts(&App{})
+	for _, a := range status.Alerts {
+		if m, ok := raisedBy(a.Name); !ok || m.severity != a.Severity {
+			t.Errorf("%s: raised as %+v", a.Name, m)
+		}
+		if !slices.Contains(silenceable, a.Name) || !slices.Contains(reservedNames, a.Name) {
+			t.Errorf("%s: not silenceable, or not refused from a producer", a.Name)
+		}
 	}
 }
