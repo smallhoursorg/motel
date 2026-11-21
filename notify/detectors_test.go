@@ -818,6 +818,9 @@ func TestBackupUnhealthyStandsAsideForTheFour(t *testing.T) {
 		return st
 	}
 	runFailed := func(st *record.Status) *record.Status { st.Error = "the repository refused"; return st }
+	if evs := r.poll(t, soundRecord(at())); len(evs) != 0 {
+		t.Fatalf("healthy: %+v", evs)
+	}
 	if got := names(r.poll(t, runFailed(soundRecord(at())))); !got["backup_run_failed"] || len(got) != 1 {
 		t.Fatalf("a failed run over a quiet box: %v", got)
 	}
@@ -947,5 +950,21 @@ var startEngine = theEngine
 func TestTheEngineJudgesTheBoxsCredentialFile(t *testing.T) {
 	if startEngine.backup.envFile != DefaultBackupEnvFile || newEngine().backup.envFile != "" {
 		t.Fatalf("theEngine's %q, a test's %q", startEngine.backup.envFile, newEngine().backup.envFile)
+	}
+}
+
+// TestBackupUnhealthyAcrossARestart: a process's first poll does not
+// know whether the last process had backup_unhealthy firing beside a
+// warning, so it keeps it firing: never a recovery told to a channel
+// that takes critical alerts alone while status is unhealthy. The cost,
+// a failed run alone told critical once a restart lands on it, is an
+// accepted row.
+func TestBackupUnhealthyAcrossARestart(t *testing.T) {
+	r := newUnhealthyRig(t, 60*24*time.Hour)
+	st := soundRecord(r.now.Add(backupEvery))
+	u := r.now.Add(-4 * time.Hour)
+	st.Unlisted, st.Error = &u, "the repository refused"
+	if got := names(r.poll(t, st)); !got["backup_unhealthy"] || !got["backup_run_failed"] || len(got) != 2 {
+		t.Fatalf("a restart's first poll, a failed run beside an unhealthy box: %v", got)
 	}
 }

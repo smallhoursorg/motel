@@ -258,9 +258,13 @@ func (b *backupPoller) poll(now time.Time, path string) []Event {
 	// has to be kept in step here. Its first problem line, after the
 	// pointer, which a cut at maxSummary must not take. Once fired, a
 	// warning beside it does not clear it: a channel that takes critical
-	// alerts alone would be told it resolved, and then nothing.
+	// alerts alone would be told it resolved, and then nothing. A
+	// process's first poll does not know what the last one told (a
+	// restart), so it keeps it too: a critical said again, rather than a
+	// recovery told while status is unhealthy.
 	critical := slices.ContainsFunc(fire, func(e Event) bool { return e.Severity == SeverityCritical })
 	_, firing := b.set.prev[ev("backup_unhealthy", "", "", "").key()]
+	firing = firing || b.set.prev == nil
 	if !critical && (len(fire) == 0 || firing) {
 		if line, bad := b.verdict(st, now); bad {
 			fire = append(fire, ev("backup_unhealthy", SeverityCritical, "",
