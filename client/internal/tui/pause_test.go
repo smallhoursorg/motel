@@ -212,3 +212,18 @@ func TestPausedGrantBack(t *testing.T) {
 		t.Errorf("the grant back, still paused: %+v", f)
 	}
 }
+
+// TestPausedHardwareNoWhoAmI: a hardware key whose whoami never answers
+// as the client takes it is still not read for while paused: no
+// signature, no touch asked of nobody.
+func TestPausedHardwareNoWhoAmI(t *testing.T) {
+	h := start(t, 100, 30, func(f *demo.Fake) {
+		f.Set("whoami", &model.Failure{Kind: model.FailUnusable, Message: "not moteld's answer"})
+	}, func(s *model.Session) { s.Key.Hardware = true })
+	h.away(model.Idle + time.Second)
+	before := len(h.fake.Calls)
+	h.away(10 * time.Minute)
+	if n := len(h.fake.Calls) - before; n != 0 {
+		t.Errorf("a hardware key, whoami never answered, paused: %d reads", n)
+	}
+}
