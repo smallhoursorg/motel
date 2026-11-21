@@ -132,7 +132,15 @@ func TestHeldNumbersBesideTheirMarker(t *testing.T) {
 		body []byte
 	}{{"a marker whose key is named by a marker", r2, named}, {"an escaped marker", r3, escaped}} {
 		got := c.r.redactJSON(c.body)
-		if !json.Valid([]byte(got)) || !strings.Contains(got, `"artifact_bytes":268435456`) || strings.Contains(got, "limit 268435456") || strings.Contains(got, "withheld") {
+		var in struct {
+			LogTail []string `json:"log_tail"`
+			Detail  struct {
+				LogTail []string `json:"log_tail"`
+			} `json:"detail"`
+		}
+		_ = json.Unmarshal(c.body, &in)
+		marked, _ := json.Marshal(append(in.LogTail, in.Detail.LogTail...)[0])
+		if !json.Valid([]byte(got)) || !strings.Contains(got, `"artifact_bytes":268435456`) || !strings.Contains(got, string(marked)) || strings.Contains(got, "withheld") {
 			t.Errorf("a number beside %s: %s from %s", c.what, got, c.body)
 		}
 	}
@@ -143,20 +151,24 @@ func TestHeldNumbersBesideTheirMarker(t *testing.T) {
 }
 
 // TestFailedDeployNumberBesideItsMarker: a failed deploy whose app
-// printed its memory limit, which equals the artifact's size, has the
-// marker in its detail before the filter runs; the deploy's answer, the
-// status, the record and the stream's last line are each served with
-// the figure whole beside the marker, the printed value replaced and its
-// key named, never withheld or the envelope.
+// printed its memory limit, which equals its memory_max and the
+// artifact's size, has the marker in its detail before the filter runs;
+// the deploy's answer, the status (v0 serving, its caps shown), the
+// record and the stream's last line are each served with the figures
+// whole beside the marker, the printed value replaced and its key named,
+// never withheld or the envelope.
 func TestFailedDeployNumberBesideItsMarker(t *testing.T) {
 	h, rig := newTestHandler(t)
 	rig.spec.envFile = filepath.Join(t.TempDir(), "demo.env")
 	rig.spec.caps = resourceCaps{memoryMax: 256 << 20}
 	rig.spec.deployLogLines = 40
 	must(t, os.WriteFile(rig.spec.envFile, []byte("NODE_MEMORY_LIMIT=268435456\n"), 0o600))
+	rig.fetch.stats = archiveStats{entries: 3, bytes: 268435456}
+	if w := do(t, h, http.MethodPost, "/demo", appToken(t), `{"url":"https://x/0.tgz","version":"v0"}`); w.Code != http.StatusOK {
+		t.Fatalf("deploying v0: %d %s", w.Code, w.Body)
+	}
 	rig.ma.journal = &fakeJournal{lines: []string{"node: heap limit 268435456 exceeded"}}
 	rig.prober.err = fmt.Errorf("not healthy within deadline 5m: %w", &probeError{status: 500, body: "limit 268435456"})
-	rig.fetch.stats = archiveStats{entries: 3, bytes: 268435456}
 	check := func(what, body string, figures ...string) {
 		t.Helper()
 		var keys struct {
@@ -174,7 +186,7 @@ func TestFailedDeployNumberBesideItsMarker(t *testing.T) {
 	}
 	w := do(t, h, http.MethodPost, "/demo", appToken(t), `{"url":"https://x/1.tgz","version":"v1"}`)
 	check("the deploy's answer", w.Body.String(), `"artifact_bytes":268435456`)
-	check("the status", do(t, h, http.MethodGet, "/demo", appToken(t), "").Body.String(), `"artifact_bytes":268435456`)
+	check("the status", do(t, h, http.MethodGet, "/demo", appToken(t), "").Body.String(), `"memory_max":268435456`, `"artifact_bytes":268435456`)
 	b, _ := os.ReadFile(deployRecordPath(rig.spec.dirs.deploys, "v1"))
 	check("the record on disk", string(b), `"artifact_bytes":268435456`)
 	check("the record read", do(t, h, http.MethodGet, "/demo?deploy=v1", appToken(t), "").Body.String(), `"artifact_bytes":268435456`)

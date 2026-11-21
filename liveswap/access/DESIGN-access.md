@@ -418,7 +418,7 @@ the window's end pass none: they are taken out before the filter and
 put back after its last pass, as an app's alerts' times are
 (`filterSeries`). The step and the points are numbers, which rule 7 of
 `redact.go` holds in any body, but for its fallbacks (a value across a
-number's edge), which send a body through whole, numbers and all;
+number's edge among them), which send a body through whole, numbers and all;
 `filterSeries` keeps them out even then. The end is a time under a key
 rule 7 does not hold, so an
 env_file value that is a date or a piece of one would otherwise be

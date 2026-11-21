@@ -255,7 +255,7 @@ func TestSeriesChosenByTheHandle(t *testing.T) {
 // every point, the step and the end as the source gave them, and the
 // read whole. The points and the step are numbers, which rule 7 of
 // redact.go holds in any body but in its fallbacks (a value across a
-// number's edge), and filterSeries holds even then; the end is a time
+// number's edge among them), and filterSeries holds even then; the end is a time
 // under a key rule 7 does not hold, so a date value or a piece of one
 // would be replaced inside it but for filterSeries.
 func TestSeriesNumbersPassNoFilter(t *testing.T) {

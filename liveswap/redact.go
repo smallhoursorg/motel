@@ -205,7 +205,8 @@ import (
 //     no key, where a marker inside a time said the value was a piece
 //     of it and a body withheld for a number said the key's value was
 //     digits of one. Figures are motel's own data, never hidden for the
-//     value they hold: a time or a number keeps its hold beside a marker
+//     value they hold (but in the fallbacks above, which send a body
+//     through whole): a time or a number keeps its hold beside a marker
 //     of the same value in the same body (the app printed its memory
 //     limit, replaced by this filter or by an earlier pass, a failed
 //     deploy's detail) or in another answer, and a reader may set the
@@ -214,11 +215,9 @@ import (
 //     2026-11-21, an accepted row (DESIGN-liveswap.md): nothing ties the
 //     marker to the figure, a body withheld for it named the key and so
 //     said as much, and a status withheld over a figure is the failure
-//     this rule fixed. What the filter hides is the app's printing of
-//     a value, never motel's figure that equals it. Rule 7 is the
-//     hold of a filter that knows a value: one that knows none
-//     replaces nothing a token could hold, and its tokens pass its
-//     later layers as before.
+//     this rule fixed. Rule 7 is the hold of a filter that knows a
+//     value: one that knows none replaces nothing a token could hold,
+//     and its tokens pass its later layers as before.
 const (
 	secretMinLen  = 8
 	entropyMinLen = 20

@@ -169,8 +169,10 @@ Properties that matter to the model:
   `respondFiltered`, the stream's lines, the record store's write).
   What it promises, plainly: when an app prints one of its `env_file`
   values, motel hides it; motel's own figures and times are never
-  hidden for holding one (the fifth text below). The response's
-  audience is wider than its caller: the paved road prints
+  hidden for holding one (the fifth text below), but in the filter's
+  fallbacks (a value across a figure's edge, an app's line shaped as
+  the filter's placeholder), which send a body through it whole. The
+  response's audience is wider than its caller: the paved road prints
   it into a GitHub Actions log, readable by everyone with read access
   to the repository, retained, and public for a public repository.
   The caller is trusted to run code on the box; the log's readers are
