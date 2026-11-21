@@ -164,10 +164,14 @@ Properties that matter to the model:
   `Handler.ServeHTTP` (liveswap/handler.go). The status endpoint is
   authenticated — not public.
 - **What the webhook says back is filtered** (liveswap/redact.go,
-  which states the filter's four rules; every body passes it —
+  which states the filter's four layers and seven rules; every body passes it —
   through `RespondJSON` in liveswap/handler.go, the record route's
   `respondFiltered`, the stream's lines, the record store's write).
-  The
+  What it promises, plainly, within the limits below: when an app
+  prints one of its `env_file` values, motel hides it; motel's own
+  figures and times are never hidden for holding one (the fifth text
+  below), though a body the filter withholds, or sends through it
+  whole in one of its fallbacks, takes its figures with it. The
   response's audience is wider than its caller: the paved road prints
   it into a GitHub Actions log, readable by everyone with read access
   to the repository, retained, and public for a public repository.
@@ -269,7 +273,20 @@ Properties that matter to the model:
   the version asked for, answered `[redacted:DB_PASSWORD]` for a guess
   that held that value (as written, inside a longer string, in base64
   or hex, or a URL value's password alone), and a person with no more
-  than the viewer role could try values until one did. That 404 and
+  than the viewer role could try values until one did. A logs reader
+  reaches the same oracle another way, through an app's logs (`GET
+  /_motel/apps/<app>/logs`), for a `logs` grant alone. A logs reader who
+  can send the app input (a request to its site, which most apps log)
+  can test a guess of an `env_file` value: a line holding a whole value
+  of 8 characters or more comes back as the marker that names its key,
+  and a wrong guess as written. Never a piece of a value, and never a
+  generated one, which cannot be guessed; a weak one (a word, a reused
+  password) can be. The filter cannot close it, since any visible
+  replacement confirms a match. Keep generated values in `env_file`, and
+  give `logs` only to people you would trust with them: the `access:
+  person read logs` line names the keys a read replaced, so a confirmed
+  guess leaves the person's name and the key in the journal (the logs
+  reader's residual, below). That 404 and
   the 422 of a query that does not parse are the such bodies today;
   the 500 of the same read, whose error may name the record's file
   and so the version asked for, now says a fixed sentence and leaves
@@ -290,14 +307,14 @@ Properties that matter to the model:
   to its `memory_max`) stands there whole, naming no key, where a
   marker inside a time, or a body withheld for a number with the key
   named, said the value was a piece of it; it is replaced everywhere
-  else, digits in a string included; a number that holds a value
-  replaced elsewhere in the same body (by the filter, or in a failed
-  deploy's detail as it was built), beside which it would show the
-  value by difference, has the body withheld as before, though across
-  two answers (a marker in one deploy's record, the number in the
-  status once that deploy is no longer its last: a later deploy, or a
-  moteld restart) a reader can still set them side by side (an accepted row in
-  liveswap/DESIGN-liveswap.md); and a body in which a value would stand across a token's edge goes
+  else, digits in a string included. The figure stands whole beside a
+  marker of the same value too, in the same body (the app printed it,
+  and the filter, or a failed deploy's detail as it was built, replaced
+  it there) or in another answer, and a reader may set the two side by
+  side and take the key's value to be the figure: motel's figures are
+  never hidden for the value they hold (the owner's decision of
+  2026-11-21, an accepted row in liveswap/DESIGN-liveswap.md); and a
+  body in which a value would stand across a token's edge goes
   through whole as before (liveswap/redact.go, rule 7). A figure the
   app's behaviour drives (its memory, its request counts) is a channel
   only for an app that means to send its secret, which can answer any
@@ -311,12 +328,14 @@ Properties that matter to the model:
   the list, a value under 8 characters, a secret split across lines,
   a secret the app fetched at runtime and printed in a low-entropy
   form, an inline `env` value (not a secret by policy: the Caddyfile
-  is in a repo), or a value the still-running instance was launched
-  with before a moteld restart if the file has changed since. Nor that
+  is in a repo), a value the still-running instance was launched
+  with before a moteld restart if the file has changed since, or a value the app's `env_file` no longer holds, in a line written while it did (a logs read reaches lines of any age, and the filter knows only the file's values now and those moteld has read since it started). Nor that
   a deploy source cannot confirm a guess of a value: a deploy's
   refusals echo its version and URL through the app's filter, and a
   version it deploys is named in the status; it can read the app's
   environment by deploying code, so it learns nothing it could not.
+  Nor that a value one of motel's figures or times holds stays
+  unknown: it stands there whole, beside the value's marker or not.
   Nor that a marker hides which key it stands for: it names the key,
   so where a value is replaced inside text the reader already has (the
   app's name when a value is part of it, the unit named after the app)
@@ -1277,7 +1296,9 @@ scope for the runtime model, in scope for release signing (roadmap).
   grant never reads logs. With a listed `logs` grant beside an unlisted
   `viewer` grant, the key read from outside the list is told only as a
   new network, never `person_outside_list` (a grant applies there), and
-  its logs read is refused.
+  its logs read is refused, which moteld's journal tells
+  (`access: person refused logs`). Every logs read that sends lines is a
+  journal line naming the person and the cursor range sent.
 - **T8 — A person's key, stolen, with a role on the box.** As T7, for
   every app and the box's status: the commit, the host, the
   Caddyfile's digest, the box's key for secrets; and the box-wide reads:
@@ -1629,6 +1650,33 @@ does not isolate the runtime.
 
 - **An app's own secrets and its own database are reachable by
   definition** — not a bug, stated so operators do not expect otherwise.
+- **A logs reader is sent what the app printed** (`GET
+  /_motel/apps/<app>/logs`, a `logs` grant): its customers' data and
+  the secrets it made or fetched while it ran, which the box was never
+  told are secret. The response filter is a net under who may read, not
+  the safeguard: each line passes it on its own, which masks the app's
+  `env_file` values in the forms it knows and some shapes of
+  credential, and nothing else (a value escaped as another runtime
+  escapes it, one split across two lines, journald's 48 KiB split
+  among them, one under 8 characters, another app's, and a value the app's `env_file` no longer holds, in a line written while it did (a logs read reaches lines of any age, and the filter knows only the file's values now and those moteld has read since it started)):
+  changing a value does not hide it in lines already written, so
+  revoke the old credential. Who reads is the
+  safeguard: the operator's grant, its `from` list, and the journal
+  line each read writes, from which the operator re-reads on the box
+  exactly what was sent. The same residual as a failed deploy's journal
+  tail in a public CI log, for a reader the operator chose.
+  A logs reader who can send the app input (a request to its site, which
+  most apps log) can test a guess of an `env_file` value: a line holding
+  a whole value of 8 characters or more comes back as the marker that
+  names its key, and a wrong guess as written. Never a piece of a value,
+  and never a generated one, which cannot be guessed; a weak one (a
+  word, a reused password) can be. The filter cannot close it, since any
+  visible replacement confirms a match. Keep generated values in
+  `env_file`, and give `logs` only to people you would trust with them:
+  the `access: person read logs` line names the keys a read replaced, so
+  a confirmed guess leaves the person's name and the key in the journal.
+  Whether more is done about it (markers that name no key on a
+  person's read) is the owner's decision, open.
 - **Install-time supply chain** (motel's own build) is a CI concern;
   release signing is the roadmap answer, not a runtime control.
 - **T5 is contained, not prevented** — a supervisor RCE holds every
@@ -1990,3 +2038,8 @@ Dated one-liners; the full text of each is in git.
 - 2026-11-11 — The response observer, `observe`: a handler on
   an observed app's request path that keeps a class, a bucket and a
   cache result, never a request's bytes (#418, slice three).
+- 2026-11-21 — The response filter's promise narrowed by the owner's
+  decision: an app's printing of an `env_file` value is hidden, and
+  motel's own figures and times are never hidden for holding one, now
+  beside the value's marker in the same body too (that body was
+  withheld until then).

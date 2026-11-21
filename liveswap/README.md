@@ -656,7 +656,7 @@ too, and stops at a refusal rather than retrying it (see
 
 **The host is measured at start.** Capability is probed by running a
 throwaway unit and checking the namespaces and seccomp from inside
-(`journalctl -t motel-sandbox-probe` shows what it saw). A host
+(`journalctl -t motel_sandboxprobe` shows what it saw). A host
 that cannot deliver the sandbox fails the start — admin socket and
 proxy included — with the probe's reason. That measurement is cached
 per connection to the user manager, so a reload does not repeat it;
@@ -806,7 +806,7 @@ skips the units' seccomp settings: a kernel without seccomp,
 `SYSTEMD_SECCOMP=0` in the user manager's environment, or a container
 whose own filter stops systemd installing one. The probe reads the
 seccomp mode inside its unit and checks that `RestrictNamespaces=`
-refuses it a user namespace. `journalctl -t motel-sandbox-probe`
+refuses it a user namespace. `journalctl -t motel_sandboxprobe`
 says why it refused (`seccomp 0`, `unshare allowed`). The fix is the
 host's: permit unprivileged user namespaces and seccomp for motel's
 user manager, or move to Debian 13. There is no way to run there
@@ -1515,7 +1515,14 @@ What liveswap does for you:
   space in it, cut by the read bound, is the one exception). The versions the
   status names and the app's own paths are exempt from the heuristics,
   so a git SHA used as a version survives — from the heuristics only:
-  one equal to an `env_file` value is redacted like the value. Two
+  one equal to an `env_file` value is redacted like the value. motel's
+  own figures and times (a cap, an artifact's size, a deploy's clock)
+  pass none of these layers: a value equal to one, such as a memory
+  limit in bytes equal to the app's `memory_max`, stands whole in that
+  figure, beside its marker where the app printed it. (A value that
+  runs across a figure's edge into the JSON beside it, or an app's line
+  shaped as the filter's placeholder, sends the whole response through
+  the filter, figures included, and it may then be withheld.) Two
   consequences for what
   you put where: `env_file` is for secrets, and every value in it of
   8+ characters is scrubbed from responses, so a non-secret there (a
@@ -1579,6 +1586,11 @@ What's yours to handle:
   And with a **public repository**, the Actions log is public: if
   your app's output is not something you would post, set
   `deploy_log_lines 0` and read the journal on the box instead.
+- **A person with a `logs` grant reads the app's lines over HTTPS**
+  (`GET /_motel/apps/<app>/logs`, docs/people.md, "Reading an app's
+  logs"): each line through the same filter, so the same two things
+  hold, and each read is a line in moteld's journal. `deploy_log_lines
+  0` keeps the app's output from them too.
 
 ## Deploying from CI
 
