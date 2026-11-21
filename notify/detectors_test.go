@@ -968,3 +968,34 @@ func TestBackupUnhealthyAcrossARestart(t *testing.T) {
 		t.Fatalf("a restart's first poll, a failed run beside an unhealthy box: %v", got)
 	}
 }
+
+// TestBackupUnhealthyKeptWhenTheFileCannotBeLookedAt: an Lstat that
+// fails other than "not there" (a directory the motel user may not
+// search, an EIO) takes no verdict and puts nothing right: what fired
+// stays fired; and raises nothing new (an owed row, the owner's call).
+func TestBackupUnhealthyKeptWhenTheFileCannotBeLookedAt(t *testing.T) {
+	r := newUnhealthyRig(t, 60*24*time.Hour)
+	st := soundRecord(r.now.Add(backupEvery))
+	u := r.now.Add(-4 * time.Hour)
+	st.Unlisted = &u
+	if got := names(r.poll(t, st)); !got["backup_unhealthy"] {
+		t.Fatalf("unlisted: %v", got)
+	}
+	// A path through a regular file fails with ENOTDIR, not ENOENT,
+	// whoever runs the test (root searches any directory).
+	file := r.b.envFile
+	r.b.envFile = filepath.Join(file, "repository.env")
+	st.Unlisted = nil
+	if got := names(r.poll(t, st)); !got["backup_unhealthy"] || got["-backup_unhealthy"] {
+		t.Fatalf("cannot be looked at, the record healthy: %v", got)
+	}
+	r.b.envFile = file
+	if got := names(r.poll(t, st)); !got["-backup_unhealthy"] {
+		t.Fatalf("looked at again: %v", got)
+	}
+	r.b.envFile = filepath.Join(file, "repository.env")
+	st.Unlisted = &u
+	if evs := r.poll(t, st); len(evs) != 0 {
+		t.Fatalf("cannot be looked at, nothing fired: %+v", evs)
+	}
+}

@@ -2,7 +2,9 @@ package notify
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"slices"
 	"sort"
@@ -262,11 +264,15 @@ func (b *backupPoller) poll(now time.Time, path string) []Event {
 	// process's first poll does not know what the last one told (a
 	// restart), so it keeps it too: a critical said again, rather than a
 	// recovery told while status is unhealthy.
+	// A verdict that could not be taken puts nothing right: what fired
+	// stays fired, as under an unreadable record.
 	critical := slices.ContainsFunc(fire, func(e Event) bool { return e.Severity == SeverityCritical })
-	_, firing := b.set.prev[ev("backup_unhealthy", "", "", "").key()]
-	firing = firing || b.set.prev == nil
-	if !critical && (len(fire) == 0 || firing) {
-		if line, bad := b.verdict(st, now); bad {
+	prev, firing := b.set.prev[ev("backup_unhealthy", "", "", "").key()]
+	if !critical && (len(fire) == 0 || firing || b.set.prev == nil) {
+		switch line, known := b.verdict(st, now); {
+		case !known && firing:
+			fire = append(fire, prev)
+		case line != "":
 			fire = append(fire, ev("backup_unhealthy", SeverityCritical, "",
 				"backups unhealthy; "+statusSays("what")+", first: "+line))
 		}
@@ -289,17 +295,20 @@ func statusSays(what string) string {
 const DefaultBackupEnvFile = "/etc/motel-backup/repository.env"
 
 // verdict is the first problem line of status's verdict on the record,
-// and whether there is one: the verdict any account on the box takes
+// none where it is healthy: the verdict any account on the box takes
 // (backups/look, which GET /_motel/backups and `motel-backup status`
 // read), but for the units the manager holds, which status says and
-// never judges. Where backups are not set up, or whether they are cannot
-// be told from here, status gives no verdict, and neither does this.
-func (b *backupPoller) verdict(st *record.Status, now time.Time) (string, bool) {
+// never judges. Where backups are not set up, there is nothing to say;
+// where whether they are cannot be told from here (an Lstat refused, an
+// EIO), status gives no verdict, and known is false.
+func (b *backupPoller) verdict(st *record.Status, now time.Time) (line string, known bool) {
 	if b.envFile == "" {
-		return "", false
+		return "", true
 	}
 	env, err := os.Lstat(b.envFile)
-	if err != nil {
+	if errors.Is(err, fs.ErrNotExist) {
+		return "", true
+	} else if err != nil {
 		return "", false
 	}
 	r := status.Report(status.Input{Record: st, Now: now, SetUp: env.ModTime()})
@@ -309,7 +318,7 @@ func (b *backupPoller) verdict(st *record.Status, now time.Time) (string, bool) 
 			return l.Text, true
 		}
 	}
-	return "", false
+	return "", true
 }
 
 // diskPoller is #418's disk source: statfs on the filesystems under
