@@ -640,9 +640,11 @@ stands ("Dead-man and uptime") the copy is posted again at every read
 from the hold's start, carrying the latest rise's words, so it stays
 one alert with one start for as long as the hold does, and it is
 resolved when the hold's record ends (a delivery through the channel,
-or a load whose config no longer has it); a rise of another integration
-for the same channel (a load changed its kind) resolves the old
-integration's copy, which is another alert, as the record moves on. Alertmanager keeps the
+or a load whose config no longer has it); a later rise of the same
+failure, whether or not a load has since given it a channel to tell,
+gives the record its words, and one of another integration (a load
+changed the channel's kind) resolves the old integration's copy, which
+is another alert, as the record moves on. Alertmanager keeps the
 earliest start of the posts it merges, so a re-post never moves it
 (measured). A post that carries the copy alone is given up at debug
 when Alertmanager does not take it, as the hold's re-posts are: no

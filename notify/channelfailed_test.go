@@ -977,3 +977,52 @@ func TestReadOnlyCopyOfAnotherIntegrationEnds(t *testing.T) {
 		t.Fatalf("last posts %+v: want the webhook copy resolved and the slack one live", last)
 	}
 }
+
+// TestReadOnlyCopyAfterALoadThatAddsAChannel: a hold stands for ops; a
+// load adds pager, which takes warnings, and changes ops's kind (ntfy to
+// slack). ops fails again: pager is told, the hold's record stays (the
+// accepted row on a load that adds a channel), and the record takes the
+// rise's integration and words: the old integration's copy is resolved,
+// and the record's re-posts are the slack one, from the record's start.
+func TestReadOnlyCopyAfterALoadThatAddsAChannel(t *testing.T) {
+	te, _, body, read := holdEngine(t, oneChannelBlock)
+	*body = counters(0, 3, 0, 0)
+	te.scrapeFailed(context.Background(), read)
+	*body = counters(1, 4, 1, 0)
+	failed := te.at
+	te.scrapeFailed(context.Background(), read)
+	te.drain()
+	b := mustParse(t, `monitor {
+	channel ops slack {secret.NOTIFY_OPS_URL}
+	channel pager ntfy {secret.NOTIFY_PAGER_URL}
+	operator ops pager
+	heartbeat {secret.NOTIFY_HC_URL}
+}`)
+	r, err := b.resolve(testTrust(), testSecrets())
+	if err != nil {
+		t.Fatal(err)
+	}
+	b.cfg = r
+	_, _, b.receivers = render(r, testStateDir)
+	te.setConfig(b, te.p, te.known, te.logger)
+	te.advance(time.Minute)
+	*body = counters(1, 4, 1, 0) + failedLine("slack", "event-warning-ops", "clientError", 1)
+	te.scrapeFailed(context.Background(), read)
+	got := te.drain()
+	if tl := told(got); len(tl) != 1 || tl[0].Labels[labelChannel] != "pager" {
+		t.Fatalf("told %+v, want pager", tl)
+	}
+	last := map[string]amAlert{}
+	for _, c := range readOnly(got) {
+		last[c.Labels["integration"]] = c
+	}
+	if len(last) != 2 || !last["webhook"].EndsAt.Equal(te.at) || !last["slack"].EndsAt.After(te.at) || !last["slack"].StartsAt.Equal(failed) {
+		t.Fatalf("last posts %+v: want the webhook copy resolved and the slack one live from %v", last, failed)
+	}
+	te.advance(time.Minute)
+	te.scrapeFailed(context.Background(), read)
+	ro := readOnly(te.drain())
+	if len(ro) != 1 || ro[0].Labels["integration"] != "slack" || !ro[0].StartsAt.Equal(failed) {
+		t.Fatalf("the record's re-post: %+v, want the slack copy from %v", ro, failed)
+	}
+}

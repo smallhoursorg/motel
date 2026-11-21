@@ -185,14 +185,18 @@ func (e *engine) scrapeFailed(ctx context.Context, read func(context.Context) ([
 			}
 		}
 		// No channel to tell: the heartbeat is what can, by stopping.
-		start := now
 		if len(to) == 0 {
 			e.untoldFor(key, s.receiver, sus, s.integration, summary, m, now)
-			// The copy of a failure a hold records keeps the hold's start,
-			// as the hold's own posts of it do (watchUntold).
-			if u := e.untold[key]; u != nil {
-				start = u.since
-			}
+		} else if u := e.untold[key]; u != nil {
+			// A record from before a load that gave the failure someone to
+			// tell stands until its end, and is the latest rise's still.
+			e.refreshUntold(key, u, s.integration, summary, now)
+		}
+		// The copy of a failure a record holds keeps the record's start,
+		// as the record's own posts of it do (watchUntold).
+		start := now
+		if u := e.untold[key]; u != nil {
+			start = u.since
 		}
 		if !e.bucketFor(key).take(now) {
 			e.logger.Warn("monitor: channel failed", append(fields, zap.String("suppressed", "more than four an hour for this key"))...)
@@ -307,14 +311,7 @@ func (e *engine) untoldFor(key, receiver string, sus []string, integration, summ
 		return
 	}
 	if u, ok := e.untold[key]; ok {
-		// A copy of another integration (a load changed the channel's
-		// kind) is another alert: ended, as the record moves on.
-		if u.integration != integration {
-			e.endCopy(key, u, now)
-		}
-		// The latest rise's words, which its own copy carries: the
-		// hold's re-posts say the same.
-		u.integration, u.summary = integration, summary
+		e.refreshUntold(key, u, integration, summary, now)
 		return
 	}
 	u := &untold{since: now, suspects: sus, seen: map[string]float64{}, integration: integration, summary: summary}
@@ -418,6 +415,18 @@ func (e *engine) keepUntold(channels map[string]Channel) {
 func (e *engine) endUntold(key string, u *untold, now time.Time) {
 	delete(e.untold, key)
 	e.endCopy(key, u, now)
+}
+
+// refreshUntold gives a standing record a later rise's integration and
+// words, which that rise's own copy carries, so the record's re-posts
+// say the same. A copy of another integration (a load changed the
+// channel's kind) is another alert: ended, as the record moves on.
+// With mu held.
+func (e *engine) refreshUntold(key string, u *untold, integration, summary string, now time.Time) {
+	if u.integration != integration {
+		e.endCopy(key, u, now)
+	}
+	u.integration, u.summary = integration, summary
 }
 
 // endCopy posts u's read-only copy resolved. With mu held.
