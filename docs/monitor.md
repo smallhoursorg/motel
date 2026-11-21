@@ -611,9 +611,9 @@ instead: once the failure has stood 5 minutes with nothing delivered
 through that channel since, it stops pinging, and the heartbeat's
 check off the box reports the box down through its own channels (its
 email, say). The copy addressed to no channel stays in
-`GET /_motel/alerts` while the pings are held, and 15 minutes after
-they resume, so the TUI shows the failure for as long as it stands.
-The journal says why:
+`GET /_motel/alerts` from the failure until the channel delivers
+again, so the TUI shows the failure for as long as it stands. The
+journal says why:
 
 ```
 {"level":"warn","logger":"monitor","msg":"monitor: heartbeat held: a failed delivery no channel was told of; the heartbeat's check off the box will report this box down","suspects":["ops"],"failed_at":"…","resumes":"at the next delivery through the channel: mend it, then moteld monitor test ops"}

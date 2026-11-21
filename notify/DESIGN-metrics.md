@@ -538,12 +538,12 @@ time, and sends the resolve again at every evaluation for 15 minutes.
 Each resolve, the younger post, ended the merged alert, and motel's
 re-post while the heartbeat was held brought it back a minute later:
 the row left the read for about 23 s of every minute, and each return
-rang. What the twin would buy is narrow: the copy about 3.4 minutes
-sooner while moteld itself was not running when the failure began, and
-the copy where every failed attempt fell in that time (moteld's first
-read after its start is a baseline). A twin that does not resolve while
-motel holds would need motel to push a series saying so; it is not
-built.
+rang. What the twin would buy is narrow: the copy while moteld itself
+is not running (vmalert reads the counter then, motel cannot), and the
+copy of a failure all of whose attempts fall in that time, which
+moteld's start, reloading Alertmanager, takes out of the counter
+(DESIGN-notify.md, "Owed"). A twin that does not resolve while motel
+holds would need motel to push a series saying so; it is not built.
 
 **Not the Watchdog.** The fresh-slate draft and DESIGN-notify.md's
 "Later slices" had vmalert's `Watchdog` beside motel's, deduplicated.

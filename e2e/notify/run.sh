@@ -966,6 +966,13 @@ until journalctl -u moteld --since "@$s_mend" -o cat --no-pager | grep -q 'monit
 done
 journalctl -u moteld --since "@$s_mend" -o cat --no-pager | grep -q 'monitor: heartbeat resumed' \
 	&& pass "journal: monitor: heartbeat resumed, $(( $(date +%s) - s_mend )) s after the mend" || fail "no monitor: heartbeat resumed within 90 s"
+# The record ends with the hold, and its read-only copy is resolved:
+# Alertmanager's list no longer has it.
+i=0
+until [ "$(am "$ro_q")" = "[]" ]; do
+	i=$((i + 1)); [ "$i" -ge 30 ] && break; sleep 1
+done
+[ "$(am "$ro_q")" = "[]" ] && pass "the read-only copy is resolved with the hold" || fail "the read-only copy after the hold: $(am "$ro_q" | head -c 400)"
 i=0
 until [ -n "$(wd_ends)" ] && { [ -z "$e1" ] || expr "$(wd_ends)" \> "$e1" >/dev/null; }; do
 	i=$((i + 1)); [ "$i" -ge 75 ] && break; sleep 1

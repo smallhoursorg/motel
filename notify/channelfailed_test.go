@@ -6,8 +6,13 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
+
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 const metricsHead = `# HELP alertmanager_notifications_failed_total The total number of failed notifications.
@@ -743,8 +748,8 @@ func TestReadOnlyCopyBesideTheAddressedOnes(t *testing.T) {
 // alert with one start however long the hold stands, beyond the 15
 // minutes a post lives. The hold itself keeps its timing: held at the
 // first read heartbeatHoldAfter after the failure, the heartbeat no
-// longer posted. A delivery through ops ends the record, and the
-// re-posts end with it: the last one's 15 minutes run out.
+// longer posted. A delivery through ops ends the record, and the copy
+// with it: posted once more, resolved, and then no more.
 func TestReadOnlyCopyKeptWhileTheHoldStands(t *testing.T) {
 	te, _, body, read := holdEngine(t, oneChannelBlock)
 	*body = counters(0, 3, 0, 0)
@@ -780,8 +785,8 @@ func TestReadOnlyCopyKeptWhileTheHoldStands(t *testing.T) {
 	te.scrapeFailed(context.Background(), read)
 	te.tick()
 	got := te.drain()
-	if ro := readOnly(got); len(ro) != 0 || te.heartbeatHeld() || countAlert(got, alertWatchdog) != 1 {
-		t.Fatalf("after the delivery: read-only %+v, held %v", ro, te.heartbeatHeld())
+	if ro := readOnly(got); len(ro) != 1 || !ro[0].StartsAt.Equal(failed) || !ro[0].EndsAt.Equal(te.at) || te.heartbeatHeld() || countAlert(got, alertWatchdog) != 1 {
+		t.Fatalf("after the delivery: read-only %+v (want it resolved now), held %v", ro, te.heartbeatHeld())
 	}
 	for range 20 {
 		te.advance(time.Minute)
@@ -813,6 +818,130 @@ func TestReadOnlyCopyOfARiseInAHold(t *testing.T) {
 	for _, c := range copies {
 		if !c.StartsAt.Equal(failed) {
 			t.Fatalf("a copy from %v, want the hold's start %v", c.StartsAt, failed)
+		}
+	}
+}
+
+// TestReadOnlyCopyEndsWithAChannelTheConfigDrops: a load whose config no
+// longer has the failing channel ends its record, and resolves its copy.
+func TestReadOnlyCopyEndsWithAChannelTheConfigDrops(t *testing.T) {
+	te, _, body, read := holdEngine(t, oneChannelBlock)
+	*body = counters(0, 3, 0, 0)
+	te.scrapeFailed(context.Background(), read)
+	*body = counters(1, 4, 1, 0)
+	failed := te.at
+	te.scrapeFailed(context.Background(), read)
+	te.drain()
+	te.advance(time.Minute)
+	b := mustParse(t, `monitor {
+	channel pager ntfy {secret.NOTIFY_PAGER_URL}
+	operator pager
+	heartbeat {secret.NOTIFY_HC_URL}
+}`)
+	r, err := b.resolve(testTrust(), testSecrets())
+	if err != nil {
+		t.Fatal(err)
+	}
+	b.cfg = r
+	_, _, b.receivers = render(r, testStateDir)
+	te.setConfig(b, te.p, te.known, te.logger)
+	ro := readOnly(te.drain())
+	if len(te.untold) != 0 || len(ro) != 1 || ro[0].Labels["suspects"] != "ops" || !ro[0].StartsAt.Equal(failed) || !ro[0].EndsAt.Equal(te.at) {
+		t.Fatalf("untold %+v, copies %+v: want the record gone and its copy resolved", te.untold, ro)
+	}
+}
+
+// TestReadOnlyCopyCarriesTheLatestRise: while a hold stands, a later
+// rise of the same failure through another receiver or for another
+// reason is what the copy says from then on, the hold's re-posts too,
+// so the read does not swap between two texts each minute.
+func TestReadOnlyCopyCarriesTheLatestRise(t *testing.T) {
+	te, _, body, read := holdEngine(t, oneChannelBlock)
+	*body = counters(0, 3, 0, 0)
+	te.scrapeFailed(context.Background(), read)
+	*body = counters(1, 4, 1, 0) // event-warning-ops fails
+	te.scrapeFailed(context.Background(), read)
+	te.drain()
+	te.advance(time.Minute)
+	*body = metricsHead + amLines("event-warning-ops", 1, 4, 1) + amLines("ch-ops", 1, 1, 1) + amLines("heartbeat", 0, 9, 0)
+	te.scrapeFailed(context.Background(), read) // and ch-ops: same suspects, another receiver
+	te.drain()
+	for range 3 {
+		te.advance(time.Minute)
+		te.scrapeFailed(context.Background(), read)
+		ro := readOnly(te.drain())
+		if len(ro) != 1 || !strings.Contains(ro[0].Annotations["summary"], "for receiver ch-ops") {
+			t.Fatalf("the hold's re-post: %+v, want the latest rise's words", ro)
+		}
+	}
+}
+
+// TestReadOnlyCopyKeptWhileTheFailureGoesOn: four channels, ops failing
+// at every read for two hours. The channels are told four times, then
+// once a quarter-hour (the key's bucket); the read-only copy, told to
+// no one, is posted at every rise, so it is never let lapse between two
+// posts and stays one alert, from its first start.
+func TestReadOnlyCopyKeptWhileTheFailureGoesOn(t *testing.T) {
+	te, _, body, read := holdEngine(t, fourChannelBlock)
+	*body = metricsHead + amLines("event-warning-ops", 0, 3, 0)
+	te.scrapeFailed(context.Background(), read)
+	var end time.Time
+	toldPosts := 0
+	for i := 1; i <= 120; i++ {
+		te.advance(time.Minute)
+		if !end.IsZero() && !te.at.Before(end) {
+			t.Fatalf("+%d min: the copy lapsed at %v", i, end)
+		}
+		*body = metricsHead + amLines("event-warning-ops", i, 3+i, i)
+		te.scrapeFailed(context.Background(), read)
+		got := te.drain()
+		toldPosts += len(told(got))
+		ro := readOnly(got)
+		if len(ro) != 1 {
+			t.Fatalf("+%d min: read-only posts %+v", i, ro)
+		}
+		end = ro[0].EndsAt
+	}
+	if toldPosts > 3*(4+2*4+1) {
+		t.Fatalf("the channels were told %d times: the bucket no longer bounds them", toldPosts)
+	}
+	if l := te.lines("monitor: channel failed"); len(l) != 120 {
+		t.Fatalf("%d channel failed lines, want one a rise", len(l))
+	}
+}
+
+// TestReadOnlyCopyAloneIsNoErrorLine: a post that tells no channel (the
+// one channel failing) and that Alertmanager never takes is given up at
+// debug, as the hold's re-posts are; one that tells channels stays an
+// error line.
+func TestReadOnlyCopyAloneIsNoErrorLine(t *testing.T) {
+	for _, c := range []struct {
+		block string
+		body  func(int) string
+		level zapcore.Level
+	}{
+		{oneChannelBlock, func(i int) string { return counters(i, 3+i, i, 0) }, zap.DebugLevel},
+		{fourChannelBlock, func(i int) string { return metricsHead + amLines("event-warning-ops", i, 3+i, i) }, zap.ErrorLevel},
+	} {
+		te, _, body, read := holdEngine(t, c.block)
+		*body = c.body(0)
+		te.scrapeFailed(context.Background(), read)
+		te.p.err = &netErr{syscall.ECONNREFUSED}
+		*body = c.body(1)
+		te.scrapeFailed(context.Background(), read)
+		for range 7 {
+			te.attempt(context.Background())
+			te.advance(time.Minute)
+		}
+		te.attempt(context.Background())
+		var lines []observer.LoggedEntry
+		for _, l := range te.lines("monitor: delivery failed") {
+			if strings.HasPrefix(l.ContextMap()["key"].(string), "notify/box/channel_failed/ops") {
+				lines = append(lines, l)
+			}
+		}
+		if len(lines) == 0 || lines[0].Level != c.level {
+			t.Fatalf("delivery failed lines = %+v, want the first at %v", lines, c.level)
 		}
 	}
 }
