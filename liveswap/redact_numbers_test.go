@@ -115,7 +115,8 @@ func TestHeldNumbersBesideTheirMarker(t *testing.T) {
 	}
 	// An earlier pass's marker whose key the nested redacted_env names
 	// as a marker (a value equal to the key's name), and the marker as
-	// encoding/json escapes it: the number stands whole beside either.
+	// encoding/json escapes it: the number stands whole beside either,
+	// and the nested redacted_env stays as it was.
 	r2 := NewRedactor([]string{"NODE_MEMORY_LIMIT=268435456", "ALIAS=NODE_MEMORY_LIMIT"}, nil)
 	line, _ := r2.Redact("heap limit 268435456 exceeded")
 	name, _ := r2.Redact("NODE_MEMORY_LIMIT")
@@ -131,17 +132,9 @@ func TestHeldNumbersBesideTheirMarker(t *testing.T) {
 		r    *Redactor
 		body []byte
 	}{{"a marker whose key is named by a marker", r2, named}, {"an escaped marker", r3, escaped}} {
-		got := c.r.redactJSON(c.body)
-		var in struct {
-			LogTail []string `json:"log_tail"`
-			Detail  struct {
-				LogTail []string `json:"log_tail"`
-			} `json:"detail"`
-		}
-		_ = json.Unmarshal(c.body, &in)
-		marked, _ := json.Marshal(append(in.LogTail, in.Detail.LogTail...)[0])
-		if !json.Valid([]byte(got)) || !strings.Contains(got, `"artifact_bytes":268435456`) || !strings.Contains(got, string(marked)) || strings.Contains(got, "withheld") {
-			t.Errorf("a number beside %s: %s from %s", c.what, got, c.body)
+		// The filter finds nothing in either: each is served as it came.
+		if got := c.r.redactJSON(c.body); got != string(c.body) {
+			t.Errorf("a number beside %s:\n got %s\nwant %s", c.what, got, c.body)
 		}
 	}
 	got = r.redactJSON([]byte(`{"started_at":"2023-11-14T22:13:20Z","log_tail":["on 2023-11-14"],"n":268435456}`))
@@ -175,17 +168,23 @@ func TestFailedDeployNumberBesideItsMarker(t *testing.T) {
 			RedactedEnv []string `json:"redacted_env"`
 		}
 		if err := json.Unmarshal([]byte(body), &keys); err != nil || !slices.Contains(keys.RedactedEnv, "NODE_MEMORY_LIMIT") ||
-			!strings.Contains(body, "[redacted:NODE_MEMORY_LIMIT]") || strings.Contains(body, "limit 268435456") || strings.Contains(body, "withheld") {
+			!strings.Contains(body, "[redacted:NODE_MEMORY_LIMIT]") || strings.Contains(body, "withheld") {
 			t.Errorf("%s: %v: %s", what, err, body)
 		}
+		// The figures whole, and the value nowhere else.
+		rest := body
 		for _, f := range figures {
-			if !strings.Contains(body, f) {
+			if !strings.Contains(rest, f) {
 				t.Errorf("%s: %s is not whole: %s", what, f, body)
 			}
+			rest = strings.ReplaceAll(rest, f, "")
+		}
+		if strings.Contains(rest, "268435456") {
+			t.Errorf("%s: the value stands outside the figures: %s", what, body)
 		}
 	}
 	w := do(t, h, http.MethodPost, "/demo", appToken(t), `{"url":"https://x/1.tgz","version":"v1"}`)
-	check("the deploy's answer", w.Body.String(), `"artifact_bytes":268435456`)
+	check("the deploy's answer", w.Body.String(), `"memory_max":268435456`, `"artifact_bytes":268435456`)
 	check("the status", do(t, h, http.MethodGet, "/demo", appToken(t), "").Body.String(), `"memory_max":268435456`, `"artifact_bytes":268435456`)
 	b, _ := os.ReadFile(deployRecordPath(rig.spec.dirs.deploys, "v1"))
 	check("the record on disk", string(b), `"artifact_bytes":268435456`)
@@ -195,7 +194,7 @@ func TestFailedDeployNumberBesideItsMarker(t *testing.T) {
 	rig.ma.journal = &fakeJournal{lines: []string{"node: heap limit 268435456 exceeded"}}
 	sw, _ := streamLinesOf(t, h, `{"url":"https://x/2.tgz","version":"v2"}`)
 	lines := strings.Split(strings.TrimRight(sw.Body.String(), "\n"), "\n")
-	check("the stream's last line", lines[len(lines)-1], `"artifact_bytes":268435456`)
+	check("the stream's last line", lines[len(lines)-1], `"memory_max":268435456`, `"artifact_bytes":268435456`)
 }
 
 // TestHeldNumbersManyTokens: a value of digits alone is no piece of a

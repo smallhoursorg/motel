@@ -167,11 +167,11 @@ Properties that matter to the model:
   which states the filter's four rules; every body passes it —
   through `RespondJSON` in liveswap/handler.go, the record route's
   `respondFiltered`, the stream's lines, the record store's write).
-  What it promises, plainly: when an app prints one of its `env_file`
-  values, motel hides it; motel's own figures and times are never
-  hidden for holding one (the fifth text below), but in the filter's
-  fallbacks (a value across a figure's edge, an app's line shaped as
-  the filter's placeholder), which send a body through it whole. The
+  What it promises, plainly, within the limits below: when an app
+  prints one of its `env_file` values, motel hides it; motel's own
+  figures and times are never hidden for holding one (the fifth text
+  below), though a body the filter withholds, or sends through it
+  whole in one of its fallbacks, takes its figures with it. The
   response's audience is wider than its caller: the paved road prints
   it into a GitHub Actions log, readable by everyone with read access
   to the repository, retained, and public for a public repository.

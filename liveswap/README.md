@@ -1515,7 +1515,11 @@ What liveswap does for you:
   space in it, cut by the read bound, is the one exception). The versions the
   status names and the app's own paths are exempt from the heuristics,
   so a git SHA used as a version survives — from the heuristics only:
-  one equal to an `env_file` value is redacted like the value. Two
+  one equal to an `env_file` value is redacted like the value. motel's
+  own figures and times (a cap, an artifact's size, a deploy's clock)
+  are never filtered: a value equal to one, such as a memory limit in
+  bytes equal to the app's `memory_max`, stands whole in that figure,
+  beside its marker where the app printed it. Two
   consequences for what
   you put where: `env_file` is for secrets, and every value in it of
   8+ characters is scrubbed from responses, so a non-secret there (a
