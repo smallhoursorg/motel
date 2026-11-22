@@ -505,16 +505,19 @@ func TestLogsRefusedAfterReopening(t *testing.T) {
 	if v := logsText(s, *now, 0, 30); !strings.Contains(v, "does not allow your key this") {
 		t.Errorf("a refusal applied after reopening:\n%s", v)
 	}
-	// Two empty gaps in a row: one note.
+	// Empty gaps in a row, with older lines left or not: each note once.
 	f.Set("logs:blog", nil)
-	s2, f2, now2 := logsOpen(t, "blog", nil)
-	for i := range 3 {
-		f2.Body("logs/blog.json", logsBody(t0, 0, 0, false, true, fmt.Sprintf("g%d", i)))
-		*now2 = now2.Add(model.LogsEvery)
-		drive(s2, f2, *now2, 20)
-	}
-	if n := strings.Count(logsText(s2, *now2, 0, 60), "-- a gap"); n != 1 {
-		t.Errorf("%d gap notes for three empty gaps in a row", n)
+	for _, more := range []bool{false, true} {
+		s2, f2, now2 := logsOpen(t, "blog", nil)
+		for i := range 3 {
+			f2.Body("logs/blog.json", logsBody(t0, 0, 0, more, true, fmt.Sprintf("g%d", i)))
+			*now2 = now2.Add(model.LogsEvery)
+			drive(s2, f2, *now2, 20)
+		}
+		v := logsText(s2, *now2, 0, 60)
+		if n, o := strings.Count(v, "-- a gap"), strings.Count(v, "-- older lines were not sent"); n != 1 || o > 2 {
+			t.Errorf("more %v: %d gap notes, %d older-lines notes for three empty gaps in a row:\n%s", more, n, o, v)
+		}
 	}
 }
 

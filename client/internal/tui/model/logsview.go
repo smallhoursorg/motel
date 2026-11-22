@@ -297,12 +297,15 @@ func (d *logsData) lastAt() time.Time {
 }
 
 // note is a note of the client's among the lines.
-// The same note twice in a row is written once: answers that bring no
-// line (a gap whose entries were all passed over) would otherwise add a
-// note each, which neither bound counts.
+// A note already among those written since the last line is not
+// written again: answers that bring no line (a gap whose entries were
+// all passed over, with older ones left or not) would otherwise add
+// notes each, which neither bound counts.
 func (d *logsData) note(s string) {
-	if n := len(d.items); n > 0 && d.items[n-1].note == s {
-		return
+	for i := len(d.items) - 1; i >= 0 && d.items[i].note != ""; i-- {
+		if d.items[i].note == s {
+			return
+		}
 	}
 	d.items = append(d.items, logsItem{note: s})
 }
