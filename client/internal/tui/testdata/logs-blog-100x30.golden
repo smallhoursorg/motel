@@ -1,8 +1,8 @@
 ✖ 2 firing · motel · deploy.example.com · v0.7.0 │ alice@example.com · viewer of the … live · 0s ago
 apps › blog › logs                                                       as of 14:12:40 UTC · 0s ago
 ── following: a read every 2 s ─────────────────────────────────────────────────────────────────────
--- older lines were not sent: a read sends at most 200 lines or 64 KiB of them, and none reaches
-  further back --
+-- older lines were not sent: a read sends at most 200 lines or 64 KiB of them, and this screen does
+  not page back (motel logs --lines 1000 may reach further) --
 -- 2026-11-15 UTC, release e9a0b3f2c118 --
 11:52:20  > blog@2.4.0 start
 11:52:21  > node server.js
