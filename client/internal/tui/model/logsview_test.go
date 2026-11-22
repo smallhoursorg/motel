@@ -135,7 +135,6 @@ func TestLogsScreenFollows(t *testing.T) {
 		}
 	}
 	s.LogsAgain(*now)
-	s.Engine.Again(*now, model.Job{Kind: model.KLogs, App: "blog"})
 	drive(s, f, *now, 5)
 	if n := len(logsCalls(f)); n != 6 {
 		t.Errorf("ctrl-r: %d reads, want 6", n)
@@ -552,14 +551,12 @@ func TestLogsAgainOnARefusal(t *testing.T) {
 		{"kept off", func(f *demo.Fake) { f.Body("logs/blog.json", `{"kept":"off","lines":[],"more":false,"gap":false}`) }},
 	} {
 		s, f, now := logsOpen(t, "blog", c.setup)
-		j := model.Job{Kind: model.KLogs, App: "blog"}
 		end := now.Add(10 * time.Second)
 		for ; now.Before(end); *now = now.Add(100 * time.Millisecond) {
 			s.LogsAgain(*now)
-			s.Engine.Again(*now, j)
 			drive(s, f, *now, 5)
 		}
-		if n := len(logsCalls(f)); n > 3 {
+		if n := len(logsCalls(f)); n > 3 || n < 2 {
 			t.Errorf("%s: %d reads in 10 s of ctrl-r, want one in 5 s", c.name, n)
 		}
 	}
@@ -575,7 +572,6 @@ func TestLogsFailureReopened(t *testing.T) {
 	f.Set("logs:blog", &model.Failure{Kind: model.FailNoAnswer, Message: "deploy.example.com did not answer"})
 	*now = now.Add(model.AgainAfter)
 	s.LogsAgain(*now)
-	s.Engine.Again(*now, model.Job{Kind: model.KLogs, App: "blog"})
 	for range 3 {
 		drive(s, f, *now, 20)
 		*now = now.Add(4 * time.Second)
@@ -633,6 +629,48 @@ func TestLogsStopNotKept(t *testing.T) {
 	}
 }
 
+// TestLogsAgainWhileFollowing: ctrl-r keeps a following read on its
+// schedule and makes none later: one ctrl-r a second after a read leaves
+// the next at 2 s; a read due at once for lines left is made at once;
+// ctrl-r held down for 10 s reads at the follow's own pace.
+func TestLogsAgainWhileFollowing(t *testing.T) {
+	s, f, now := logsOpen(t, "blog", nil)
+	start := *now
+	n0 := len(logsCalls(f))
+	*now = start.Add(time.Second)
+	s.LogsAgain(*now)
+	drive(s, f, *now, 5)
+	drive(s, f, start.Add(model.LogsEvery+100*time.Millisecond), 20)
+	if n := len(logsCalls(f)) - n0; n != 1 {
+		t.Errorf("one ctrl-r 1 s after a read: %d reads by 2.1 s, want the follow's one", n)
+	}
+	// Lines left: due at once, and ctrl-r leaves it so.
+	s2, f2, now2 := logsOpen(t, "blog", nil)
+	f2.Body("logs/blog.json", logsBody(t0, 0, 3, true, false, "m1"))
+	*now2 = now2.Add(model.LogsEvery)
+	for n := len(logsCalls(f2)); len(logsCalls(f2)) == n; {
+		drive(s2, f2, *now2, 1)
+	}
+	f2.Body("logs/blog.json", logsBody(t0, 3, 1, false, false, "m2"))
+	m := len(logsCalls(f2))
+	s2.LogsAgain(*now2)
+	drive(s2, f2, *now2, 20)
+	if got := logsCalls(f2); len(got) != m+1 || got[m] != "m1" {
+		t.Errorf("ctrl-r on a read due at once for lines left: %q", got[m-1:])
+	}
+	// Held down 10 s while following: the follow's pace, about one in 2 s.
+	s3, f3, now3 := logsOpen(t, "blog", nil)
+	k := len(logsCalls(f3))
+	end := now3.Add(10 * time.Second)
+	for ; now3.Before(end); *now3 = now3.Add(100 * time.Millisecond) {
+		s3.LogsAgain(*now3)
+		drive(s3, f3, *now3, 5)
+	}
+	if n := len(logsCalls(f3)) - k; n < 4 {
+		t.Errorf("ctrl-r held 10 s while following: %d reads, want the follow's 4 or 5", n)
+	}
+}
+
 // TestLogsRefusedReopened: a logs read the box refused (a 404 from a
 // moteld older than the read) is said, and said again when the screen
 // is opened afresh, with nothing asked, until ctrl-r asks.
@@ -654,7 +692,6 @@ func TestLogsRefusedReopened(t *testing.T) {
 	}
 	f.Set("logs:blog", nil)
 	s.LogsAgain(*now)
-	s.Engine.Again(*now, model.Job{Kind: model.KLogs, App: "blog"})
 	drive(s, f, *now, 20)
 	if v := logsText(s, *now, 0, 30); len(logsCalls(f)) != 2 || strings.Contains(v, "404") || !strings.Contains(v, "GET / 200 11ms") {
 		t.Errorf("ctrl-r: %d reads:\n%s", len(logsCalls(f)), v)
