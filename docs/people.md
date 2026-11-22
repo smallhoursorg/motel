@@ -278,8 +278,8 @@ app. A cursor holds `;`, which a query must escape: `curl -G
   64 KiB of the lines' text as the journal holds it (what is sent can be
   longer: the filter's markers, JSON's escapes). After a follow the lines left are after
   the last one sent: ask again at once with the cursor. After a tail
-  (no `after`, or `gap`) they are older than the first one sent, and no
-  read reaches them.
+  (no `after`, or `gap`) they are older than the first one sent: no read
+  pages back to them, and a tail of a larger `lines` may reach some.
 - `cursor` is where the read got to, the `after` of the next. It is
   absent when the read took no line: keep the one you sent. Keep it in
   memory only, never on disk: it is the box's position in its journal.
