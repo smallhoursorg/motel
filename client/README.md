@@ -747,7 +747,8 @@ escape; a divider before the first line held, after a note, and
 wherever the release or the day changes; the client's notes (older
 lines not sent, a gap, lines skipped) as dividers among them. A line
 wider than the window is cut at its edge, `…` its last cell; `w` wraps
-it, as on a record, the rest on rows of its own indented past the time,
+it, as on a record (one setting for both: turned on here, a record's
+tail is wrapped too), the rest on rows of its own indented past the time,
 so no part of a line begins a row where a line or a divider does: the
 screen lays out the rows itself, by the door's widths (never inside one
 of termtext's escapes), and tview wraps nothing. A rule above them says
