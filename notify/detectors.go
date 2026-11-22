@@ -218,8 +218,10 @@ func (b *backupPoller) poll(now time.Time, path string) []Event {
 		b.read = nil
 		return b.set.diff(nil)
 	} else if err != nil {
-		return unknown(b.envFile + " cannot be looked at, so whether backups are set up, and healthy, is not known; " +
-			"motel backup status (on the box: motel-backup status) says why")
+		// The client's read is moteld's look, so it says why; root's
+		// look on the box can see the file, and says the backups' health.
+		return unknown(b.envFile + " cannot be looked at by moteld, so the backups' health is not known; " +
+			"motel backup status says why (on the box, as root, motel-backup status says their health)")
 	}
 	st, err := record.Read(path)
 	if err != nil {

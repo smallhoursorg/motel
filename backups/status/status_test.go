@@ -721,14 +721,18 @@ func TestEachRuleRaisesItsAlert(t *testing.T) {
 // status says "snapshot gone" in place of "stale", so no other line ages
 // such an app.
 func TestNoCompleteBackupInTheRepositoryIsCritical(t *testing.T) {
-	for _, st := range []*record.Status{
-		with(func(a *record.App) { a.LastOK = nil }),
-		with(func(a *record.App) { a.LastOK = snap(idA, 30*time.Hour, at(29*time.Hour)) }),
+	for alert, st := range map[string]*record.Status{
+		"backup_never_complete": with(func(a *record.App) { a.LastOK = nil }),
+		"backup_snapshot_gone":  with(func(a *record.App) { a.LastOK = snap(idA, 30*time.Hour, at(29*time.Hour)) }),
 	} {
+		var problems []Line
 		for _, l := range Report(Input{Record: st, Now: now}).Lines {
-			if l.Level == Problem && l.Severity != AlertCritical {
-				t.Errorf("%q is %s", l.Text, l.Severity)
+			if l.Level == Problem {
+				problems = append(problems, l)
 			}
+		}
+		if len(problems) != 1 || problems[0].Alert != alert || problems[0].App != "blog" || problems[0].Severity != AlertCritical {
+			t.Errorf("%s: problems %+v, want blog's alone, critical", alert, problems)
 		}
 	}
 }

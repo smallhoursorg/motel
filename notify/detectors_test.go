@@ -814,7 +814,7 @@ func TestBackupKeptWhenTheFileCannotBeLookedAt(t *testing.T) {
 		t.Fatalf("cannot be looked at, the record healthy: %q", got)
 	}
 	s := summaryOf(evs, "backup_unreadable")
-	want := r.b.envFile + " cannot be looked at, so whether backups are set up, and healthy, is not known; motel backup status (on the box: motel-backup status) says why"
+	want := r.b.envFile + " cannot be looked at by moteld, so the backups' health is not known; motel backup status says why (on the box, as root, motel-backup status says their health)"
 	if s != want {
 		t.Fatalf("summary:\n got %q\nwant %q", s, want)
 	}
