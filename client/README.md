@@ -227,9 +227,9 @@ sent it (at most 4 KiB, cut by the box), made safe: a tab as spaces to
 the next stop of 8, counted in the text's own columns from its start
 (each character one column, an escape as its characters, so a tab
 after a wide character lines up a column short), and every other
-control character and colour code the app wrote shown as an escape by
-`termtext.From`, never passed to the terminal (`model.LogsLines`, which
-a screen of the lines uses too). The release is not on every line:
+control character and colour code the app wrote shown as an escape,
+never passed to the terminal (`termtext.Tabbed`, through
+`model.LogsLines`, which a screen of the lines uses too). The release is not on every line:
 a divider before the first line, and wherever the release or the day
 changes, names both (`-- 2026-11-20 UTC, release v42 --`; a line whose
 unit the journal did not keep, `release not kept by the journal`). A
@@ -490,10 +490,14 @@ only:
    box's words, by design: it is inside the box's quotation.
 3. **A labelled, capped value**: a free-text field (a deploy's error, a
    note, a log tail line) on a line whose label is the client's, made safe
-   by `termtext.From` and cut at 200 characters (`…[cut]`). A line of
-   `motel logs`, after the client's time, is made safe the same way, a
-   tab as spaces to the next stop of 8, and not cut: it is what a logs
-   reader asked for, and the box cuts it at 4 KiB.
+   by `termtext.From` and cut at 200 characters (`…[cut]`; a record's
+   screen cuts a tail line at 2000). An app's own output, a log tail
+   line and a line of `motel logs`, is made safe by `termtext.Tabbed`:
+   `From`, but a tab as spaces to the next stop of 8, counted in the
+   text's own columns, so that what the app laid out with tabs (a stack
+   frame, a tab-separated log) lines up; a cut is of the text as shown.
+   A line of `motel logs`, after the client's time, is not cut: it is
+   what a logs reader asked for, and the box cuts it at 4 KiB.
 
 No message carries a transport's or a decoder's error text once a byte
 came from the peer: a fixed reason of the client's own is said instead.

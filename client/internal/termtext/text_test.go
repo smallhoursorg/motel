@@ -121,3 +121,32 @@ func TestJSON(t *testing.T) {
 		t.Errorf("raw controls: %q", got)
 	}
 }
+
+// TestTabbed: a tab is spaces to the next stop of 8 in the text's own
+// columns, each escape counted as its characters; every other control
+// is escaped as From escapes it; no tab is written. TabbedLines splits
+// as Lines does.
+func TestTabbed(t *testing.T) {
+	for _, c := range []struct{ in, want string }{
+		{"\t/app/main.go:10 +0x1d", "        /app/main.go:10 +0x1d"},
+		{"GET\t/cart\t200", "GET     /cart   200"},
+		{"12345678\tx", "12345678        x"},
+		{"a\t\tb", "a               b"},
+		{"\x1b[31m\tred\r", "\\x1b[31m        red\\x0d"},
+		{"日\tx", "日       x"},
+		{"\xff\tx", "\ufffd       x"},
+		{"no tab \x1b", "no tab \\x1b"},
+	} {
+		got := Tabbed(c.in).String()
+		if got != c.want || strings.ContainsRune(got, '\t') {
+			t.Errorf("%q: %q, want %q", c.in, got, c.want)
+		}
+	}
+	got := TabbedLines("a\tb\r\nc\n")
+	if len(got) != 2 || got[0].String() != "a       b" || got[1].String() != "c" {
+		t.Errorf("TabbedLines: %q", got)
+	}
+	if From("a\tb").String() != "a\\x09b" {
+		t.Errorf("From changed: %q", From("a\tb"))
+	}
+}
