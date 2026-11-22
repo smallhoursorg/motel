@@ -234,7 +234,7 @@ func TestLogsFollow(t *testing.T) {
 		on(false, true, ""),                            // a gap and no cursor: tail next
 		logsStep{code: http.StatusServiceUnavailable, retryAfter: "1", body: `{"error":"busy"}`},
 		// A 429 the client waits out itself, then one that stands, which
-		// the follow waits out.
+		// the follow waits out; the wait said once in the run.
 		logsStep{code: http.StatusTooManyRequests, retryAfter: "7", body: `{"error":"slow down"}`},
 		logsStep{code: http.StatusTooManyRequests, retryAfter: "7", body: `{"error":"slow down"}`},
 		on(false, false, cur1, line(9, "v43", "four")), // the tail
@@ -249,9 +249,9 @@ func TestLogsFollow(t *testing.T) {
 		return "after=" + strings.NewReplacer(";", "%3B", "=", "%3D").Replace(after) + "&lines=50"
 	}
 	wantQ := []string{"lines=50", q(cur1), q(cur2), q(cur2), q(cur2), q(cur3), "lines=50",
-		"lines=50", // the 429, read again after the client's own wait
-		"lines=50", // the 429 that stood
-		"lines=50", // the 429 waited out by the follow
+		"lines=50", // the first 429, after the 503's wait
+		"lines=50", // the second, after the client's own wait
+		"lines=50", // after the follow's
 		q(cur1)}
 	if strings.Join(lb.queries, "\n") != strings.Join(wantQ, "\n") {
 		t.Errorf("asked\n%s\nwant\n%s", strings.Join(lb.queries, "\n"), strings.Join(wantQ, "\n"))
@@ -383,5 +383,24 @@ func TestLogsFollowEnds(t *testing.T) {
 	})
 	if code != 130 || out.String() != "-- 2026-11-20 UTC, release v42 --\n23:59:58  one\n" || len(lb.queries) != 1 {
 		t.Errorf("ctrl-c: exit %d, stdout %q, %d reads", code, out.String(), len(lb.queries))
+	}
+}
+
+// TestLogsFollowSays: a follow whose first read brings no line says the
+// journal holds none, and waits; a 429 that names no wait is said as
+// such, and waited 30 s.
+func TestLogsFollowSays(t *testing.T) {
+	off := logsStep{logs: &wire.Logs{Kept: wire.KeptOff, Lines: []wire.LogLine{}}}
+	lb := newLogsBox(t, logsStep{logs: &wire.Logs{Kept: wire.KeptOn, Lines: []wire.LogLine{}}}, logsStep{logs: &wire.Logs{Kept: wire.KeptOn, Lines: []wire.LogLine{}}}, off)
+	r := runLogs(t, context.Background(), lb, &sleeps{}, nil, "logs", "blog", "--follow")
+	if r.code != 0 || strings.Count(r.stderr, "motel: 127.0.0.1 holds no line of blog in its journal; following waits for its first.\n") != 1 || r.stdout != "" {
+		t.Errorf("no line: exit %d, stdout %q, stderr %q", r.code, r.stdout, r.stderr)
+	}
+	lb = newLogsBox(t, logsStep{code: http.StatusTooManyRequests, body: `{"error":"slow down"}`}, off)
+	sl := &sleeps{}
+	r = runLogs(t, context.Background(), lb, sl, nil, "logs", "blog", "--follow")
+	if r.code != 0 || !strings.Contains(r.stderr, "motel: 127.0.0.1 answered 429 and named no wait: following waits 30 s, and asks again until it answers.\n") ||
+		len(sl.d) != 1 || sl.d[0] != 30*time.Second {
+		t.Errorf("a 429 with no wait: exit %d, stderr %q, slept %v", r.code, r.stderr, sl.d)
 	}
 }

@@ -117,7 +117,7 @@ func (l *logsRun) once(ctx context.Context) error {
 	case turn.Off:
 		return l.tell(l.off())
 	case len(lg.Lines) == 0:
-		return l.tell(fmt.Sprintf("%s holds no line of %s in its journal", l.c.Box.Host, l.app.Name))
+		return l.tell(l.none())
 	case turn.Older:
 		if err := l.say(l.older()); err != nil {
 			return err
@@ -134,6 +134,8 @@ func (l *logsRun) once(ctx context.Context) error {
 // the context ends, a read fails, or the box says the app keeps its
 // output on the box. A 429 and a busy box's 503 are waited out, by the
 // box's Retry-After (30 s for a 429 with none), and the follow goes on.
+// A 429 the client's own read waited out once (client.Get) is waited
+// out here only when it stood.
 func (l *logsRun) follow(ctx context.Context) error {
 	if _, err := fmt.Fprintf(l.r.env.Stderr, "motel: following %s's lines, a read every %d s; ctrl-c stops.\n", l.app.Name, int(model.LogsEvery/time.Second)); err != nil {
 		return err
@@ -156,7 +158,11 @@ func (l *logsRun) follow(ctx context.Context) error {
 			if !waiting {
 				var cf *client.Failure
 				errors.As(err, &cf)
-				if _, err := fmt.Fprintf(l.r.env.Stderr, "motel: %s answered %d with a wait of %d s: following waits it out, and asks again until it answers.\n", l.c.Box.Host, cf.Status, int(d/time.Second)); err != nil {
+				asked := fmt.Sprintf("with a wait of %d s: following waits it out", int(d/time.Second))
+				if cf.RetryAfter == 0 {
+					asked = fmt.Sprintf("and named no wait: following waits %d s", int(d/time.Second))
+				}
+				if _, err := fmt.Fprintf(l.r.env.Stderr, "motel: %s answered %d %s, and asks again until it answers.\n", l.c.Box.Host, cf.Status, asked); err != nil {
 					return err
 				}
 			}
@@ -170,6 +176,11 @@ func (l *logsRun) follow(ctx context.Context) error {
 		turn := f.Take(lg)
 		if turn.Off {
 			return l.tell(l.off())
+		}
+		if !taken && len(lg.Lines) == 0 {
+			if err := l.tell(l.none() + "; following waits for its first"); err != nil {
+				return err
+			}
 		}
 		taken = true
 		if turn.Gap {
@@ -205,6 +216,10 @@ func (l *logsRun) known(lg wire.Logs) error {
 
 func (l *logsRun) off() string {
 	return fmt.Sprintf("%s keeps %s's output on the box (deploy_log_lines 0): it sends no line of it", l.c.Box.Host, l.app.Name)
+}
+
+func (l *logsRun) none() string {
+	return fmt.Sprintf("%s holds no line of %s in its journal", l.c.Box.Host, l.app.Name)
 }
 
 func (l *logsRun) older() string {
@@ -273,8 +288,9 @@ func logLines(lines []wire.LogLine) []render.LogLine {
 
 // waitOut is the wait for a read the box asked to be made again later:
 // a 429 that stood after the client's own wait (its Retry-After, or
-// logsWait with none), or a 503 with a Retry-After, which the box sends
-// while it runs as many logs reads as it runs at once.
+// logsWait with none), or a 503 that carries
+// a wait (client.Logs: the box's, while it runs as many logs reads as it
+// runs at once).
 func waitOut(err error) (time.Duration, bool) {
 	var f *client.Failure
 	switch {
