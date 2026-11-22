@@ -17,9 +17,15 @@ import (
 // lines, the newest 200 when it opens, then followed every LogsEvery
 // while it is shown, laid out as `motel logs` prints them (logs.go).
 
-// LogsKeep is the most of an app's lines the logs screen holds: older
-// ones are dropped, and the screen says how many.
-const LogsKeep = 5000
+// LogsKeep is the most of an app's lines the logs screen holds, and
+// LogsKeepBytes the most of their text as shown: older ones are
+// dropped, and the screen says how many. A line is at most 4 KiB as the
+// box sends it, but up to four times that made safe (an escape for each
+// control byte), and eight with tabs, so 5,000 lines could be 160 MB.
+const (
+	LogsKeep      = 5000
+	LogsKeepBytes = 16 << 20
+)
 
 // Grant is whether whoami lists a grant this key needs here.
 type Grant int
@@ -79,6 +85,8 @@ type logsData struct {
 	// lines is how many of items are lines; dropped, how many lines were
 	// dropped for LogsKeep; arrived, how many were ever added.
 	lines, dropped, arrived int
+	// bytes is the text of the lines held, as shown.
+	bytes int
 	// run is how many lines the reads made at once in a row have brought.
 	run int
 	// skipped: the follow went on from a tail after a run (takeLogs),
@@ -235,6 +243,7 @@ func (s *Session) takeLogs(j Job, gen int, g Got[wire.Logs], err error, at time.
 		d.items = append(d.items, logsItem{line: l})
 		d.lines++
 		d.arrived++
+		d.bytes += len(l.Text.String())
 	}
 	if turn.Again {
 		d.run += len(g.V.Lines)
@@ -270,14 +279,15 @@ func (d *logsData) lastAt() time.Time {
 // note is a note of the client's among the lines.
 func (d *logsData) note(s string) { d.items = append(d.items, logsItem{note: s}) }
 
-// trim drops the oldest lines past LogsKeep, and a note left first,
-// which was about lines dropped.
+// trim drops the oldest lines past LogsKeep or LogsKeepBytes, and a
+// note left first, which was about lines dropped.
 func (d *logsData) trim() {
 	n := 0
-	for ; n < len(d.items) && (d.lines > LogsKeep || d.dropped > 0 && d.items[n].note != ""); n++ {
+	for ; n < len(d.items) && (d.lines > LogsKeep || d.bytes > LogsKeepBytes || d.dropped > 0 && d.items[n].note != ""); n++ {
 		if d.items[n].note == "" {
 			d.lines--
 			d.dropped++
+			d.bytes -= len(d.items[n].line.Text.String())
 		}
 	}
 	if n > 0 {
@@ -323,7 +333,12 @@ func (s *Session) LogsViewFit(app string, now time.Time, width, height int, cell
 	if d == nil {
 		return head
 	}
-	rows := max(height-len(head)-1, 1)
+	// The head, the rule and the lines, within the page: a head taller
+	// than the page is cut at its foot.
+	if len(head)+1 >= height {
+		return head[:min(len(head), max(height, 1))]
+	}
+	rows := height - len(head) - 1
 	d.pos.lastHeight = rows
 	var rule string
 	switch {
@@ -393,7 +408,7 @@ func (s *Session) logsHead(app string, now time.Time, width int, cells Cells) ([
 		return out, nil
 	}
 	if d.dropped > 0 {
-		out = append(out, say(Line{own("this screen holds the newest " + count(LogsKeep) + " lines: " + count(d.dropped) + " older ones were dropped.")})...)
+		out = append(out, say(Line{own("this screen holds the newest " + count(LogsKeep) + " lines, and at most " + strconv.Itoa(LogsKeepBytes>>20) + " MiB of their text: " + count(d.dropped) + " older ones were dropped.")})...)
 	}
 	return out, d
 }
@@ -540,7 +555,12 @@ func (s *Session) LogsScroll(app string, n, width int, cells Cells, wrap bool) {
 	rows := max(d.pos.lastHeight, 1)
 	i, r := d.top(rows, width, cells, wrap)
 	if n < 0 {
-		i, r = d.up(i, r, -n, width, cells, wrap)
+		ui, ur := d.up(i, r, -n, width, cells, wrap)
+		if ui == i && ur == r {
+			// At the oldest row already: nothing scrolled, nothing held.
+			return
+		}
+		i, r = ui, ur
 		since := d.pos.since
 		if !d.pos.held {
 			since = d.arrived

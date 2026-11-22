@@ -11,7 +11,7 @@ apps › hostile › logs                                as of 14:12:40 UTC · 0
           ybA==\x07\x1b\ apc \x1b_Gf=100,a=T;AAAA\x1b\
 14:08:30  tags [red]FAKE[-] ["region"]hidden[""] [::b]bold[::-] [green]healthy[-
           ] [:::https://evil.example/tag]motel login[:::-]
-14:08:40  carriage\x0dreturn\x09tab\x0anewline \u2028 separator 👍 \U0001f3fd-0
+14:08:40  carriage\x0dreturn      tab\x0anewline \u2028 separator 👍 \U0001f3fd-0
 14:08:50  -- 2026-11-15 UTC, release v7 --
 14:09:00  padded to wrap:
                                                                            14:12

@@ -31,7 +31,7 @@ var Actions = []Action{
 	{KRules, "monitor rules --app <app>", "an app's rules screen", readRules},
 	{KBoxRules, "monitor rules", "the rules screen", readBoxRules},
 	{KSeries, "metrics <app> --range <range>", "the metrics screen", readSeries},
-	{KLogs, "logs <app> --follow", "the logs screen", readLogs},
+	{KLogs, "logs <app>", "the logs screen", readLogs},
 }
 
 // ActionFor is the action that reads k.

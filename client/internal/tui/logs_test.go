@@ -34,7 +34,7 @@ func TestLogsScreen(t *testing.T) {
 		t.Errorf("End does not follow:\n%s", h.screen())
 	}
 	h.press("c")
-	if s := h.screen(); !strings.Contains(s, "motel logs --follow --box deploy.example.com -- blog") {
+	if s := h.screen(); !strings.Contains(s, "motel logs --box deploy.example.com -- blog") {
 		t.Errorf("c:\n%s", s)
 	}
 	h.press(tcell.KeyEscape, tcell.KeyEscape)

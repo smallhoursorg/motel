@@ -114,7 +114,7 @@ var wantRead = map[string]string{
 	"monitor rules --app <app>":     "Rules",
 	"monitor rules":                 "BoxRules",
 	"metrics <app> --range <range>": "Series",
-	"logs <app> --follow":           "Logs",
+	"logs <app>":                    "Logs",
 }
 
 // TestActionsAreCommands: every read the TUI makes is an action naming
@@ -133,9 +133,6 @@ func TestActionsAreCommands(t *testing.T) {
 			case strings.HasPrefix(w, "--") && i+1 < len(words):
 				flags = append(flags, w, words[i+1])
 				i++
-			case strings.HasPrefix(w, "--"):
-				// A flag that takes no value, last.
-				flags = append(flags, w, "")
 			case strings.HasPrefix(w, "<"):
 				args = append(args, w)
 			default:

@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/gdamore/tcell/v2"
@@ -43,6 +44,9 @@ var (
 	// and so nothing opens: only scrolling, leaving help, r and q.
 	stops = []model.Screen{model.ScreenRefused, model.ScreenStopHelp}
 	all   = append(append([]model.Screen{}, every...), model.ScreenStopHelp)
+	// notLogs is all but the logs screen, whose lines scroll by its own
+	// keys (with an overlay open, the overlay's).
+	notLogs = slices.DeleteFunc(slices.Clone(all), func(s model.Screen) bool { return s == model.ScreenLogs })
 )
 
 func rune1(r rune) func(*tcell.EventKey) bool {
@@ -129,7 +133,8 @@ var bindings = []binding{
 		return nil
 	}},
 	{"End", "the newest line, following again", []model.Screen{model.ScreenLogs}, closed, keys(tcell.KeyEnd), done(func(u *UI, v model.View) { u.S.LogsEnd(v.App) })},
-	{"PgUp PgDn Home End", "move by a page, to the start or the end", all, either, keys(tcell.KeyPgUp, tcell.KeyPgDn, tcell.KeyHome, tcell.KeyEnd), pass},
+	{"PgUp PgDn Home End", "move by a page, to the start or the end", notLogs, either, keys(tcell.KeyPgUp, tcell.KeyPgDn, tcell.KeyHome, tcell.KeyEnd), pass},
+	{"PgUp PgDn Home End", "scroll the overlay", []model.Screen{model.ScreenLogs}, open, keys(tcell.KeyPgUp, tcell.KeyPgDn, tcell.KeyHome, tcell.KeyEnd), pass},
 	{"↑ ↓", "scroll", []model.Screen{model.ScreenMe, model.ScreenBox, model.ScreenBackups, model.ScreenAlerts, model.ScreenRules, model.ScreenAppRules, model.ScreenMetrics, model.ScreenHelp, model.ScreenRefused, model.ScreenStopHelp}, closed, keys(tcell.KeyUp, tcell.KeyDown), pass},
 	{"↑ ↓", "scroll the overlay", reading, open, keys(tcell.KeyUp, tcell.KeyDown), pass},
 	{"c", "the motel command for this view", reading, either, rune1('c'), done(func(u *UI, _ model.View) { u.overlay = 1; u.show() })},

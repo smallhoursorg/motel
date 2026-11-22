@@ -296,19 +296,19 @@ func TestLogsHeldAndCapped(t *testing.T) {
 		drive(s, f, *now, 5)
 	}
 	got := view()
-	if !strings.Contains(got[1], "held: 5,000 new lines since · End follows") {
-		t.Errorf("the rule: %q", got[1])
+	if !strings.Contains(got[2], "held: 5,000 new lines since · End follows") {
+		t.Errorf("the rule: %q", got[2])
 	}
-	if got[0] != "this screen holds the newest 5,000 lines: 1,000 older ones were dropped." {
-		t.Errorf("the head: %q", got[0])
+	if strings.Join(got[:2], " ") != "this screen holds the newest 5,000 lines, and at most 16 MiB of their text:   1,000 older ones were dropped." {
+		t.Errorf("the head: %q", got[:2])
 	}
 	// What it showed was dropped: it holds at the oldest line held.
-	if !strings.Contains(got[3], "line 1000") {
-		t.Errorf("held past the cap, the view begins %q", got[2:4])
+	if !strings.Contains(got[4], "line 1000") {
+		t.Errorf("held past the cap, the view begins %q", got[3:5])
 	}
 	_ = held
 	s.LogsEnd("blog")
-	if got := view(); !strings.HasSuffix(got[len(got)-1], "line 5999") || !strings.Contains(got[1], "following") {
+	if got := view(); !strings.HasSuffix(got[len(got)-1], "line 5999") || !strings.Contains(got[2], "following") {
 		t.Errorf("End: %q", got)
 	}
 	// Held within what is kept: the same rows, whatever arrives.
@@ -318,13 +318,32 @@ func TestLogsHeldAndCapped(t *testing.T) {
 	*now = now.Add(model.LogsEvery)
 	drive(s, f, *now, 5)
 	after := view()
-	if strings.Join(before[2:], "\n") != strings.Join(after[2:], "\n") || !strings.Contains(after[1], "held: 3 new lines since") {
+	if strings.Join(before[3:], "\n") != strings.Join(after[3:], "\n") || !strings.Contains(after[2], "held: 3 new lines since") {
 		t.Errorf("held, the view moved:\n%s\n---\n%s", strings.Join(before, "\n"), strings.Join(after, "\n"))
 	}
 	// Scrolled down to the newest row: following again.
 	s.LogsScroll("blog", 100, 80, runes, false)
-	if got := view(); !strings.Contains(got[1], "following") || !strings.HasSuffix(got[len(got)-1], "line 6002") {
+	if got := view(); !strings.Contains(got[2], "following") || !strings.HasSuffix(got[len(got)-1], "line 6002") {
 		t.Errorf("scrolled to the end: %q", got)
+	}
+}
+
+// TestLogsBounds: a row up with every row in view holds nothing; a
+// head taller than the page is cut to it.
+func TestLogsBounds(t *testing.T) {
+	s, f, now := logsOpen(t, "blog", func(f *demo.Fake) { f.Body("logs/blog.json", logsBody(t0, 0, 3, false, false, "c1")) })
+	_ = f
+	logsText(s, *now, 80, 20)
+	s.LogsScroll("blog", -1, 80, runes, false)
+	if v := logsText(s, *now, 80, 20); !strings.Contains(v, "── following") || !strings.Contains(v, "line 0") {
+		t.Errorf("a row up with every row in view:\n%s", v)
+	}
+	s.LogsShown("", *now)
+	f.Set("logs:blog", &model.Failure{Kind: model.FailNoAnswer, Message: strings.Repeat("no answer ", 40)})
+	s.LogsShown("blog", *now)
+	drive(s, f, now.Add(model.LogsEvery), 20)
+	if rows := s.LogsViewFit("blog", now.Add(model.LogsEvery), 20, 3, runes, false); len(rows) != 3 {
+		t.Errorf("a head taller than the page: %d rows for 3", len(rows))
 	}
 }
 
