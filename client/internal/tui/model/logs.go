@@ -3,6 +3,7 @@ package model
 import (
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/smallhoursorg/motel/client/internal/termtext"
@@ -85,8 +86,9 @@ const LogsNoRelease = "not kept by the journal"
 // LogsLine is one line of an app's output as a person reads it: when
 // the journal stored it, the release that wrote it (the box's version,
 // held to its grammar, or LogsNoRelease), and the line made safe to
-// show: every control character and colour code is written as an
-// escape (termtext.From), never passed to the terminal.
+// show: a tab as spaces to the next stop (logsText), and every other
+// control character and colour code written as an escape
+// (termtext.From), never passed to the terminal.
 type LogsLine struct {
 	At      time.Time
 	Release termtext.Text
@@ -101,7 +103,7 @@ func LogsLines(lines []wire.LogLine) []LogsLine {
 		if rel == "" {
 			rel = LogsNoRelease
 		}
-		out[i] = LogsLine{At: l.At, Release: termtext.From(rel), Text: termtext.From(l.Text)}
+		out[i] = LogsLine{At: l.At, Release: termtext.From(rel), Text: logsText(l.Text)}
 	}
 	return out
 }
@@ -179,4 +181,38 @@ func LogsOffSays(host, app string) string {
 // line.
 func LogsNoneSays(host, app string) string {
 	return host + " holds no line of " + app + " in its journal"
+}
+
+// LogsTabStop is the columns between a line's tab stops, a terminal's.
+const LogsTabStop = 8
+
+// logsText is a line's text made safe to show, a tab as spaces to the
+// next multiple of LogsTabStop columns of the text's own (from its
+// start, not from the time before it), so tab-separated output lines
+// up as in a terminal; no tab is written. Columns are counted in
+// runes of the text as shown, an escape as its characters: a wide
+// character counts one, so a tab after one lines up a column short
+// (the cells' width function is the door's, which this package
+// cannot import).
+func logsText(s string) termtext.Text {
+	if !strings.Contains(s, "\t") {
+		return termtext.From(s)
+	}
+	var b strings.Builder
+	col := 0
+	segs := strings.Split(s, "\t")
+	for i, seg := range segs {
+		shown := termtext.From(seg).String()
+		b.WriteString(shown)
+		for range shown {
+			col++
+		}
+		if i < len(segs)-1 {
+			n := LogsTabStop - col%LogsTabStop
+			b.WriteString(strings.Repeat(" ", n))
+			col += n
+		}
+	}
+	// Spaces and text already made safe: From leaves it as it is.
+	return termtext.From(b.String())
 }
