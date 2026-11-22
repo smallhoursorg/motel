@@ -3,6 +3,7 @@ package notify
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"net/http"
@@ -1283,5 +1284,43 @@ func TestTestedMendWithTheMetricsPackage(t *testing.T) {
 		if got := channelFailed(te.drain()); len(got) != c.want {
 			t.Fatalf("%d channels' block with metrics: resolved %+v, want %d", len(te.fail.operator), got, c.want)
 		}
+	}
+}
+
+// TestTestedMendEndsTheHeldCopiesToo: what Alertmanager holds naming ops
+// as the suspect is resolved by its own labels, beside the copies the
+// served config would post: one addressed to a channel a load has since
+// taken out, and a read-only one of ops's kind before a load. A read of
+// them that fails still resolves the built ones.
+func TestTestedMendEndsTheHeldCopiesToo(t *testing.T) {
+	gone := map[string]string{"alertname": alertChannelFailed, labelChannel: "gone", "severity": SeverityWarning,
+		"subject": "box", "integration": "webhook", "suspects": "ops"}
+	oldKind := map[string]string{"alertname": alertChannelFailed, labelChannel: readOnlyChannel, "severity": SeverityWarning,
+		"subject": "box", "integration": "discord", "suspects": "ops"}
+	te, _ := testedEngine(t, oneChannelBlock)
+	var asked []string
+	te.failureCopies = func(_ context.Context, ch string) ([]map[string]string, error) {
+		asked = append(asked, ch)
+		return []map[string]string{gone, oldKind}, nil
+	}
+	if !runTest(t, te, "ops", counters(1, 4, 1, 0), counters(1, 4, 1, 1)) {
+		t.Fatal("the test was not delivered")
+	}
+	got := channelFailed(te.drain())
+	has := func(l map[string]string) bool {
+		return slices.ContainsFunc(got, func(a amAlert) bool { return maps.Equal(a.Labels, l) && a.EndsAt.Equal(te.at) })
+	}
+	built := failureCopy(readOnlyChannel, "webhook", []string{"ops"}, "", te.at, te.at).Labels
+	if !slices.Equal(asked, []string{"ops"}) || len(got) != 3 || !has(gone) || !has(oldKind) || !has(built) {
+		t.Fatalf("asked %v, resolved %+v: want the two held and the built copy", asked, got)
+	}
+
+	te2, _ := testedEngine(t, oneChannelBlock)
+	te2.failureCopies = func(context.Context, string) ([]map[string]string, error) { return nil, errors.New("unanswered") }
+	if !runTest(t, te2, "ops", counters(1, 4, 1, 0), counters(1, 4, 1, 1)) {
+		t.Fatal("the test was not delivered")
+	}
+	if got := channelFailed(te2.drain()); len(got) != 1 || !maps.Equal(got[0].Labels, built) {
+		t.Fatalf("with no read of what is held: %+v, want the built copy", got)
 	}
 }
