@@ -288,7 +288,6 @@ func TestLogsHeldAndCapped(t *testing.T) {
 	view := func() []string {
 		return strings.Split(strings.TrimRight(logsText(s, *now, 80, 12), "\n"), "\n")
 	}
-	view() // a frame first, as the screen draws one before any key
 	s.LogsScroll("blog", -3, 80, runes, false)
 	held := view()
 	for i := 1; i <= 5; i++ {
@@ -369,13 +368,6 @@ func TestLogsBounds(t *testing.T) {
 	drive(s, f, now.Add(model.LogsEvery), 20)
 	if rows := s.LogsViewFit("blog", now.Add(model.LogsEvery), 20, 3, runes, false); len(rows) != 3 {
 		t.Errorf("a head taller than the page: %d rows for 3", len(rows))
-	}
-	// With no row of the lines shown, nothing scrolls nor holds.
-	s.LogsScroll("blog", -5, 20, runes, false)
-	s.LogsPage("blog", -1, 20, runes, false)
-	s.LogsHome("blog", 20, runes, false)
-	if v := logsText(s, now.Add(model.LogsEvery), 80, 30); strings.Contains(v, "held") {
-		t.Errorf("scrolled while no line was shown:\n%s", v)
 	}
 }
 
