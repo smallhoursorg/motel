@@ -18,7 +18,8 @@ the reviewing has stopped at a cap. Two roles do it:
   Copilot.
 
 Caps, unless the owner names others: 4 self-review rounds, 3 Copilot
-rounds at `balanced`, 1 final round by the coordinator.
+rounds at `balanced`, 1 final round on a model other than the
+builder's.
 
 ## Before any code (coordinator)
 
@@ -37,11 +38,13 @@ A builder knows only its brief. It carries the ticket, the owner's
 choices, what is out of scope, the caps, how to push and to request
 Copilot on this machine, and what to send back: the pull request and
 its head, each round's triage table, what was not run, and anything
-unchecked marked as unchecked.
+unchecked marked as unchecked. It tells the builder to read this
+file whole, from its own worktree.
 
-The builder does not stop to wait for CI or a review. It stops to ask
-only for a choice the owner did not make, an accept over the bar, or
-a change to who may deploy or sign in.
+The builder does not hand back while CI or a review is pending: it
+waits, answers the review, and reports with CI green on the head. It
+stops to ask only for a choice the owner did not make, an accept
+over the bar, or a change to who may deploy or sign in.
 
 ## Build and self-review (builder)
 
@@ -60,7 +63,8 @@ a change to who may deploy or sign in.
    score, and record the rest as the rule says.
 5. Go round again while a round made fixes, up to the cap. Stop when
    a round finds nothing to fix. At the cap, what the rule says to
-   fix is still fixed.
+   fix is still fixed. When a round's findings are faults the last
+   round's fixes brought in, the last section comes first.
 
 ## The pull request and Copilot (builder)
 
@@ -85,7 +89,9 @@ a change to who may deploy or sign in.
    coordinator tells the owner. With the owner's word a fresh
    subagent on another model stands in. It is given the range and
    what the change is meant to do, not the earlier findings, and it
-   reviews without changing anything.
+   reviews without changing anything. The coordinator scores its
+   findings and sends the builder the fixes, for as many rounds as
+   the owner allows.
 
 ## Before saying it is ready (coordinator)
 
@@ -93,10 +99,11 @@ a change to who may deploy or sign in.
    fact in a row comes from code someone read or a command someone
    ran.
 2. If anything was pushed after the builder's last self-review round,
-   run one more `/code-review high` on the final head, on a model
-   other than the builder's (a fresh subagent, when the coordinator
-   runs on the same one). Send the builder what fails, not a design
-   for the fix, and read each fix's diff.
+   run one more `/code-review high` over the builder's range, on a
+   model other than the builder's (a fresh subagent, when the
+   coordinator runs on the same one). Score the findings. Send the
+   builder what fails, not a design for the fix, and read each
+   fix's diff.
 3. Run once what a person will see: the TUI's `--demo` in a real
    terminal, or the command itself.
 4. On GitHub: CI green on the head commit, mergeable, not a draft,
@@ -112,9 +119,9 @@ a change to who may deploy or sign in.
   Copilot round before the pull request is called ready.
 - **A merge of main whose conflict was resolved by hand** is a fix
   like any other: someone reads it.
-- **A stacked pull request** names the one it is stacked on in its
-  first paragraph, reviews its own diff alone, and merges its base
-  in, never rebases.
+- **A stacked pull request** is cut from its base's branch and names
+  it in its first paragraph. Its `<base>` for a review is the
+  merge-base with that branch. It merges its base in, never rebases.
 
 ## When a fix brings a fault in
 
