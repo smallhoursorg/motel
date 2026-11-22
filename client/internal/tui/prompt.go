@@ -175,8 +175,10 @@ func (u *UI) run(text string) {
 	}
 }
 
-// complete offers only the views this person can reach on this box:
-// no box for a viewer of apps alone, and app names from the box's list.
+// complete offers the views this person can reach on this box: no box
+// for a viewer of apps alone, and app names from the box's list. It
+// offers logs <app> for every listed app, a logs grant or not: the logs
+// screen opens on any app and says which grant it needs.
 func (u *UI) complete(text string) []string {
 	if u.promptMode != ':' || text == "" {
 		return nil

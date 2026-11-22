@@ -148,9 +148,9 @@ func (s *Session) logsFresh(app string) {
 	s.logsCur.mu.Unlock()
 	// The newest read's failure is said until a read is answered, since
 	// the engine holds a refused read, and waits out a backoff, whatever
-	// was opened since. A read the box refused (a 403) is asked again when
-	// whoami lists the grant (Session.follow): held so, it starts as not
-	// granted.
+	// was opened since. A read the box refused (a 403) starts as not
+	// granted, so the next whoami answer that lists the grant asks it
+	// again (Session.follow), at each such answer while the 403 stands.
 	failed := s.logsFailed[app]
 	s.logs = &logsData{app: app, gen: gen, granted: s.LogsGrant(app) == Granted && !Forbidden(failed), err: failed}
 }
