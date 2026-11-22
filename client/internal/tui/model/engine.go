@@ -535,36 +535,6 @@ func (e *Engine) LogsOpen(app string, now time.Time) {
 	e.poke()
 }
 
-// LogsAgain is ctrl-r on the logs screen of app (Session.LogsAgain): the
-// read of its lines is opened when it was not (a follow the box
-// stopped), and a hold lifted (a refusal). A read ctrl-r so starts is due
-// no sooner than AgainAfter after the last one, so ctrl-r held down asks
-// once in 5 s, not at the read's own 2 s; a read already on its schedule
-// (following, or due at once for lines left) keeps its time, and is made
-// no later for ctrl-r.
-func (e *Engine) LogsAgain(app string, now time.Time) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	e.seen(now)
-	j := Job{Kind: KLogs, App: app}
-	if old := e.logs; old.Kind == KLogs && old != j {
-		e.dropLocked(old)
-	}
-	en, ok := e.jobs[j]
-	starts := !ok || en.held || e.logs != j
-	if !ok {
-		en = &entry{}
-		e.jobs[j] = en
-	}
-	e.logs = j
-	en.held, en.failed = false, false
-	floor := maxTime(now, en.asked.Add(AgainAfter))
-	if starts || en.due.After(floor) {
-		en.due = floor
-	}
-	e.poke()
-}
-
 // logsMore is how a logs read ended, said by the read (readLogs) before
 // Done records it: more, it stopped with lines left after the last one
 // it sent, and Done makes the next read due at once, within the rate and
@@ -886,7 +856,12 @@ func (e *Engine) Again(now time.Time, shown ...Job) {
 		if j.Kind == KWhoAmI || j.Kind == KBox || j.Kind == KBackups || j.Kind == KAlerts || j.Kind == KBoxAlerts || j.Kind == KRules || j.Kind == KBoxRules || j.Kind == KSeries || j.Kind == KLogs {
 			due = maxTime(now, en.asked.Add(AgainAfter))
 		}
-		if en.due.After(due) {
+		if en.due.After(due) || j.Kind == KLogs {
+			// A logs read's interval (2 s) is shorter than AgainAfter, and
+			// its screen may have made it due at once (LogsAgain): whatever
+			// state it was in (held, stopped, following), ctrl-r asks it no
+			// sooner than AgainAfter after the last read, once in 5 s held
+			// down.
 			en.due = due
 		}
 	}

@@ -142,11 +142,9 @@ var bindings = []binding{
 	{"P", "quit and print it (safe on a terminal)", reading, open, rune1('P'), done(func(u *UI, v model.View) { u.printAndQuit(v) })},
 	{"P", "quit, and print the person line below the prompt (a refused key)", []model.Screen{model.ScreenRefused}, either, rune1('P'), done(func(u *UI, v model.View) { u.printAndQuit(v) })},
 	{"ctrl-r", "ask the box again now, for what this screen shows", reading, either, keys(tcell.KeyCtrlR), done(func(u *UI, v model.View) {
-		if v.Screen == model.ScreenLogs && u.S.LogsGrant(v.App) == model.Granted {
-			// Its own rule (Session.LogsAgain): a read ctrl-r starts again
-			// waits AgainAfter; one on its schedule keeps its time.
+		if v.Screen == model.ScreenLogs {
+			// A follow the box stopped (kept off) reads again.
 			u.S.LogsAgain(u.now())
-			return
 		}
 		u.S.Engine.Again(u.now(), u.shown(v)...)
 	})},

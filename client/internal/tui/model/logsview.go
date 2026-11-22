@@ -166,17 +166,11 @@ func (s *Session) logsAsk(now time.Time) {
 	s.Engine.LogsOpen(app, now)
 }
 
-// LogsAgain is ctrl-r on the logs screen with a logs grant: a follow
-// the box stopped (kept off, a word not known), or a read it refused,
-// reads again, AgainAfter after the last at the soonest; a follow on its
-// schedule keeps its time (Engine.LogsAgain).
+// LogsAgain is ctrl-r on the logs screen: a follow the box stopped
+// (kept off, a word not known) reads again.
 func (s *Session) LogsAgain(now time.Time) {
 	if s.logs != nil {
 		s.logs.stopped = false
-	}
-	if app := s.logsOn; app != "" && s.LogsGrant(app) == Granted {
-		s.Engine.LogsAgain(app, now)
-		return
 	}
 	s.logsAsk(now)
 }
