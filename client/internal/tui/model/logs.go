@@ -42,7 +42,7 @@ type LogsTurn struct {
 	Gap bool
 	// Older: the read was a tail and stopped with lines left, which are
 	// older than the first one sent, and a follow's reads never reach
-	// them (no read pages back; a tail of a larger count reaches further).
+	// them (no read pages back; a tail of a larger count may reach further).
 	Older bool
 	// Again: the read was a follow and stopped with lines left, which are
 	// after the last one sent: the next read is made at once.

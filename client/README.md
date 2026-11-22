@@ -232,7 +232,8 @@ unit the journal did not keep, `release not kept by the journal`). A
 read sends at most the count or 64 KiB of lines: when lines older than
 the first were left, a divider before them says so (stderr, with
 `--json`), and that `logs` does not page back (`--lines 1000`
-reaches further, when it was not the count asked). An answer is held to its grammars: `kept` a word, each
+may reach further, when it was not the count asked and the count, not
+the 64 KiB, stopped the read). An answer is held to its grammars: `kept` a word, each
 release a version or empty, the cursor `wire.LogsCursor` (the box's own
 grammar for it, one copy); anything else is not moteld's answer, exit
 3. It exits 0 when it read, and when the box says the app keeps its

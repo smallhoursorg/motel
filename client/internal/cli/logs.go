@@ -236,7 +236,7 @@ func (l *logsRun) older() string {
 		return x - y
 	})
 	if n != most {
-		s += " (--lines " + most + " sends more)"
+		s += " (--lines " + most + " may send more, unless the 64 KiB was what stopped it)"
 	}
 	return s
 }
