@@ -539,6 +539,30 @@ func TestLogsAgainOnARefusal(t *testing.T) {
 	}
 }
 
+// TestLogsFailureReopened: opened afresh while the engine waits out a
+// failed read's backoff, the screen says the failure, not that it asks;
+// a refusal followed by another failure says the newer.
+func TestLogsFailureReopened(t *testing.T) {
+	s, f, now := logsOpen(t, "blog", func(f *demo.Fake) {
+		f.Set("logs:blog", &model.Failure{Kind: model.FailForbidden, Message: "deploy.example.com does not allow your key this"})
+	})
+	f.Set("logs:blog", &model.Failure{Kind: model.FailNoAnswer, Message: "deploy.example.com did not answer"})
+	*now = now.Add(model.AgainAfter)
+	s.LogsAgain(*now)
+	s.Engine.Again(*now, model.Job{Kind: model.KLogs, App: "blog"})
+	for range 3 {
+		drive(s, f, *now, 20)
+		*now = now.Add(4 * time.Second)
+	}
+	s.LogsShown("", *now)
+	s.LogsOpen("blog", *now)
+	drive(s, f, *now, 20)
+	v := logsText(s, *now, 0, 30)
+	if !strings.Contains(v, "did not answer") || strings.Contains(v, "asking") || strings.Contains(v, "does not allow") {
+		t.Errorf("opened afresh during a backoff, after a refusal:\n%s", v)
+	}
+}
+
 // TestLogsRefusedReopened: a logs read the box refused (a 404 from a
 // moteld older than the read) is said, and said again when the screen
 // is opened afresh, with nothing asked, until ctrl-r asks.

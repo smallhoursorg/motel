@@ -146,10 +146,13 @@ func (s *Session) logsFresh(app string) {
 	s.logsCur.app, s.logsCur.f = app, LogsFollow{}
 	gen := s.logsCur.gen
 	s.logsCur.mu.Unlock()
-	// A read the box refused (a 403) is asked again when whoami lists the
-	// grant once more (Session.follow): held so, it starts as not granted.
-	refused := s.logsRefused[app]
-	s.logs = &logsData{app: app, gen: gen, granted: s.LogsGrant(app) == Granted && !Forbidden(refused), err: refused}
+	// The newest read's failure is said until a read is answered, since
+	// the engine holds a refused read, and waits out a backoff, whatever
+	// was opened since. A read the box refused (a 403) is asked again when
+	// whoami lists the grant (Session.follow): held so, it starts as not
+	// granted.
+	failed := s.logsFailed[app]
+	s.logs = &logsData{app: app, gen: gen, granted: s.LogsGrant(app) == Granted && !Forbidden(failed), err: failed}
 }
 
 // logsAsk tells the engine which app's lines to follow: the logs
@@ -192,17 +195,20 @@ func readLogs(ctx context.Context, s *Session, c Client, j Job) (func(*Session, 
 // takeLogs is a logs read's end, on the UI's goroutine: its lines and
 // what the answer says among them, and where the follow reads next. An
 // answer to a follow the screen has since started afresh is not taken,
-// but a refusal is: the engine holds the read until ctrl-r whatever the
-// screen started since, so the screen says it.
+// but a failure is: the engine holds a refused read until ctrl-r, and
+// waits out another's backoff, whatever the screen started since, so
+// the screen says it.
 func (s *Session) takeLogs(j Job, gen int, g Got[wire.Logs], err error, at time.Time) {
 	d := s.logs
-	if refusal := Forbidden(err) || NotFound(err); refusal && (d == nil || d.app != j.App || d.gen != gen) {
-		if s.logsRefused == nil {
-			s.logsRefused = map[string]error{}
+	if err != nil {
+		if s.logsFailed == nil {
+			s.logsFailed = map[string]error{}
 		}
-		s.logsRefused[j.App] = err
+		s.logsFailed[j.App] = err
+	}
+	if err != nil && (d == nil || d.app != j.App || d.gen != gen) {
 		if d != nil && d.app == j.App && d.got == nil && d.err == nil {
-			// Opened afresh since, nothing read yet: it is this refusal's.
+			// Opened afresh since, nothing read yet: it is this failure's.
 			d.err = err
 		}
 		return
@@ -216,10 +222,6 @@ func (s *Session) takeLogs(j Job, gen int, g Got[wire.Logs], err error, at time.
 			// them goes, as a status's does (readStatus), and the cursor; a
 			// read asked again is a tail. The engine holds the read until
 			// ctrl-r, so the refusal is said at each opening till then.
-			if s.logsRefused == nil {
-				s.logsRefused = map[string]error{}
-			}
-			s.logsRefused[d.app] = err
 			s.logsFresh(d.app)
 			d = s.logs
 		}
@@ -232,7 +234,7 @@ func (s *Session) takeLogs(j Job, gen int, g Got[wire.Logs], err error, at time.
 	if len(g.V.Lines) > 0 {
 		d.full = &g
 	}
-	delete(s.logsRefused, d.app)
+	delete(s.logsFailed, d.app)
 	if g.V.Kept != wire.KeptOn {
 		// Kept off, or a word this client does not know: nothing to follow
 		// (said by the screen), and nothing more is read.

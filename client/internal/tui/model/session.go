@@ -82,9 +82,10 @@ type Session struct {
 	logs    *logsData
 	logsOn  string
 	logsCur logsCursor
-	// logsRefused is each app's logs read the box last refused (a 403, a
-	// 404), held by the engine until ctrl-r: a fresh opening says it.
-	logsRefused map[string]error
+	// logsFailed is the failure of each app's newest logs read, until one
+	// is answered: a refusal (a 403, a 404) the engine holds until ctrl-r,
+	// or a failure whose backoff it waits out; a fresh opening says it.
+	logsFailed map[string]error
 	// last is when the box last answered a read; backAt when it
 	// answered again after a run of no answer. refused says the box
 	// refused the last read it answered or refused: an order kept
@@ -283,7 +284,7 @@ func (s *Session) forget() {
 		s.logsFresh(s.logs.app)
 		s.logs = nil
 	}
-	s.logsRefused = nil
+	s.logsFailed = nil
 	s.json.key, s.json.lines = jsonKey{}, nil
 	s.watch = watchState{forgotten: true}
 	s.alarm.forget()
