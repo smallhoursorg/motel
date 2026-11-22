@@ -106,7 +106,7 @@ func deployView(d wire.DeployResult) render.Deploy {
 		for _, l := range dt.LogTail {
 			// A tail line is one journal line, but the app wrote it
 			// and may have put a line break in it.
-			v.LogTail = append(v.LogTail, termtext.Lines(l)...)
+			v.LogTail = append(v.LogTail, termtext.TabbedLines(l)...)
 		}
 		v.LogTailCut = dt.LogTailTruncated
 		v.LogTailError = tx(dt.LogTailError)
