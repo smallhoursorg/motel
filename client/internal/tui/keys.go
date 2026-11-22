@@ -88,10 +88,7 @@ var bindings = []binding{
 	{"l", "its own lines, as the box's journal holds them, followed (a logs grant)", []model.Screen{model.ScreenApp}, closed, rune1('l'), done(func(u *UI, v model.View) { u.openLogs(v.App) })},
 	{"/", "filter by name; /! keeps only marked rows", []model.Screen{model.ScreenApps}, closed, rune1('/'), done(func(u *UI, _ model.View) { u.ask('/') })},
 	{"s", "sort: attention, name, memory, 5xx", []model.Screen{model.ScreenApps}, closed, rune1('s'), done(func(u *UI, _ model.View) { u.sort++ })},
-	{"w", "wrap long lines (off: a line stays a line)", []model.Screen{model.ScreenRecord, model.ScreenLogs}, closed, rune1('w'), done(func(u *UI, v model.View) {
-		if v.Screen == model.ScreenLogs && !u.S.LogsShowsLines() {
-			return // no line to wrap: the footer offers no w
-		}
+	{"w", "wrap long lines (off: a line stays a line)", []model.Screen{model.ScreenRecord, model.ScreenLogs}, closed, rune1('w'), done(func(u *UI, _ model.View) {
 		u.wrap = !u.wrap
 		u.tail.SetWrap(u.wrap)
 	})},
@@ -117,9 +114,6 @@ var bindings = []binding{
 	{"j k ↑ ↓", "scroll a row; scrolled up, held where it is as lines arrive", []model.Screen{model.ScreenLogs}, closed, func(ev *tcell.EventKey) bool {
 		return rune1('j')(ev) || rune1('k')(ev) || keys(tcell.KeyUp, tcell.KeyDown)(ev)
 	}, func(u *UI, v model.View, ev *tcell.EventKey) *tcell.EventKey {
-		if !u.S.LogsShowsLines() {
-			return nil // no line shown: nothing to scroll
-		}
 		by := 1
 		if rune1('k')(ev) || ev.Key() == tcell.KeyUp {
 			by = -1
@@ -128,9 +122,6 @@ var bindings = []binding{
 		return nil
 	}},
 	{"PgUp PgDn Home", "scroll by a page, to the oldest line held", []model.Screen{model.ScreenLogs}, closed, keys(tcell.KeyPgUp, tcell.KeyPgDn, tcell.KeyHome), func(u *UI, v model.View, ev *tcell.EventKey) *tcell.EventKey {
-		if !u.S.LogsShowsLines() {
-			return nil
-		}
 		switch ev.Key() {
 		case tcell.KeyPgUp:
 			u.S.LogsPage(v.App, -1, u.w, door.Width, u.wrap)
@@ -141,11 +132,7 @@ var bindings = []binding{
 		}
 		return nil
 	}},
-	{"End", "the newest line, following again", []model.Screen{model.ScreenLogs}, closed, keys(tcell.KeyEnd), done(func(u *UI, v model.View) {
-		if u.S.LogsShowsLines() {
-			u.S.LogsEnd(v.App)
-		}
-	})},
+	{"End", "the newest line, following again", []model.Screen{model.ScreenLogs}, closed, keys(tcell.KeyEnd), done(func(u *UI, v model.View) { u.S.LogsEnd(v.App) })},
 	{"PgUp PgDn Home End", "move by a page, to the start or the end", notLogs, either, keys(tcell.KeyPgUp, tcell.KeyPgDn, tcell.KeyHome, tcell.KeyEnd), pass},
 	{"PgUp PgDn Home End", "scroll the overlay", []model.Screen{model.ScreenLogs}, open, keys(tcell.KeyPgUp, tcell.KeyPgDn, tcell.KeyHome, tcell.KeyEnd), pass},
 	{"↑ ↓", "scroll", []model.Screen{model.ScreenMe, model.ScreenBox, model.ScreenBackups, model.ScreenAlerts, model.ScreenRules, model.ScreenAppRules, model.ScreenMetrics, model.ScreenHelp, model.ScreenRefused, model.ScreenStopHelp}, closed, keys(tcell.KeyUp, tcell.KeyDown), pass},

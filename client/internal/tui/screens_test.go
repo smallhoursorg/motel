@@ -39,6 +39,7 @@ func TestScreens(t *testing.T) {
 		{"metrics-blog-1h", nil, []any{":", "status blog", tcell.KeyEnter, "g"}},
 		{"metrics-docs-14d", nil, []any{":", "metrics docs 14d", tcell.KeyEnter}},
 		{"logs-blog", nil, []any{":", "status blog", tcell.KeyEnter, "l"}},
+		{"logs-hostile-wrapped", nil, []any{":", "logs hostile", tcell.KeyEnter, "w"}},
 		{"metrics-quiet-1h", quiet, []any{":", "metrics shop 1h", tcell.KeyEnter}},
 		{"metrics-quiet-1h-end", quiet, []any{":", "metrics shop 1h", tcell.KeyEnter, tcell.KeyEnd}},
 		{"help", nil, []any{"?"}},
