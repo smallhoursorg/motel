@@ -335,7 +335,7 @@ func serveTest(w http.ResponseWriter, r *http.Request) error {
 		}
 		if after.delivered(before) {
 			res.Delivered = true
-			e.endTestedCopy(req.Channel, channelKinds[active.cfg.channels[req.Channel].Kind])
+			e.endTestedCopy(req.Channel)
 			return writeJSON(w, res)
 		}
 		if after.failed > before.failed {

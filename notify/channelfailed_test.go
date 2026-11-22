@@ -1062,14 +1062,18 @@ func testedEngine(t *testing.T, block string) (*testEngine, *atomic.Pointer[stri
 	return te, body, read
 }
 
-// test runs `moteld monitor test ch`, the counters moving to after a
-// moment into it, and returns whether it said delivered.
-func runTest(t *testing.T, body *atomic.Pointer[string], ch, after string) bool {
+// runTest runs `moteld monitor test ch` with the counters at before for
+// its baseline read and at after from its next read on, and returns
+// whether it said delivered.
+func runTest(t *testing.T, te *testEngine, ch, before, after string) bool {
 	t.Helper()
-	go func() {
-		time.Sleep(300 * time.Millisecond)
-		body.Store(&after)
-	}()
+	var reads atomic.Int32
+	te.metrics = func(context.Context) ([]byte, error) {
+		if reads.Add(1) == 1 {
+			return []byte(before), nil
+		}
+		return []byte(after), nil
+	}
 	w, err := callAdmin(t, serveTest, http.MethodPost, TestRequest{Channel: ch})
 	if err != nil {
 		t.Fatal(err)
@@ -1083,12 +1087,21 @@ func channelFailed(posts []amAlert) []amAlert {
 	return slices.DeleteFunc(slices.Clone(posts), func(a amAlert) bool { return a.Labels["alertname"] != alertChannelFailed })
 }
 
+// labelsOf is each post's labels, keyed by its notify_channel.
+func labelsOf(posts []amAlert) map[string]map[string]string {
+	out := map[string]map[string]string{}
+	for _, a := range posts {
+		out[a.Labels[labelChannel]] = a.Labels
+	}
+	return out
+}
+
 // TestTestedMendEndsTheCopyAfterARestart: ops, the one channel, failed
 // and its copy is held. moteld restarts (a fresh engine: no record),
 // the channel is mended, and `moteld monitor test ops` is delivered:
 // the copy is resolved, with exactly the labels the failure's own post
-// carried, and nothing else is posted. A test that is not delivered,
-// and one of another channel, resolve nothing of ops's copy.
+// carried, and nothing else is posted. A test that is not delivered
+// resolves nothing.
 func TestTestedMendEndsTheCopyAfterARestart(t *testing.T) {
 	// Before the restart: the failure's own copy, as it was posted.
 	was, _, body, read := holdEngine(t, oneChannelBlock)
@@ -1102,10 +1115,8 @@ func TestTestedMendEndsTheCopyAfterARestart(t *testing.T) {
 	}
 
 	// After it: a fresh engine, the test delivered through ch-ops.
-	te, cur, _ := testedEngine(t, oneChannelBlock)
-	before := counters(1, 4, 1, 0)
-	cur.Store(&before)
-	if !runTest(t, cur, "ops", counters(1, 4, 1, 1)) {
+	te, _, _ := testedEngine(t, oneChannelBlock)
+	if !runTest(t, te, "ops", counters(1, 4, 1, 0), counters(1, 4, 1, 1)) {
 		t.Fatal("the test was not delivered")
 	}
 	got := channelFailed(te.drain())
@@ -1114,27 +1125,88 @@ func TestTestedMendEndsTheCopyAfterARestart(t *testing.T) {
 	}
 
 	// A test that fails resolves nothing.
-	te2, cur2, _ := testedEngine(t, oneChannelBlock)
-	cur2.Store(&before)
+	te2, _, _ := testedEngine(t, oneChannelBlock)
 	failing := metricsHead + amLines("event-warning-ops", 1, 4, 1) + amLines("ch-ops", 1, 1, 1) + amLines("heartbeat", 0, 9, 0)
-	if runTest(t, cur2, "ops", failing) {
+	if runTest(t, te2, "ops", counters(1, 4, 1, 0), failing) {
 		t.Fatal("a failed test said delivered")
 	}
 	if got := channelFailed(te2.drain()); len(got) != 0 {
 		t.Fatalf("a failed test posted %+v", got)
 	}
+}
 
-	// A delivered test of another channel names that channel alone.
-	te3, cur3, _ := testedEngine(t, fourChannelBlock)
-	quiet := metricsHead + amLines("ch-pager", 0, 0, 0)
-	cur3.Store(&quiet)
-	if !runTest(t, cur3, "pager", metricsHead+amLines("ch-pager", 0, 1, 0)) {
+// TestTestedMendEndsEveryCopyOfTheFailure: four channels, ops fails and
+// the three others are told; moteld restarts, ops is mended and tested:
+// the read-only copy and the three addressed ones are resolved, each
+// with the labels the failure's post carried, so the read, which folded
+// the addressed ones under the read-only copy, is left none of them. A
+// test of pager resolves only copies naming pager.
+func TestTestedMendEndsEveryCopyOfTheFailure(t *testing.T) {
+	was, _, body, read := holdEngine(t, fourChannelBlock)
+	*body = metricsHead + amLines("event-warning-ops", 0, 3, 0)
+	was.scrapeFailed(context.Background(), read)
+	*body = metricsHead + amLines("event-warning-ops", 1, 4, 1)
+	was.scrapeFailed(context.Background(), read)
+	posted := labelsOf(channelFailed(was.drain()))
+	if len(posted) != 4 {
+		t.Fatalf("the failure's posts: %v", posted)
+	}
+
+	te, _, _ := testedEngine(t, fourChannelBlock)
+	if !runTest(t, te, "ops", metricsHead+amLines("ch-ops", 0, 0, 0), metricsHead+amLines("ch-ops", 0, 1, 0)) {
+		t.Fatal("the test was not delivered")
+	}
+	got := channelFailed(te.drain())
+	ended := labelsOf(got)
+	if len(got) != 4 || len(ended) != 4 {
+		t.Fatalf("resolved %v, want the four copies of the failure", ended)
+	}
+	for ch, l := range posted {
+		if !maps.Equal(ended[ch], l) {
+			t.Fatalf("the copy to %s: resolved %v, posted %v", ch, ended[ch], l)
+		}
+	}
+	for _, a := range got {
+		if !a.EndsAt.Equal(te.at) {
+			t.Fatalf("not resolved: %+v", a)
+		}
+	}
+
+	te2, _, _ := testedEngine(t, fourChannelBlock)
+	if !runTest(t, te2, "pager", metricsHead+amLines("ch-pager", 0, 0, 0), metricsHead+amLines("ch-pager", 0, 1, 0)) {
 		t.Fatal("pager's test was not delivered")
 	}
-	for _, a := range channelFailed(te3.drain()) {
-		if a.Labels["suspects"] != "pager" {
+	got = channelFailed(te2.drain())
+	if len(got) != 4 {
+		t.Fatalf("pager's test resolved %+v", got)
+	}
+	for _, a := range got {
+		if a.Labels["suspects"] != "pager" || a.Labels[labelChannel] == "pager" {
 			t.Fatalf("pager's test resolved %v", a.Labels)
 		}
+	}
+}
+
+// TestTestedMendTakesTheKindServed: a load changed ops's kind (ntfy to
+// slack) before the test: the resolve carries the integration of the
+// config being served, the one a failure under it posts.
+func TestTestedMendTakesTheKindServed(t *testing.T) {
+	te, _, _ := testedEngine(t, oneChannelBlock)
+	b := mustParse(t, strings.Replace(oneChannelBlock, "channel ops ntfy", "channel ops slack", 1))
+	r, err := b.resolve(testTrust(), testSecrets())
+	if err != nil {
+		t.Fatal(err)
+	}
+	b.cfg = r
+	_, _, b.receivers = render(r, testStateDir)
+	te.setConfig(b, te.p, te.known, te.logger)
+	te.active = b
+	if !runTest(t, te, "ops", metricsHead+amLines("ch-ops", 0, 0, 0), metricsHead+amLines("ch-ops", 0, 1, 0)) {
+		t.Fatal("the test was not delivered")
+	}
+	got := channelFailed(te.drain())
+	if len(got) != 1 || got[0].Labels["integration"] != "slack" {
+		t.Fatalf("resolved %+v, want the slack copy", got)
 	}
 }
 
@@ -1144,7 +1216,8 @@ func TestTestedMendEndsTheCopyAfterARestart(t *testing.T) {
 // record (one more resolve, no re-post) and resumes the heartbeat. The
 // hold came at heartbeatHoldAfter, as without the test.
 func TestTestedMendWithTheRecordStanding(t *testing.T) {
-	te, cur, read := testedEngine(t, oneChannelBlock)
+	te, cur, _ := testedEngine(t, oneChannelBlock)
+	read := func(context.Context) ([]byte, error) { return []byte(*cur.Load()), nil }
 	b := counters(0, 3, 0, 0)
 	cur.Store(&b)
 	te.scrapeFailed(context.Background(), read)
@@ -1163,7 +1236,8 @@ func TestTestedMendWithTheRecordStanding(t *testing.T) {
 		t.Fatalf("held %v at +%v", te.heartbeatHeld(), te.at.Sub(failed))
 	}
 	te.advance(30 * time.Second)
-	if !runTest(t, cur, "ops", counters(1, 4, 1, 1)) {
+	mended := counters(1, 4, 1, 1)
+	if !runTest(t, te, "ops", b, mended) {
 		t.Fatal("the test was not delivered")
 	}
 	got := readOnly(te.drain())
@@ -1171,13 +1245,13 @@ func TestTestedMendWithTheRecordStanding(t *testing.T) {
 		t.Fatalf("after the test: %+v, want the copy resolved", got)
 	}
 	te.advance(30 * time.Second)
+	cur.Store(&mended)
 	te.scrapeFailed(context.Background(), read)
 	te.tick()
 	posts := te.drain()
-	for _, c := range readOnly(posts) {
-		if !c.EndsAt.Equal(te.at) {
-			t.Fatalf("the copy re-posted after the test's resolve: %+v", c)
-		}
+	ro := readOnly(posts)
+	if len(ro) != 1 || !ro[0].EndsAt.Equal(te.at) {
+		t.Fatalf("the read after the test: %+v, want one more resolve and no re-post", ro)
 	}
 	if len(te.untold) != 0 || te.heartbeatHeld() || countAlert(posts, alertWatchdog) != 1 {
 		t.Fatalf("untold %d, held %v, heartbeats %d: want the record ended and the heartbeat back", len(te.untold), te.heartbeatHeld(), countAlert(posts, alertWatchdog))
