@@ -234,7 +234,7 @@ func (s *Session) takeLogs(j Job, gen int, g Got[wire.Logs], err error, at time.
 	}
 	s.logsCur.mu.Unlock()
 	if turn.Gap {
-		d.note(LogsGapSays(d.app, len(g.V.Lines) == 0))
+		d.note(LogsGapSays(d.app, len(g.V.Lines) == 0, turn.Older))
 	}
 	lines := g.V.Lines
 	if d.skipped {

@@ -144,10 +144,15 @@ func (d *LogsDividers) Before(l LogsLine) (termtext.Text, bool) {
 func (d *LogsDividers) Note() { d.prev = nil }
 
 // LogsGapSays is the note of a follow's gap (LogsTurn.Gap): none, the
-// answer brought no line of app.
-func LogsGapSays(app string, none bool) string {
+// answer brought no line of app; older, it stopped with older lines
+// left (every entry it took was passed over), so not that the journal
+// holds none.
+func LogsGapSays(app string, none, older bool) string {
 	newest := "these are its newest"
-	if none {
+	switch {
+	case none && older:
+		newest = "this read sent no line"
+	case none:
 		newest = "it now holds no line of " + app
 	}
 	return "a gap: the box no longer holds the line this follow had read to, so lines since then may be missing; " + newest

@@ -181,7 +181,7 @@ func (l *logsRun) follow(ctx context.Context) error {
 		}
 		taken = true
 		if turn.Gap {
-			if err := l.say(model.LogsGapSays(l.app.Name, len(lg.Lines) == 0)); err != nil {
+			if err := l.say(model.LogsGapSays(l.app.Name, len(lg.Lines) == 0, turn.Older)); err != nil {
 				return err
 			}
 		}
