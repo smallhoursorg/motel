@@ -82,6 +82,9 @@ type Session struct {
 	logs    *logsData
 	logsOn  string
 	logsCur logsCursor
+	// logsLaid: the logs screen's last layout showed a row of its lines
+	// (LogsShowsLines).
+	logsLaid bool
 	// logsFailed is the failure of each app's newest logs read, until one
 	// is answered: a refusal (a 403, a 404) the engine holds until ctrl-r,
 	// or a failure whose backoff it waits out; a fresh opening says it.
@@ -284,7 +287,7 @@ func (s *Session) forget() {
 		s.logsFresh(s.logs.app)
 		s.logs = nil
 	}
-	s.logsFailed = nil
+	s.logsFailed, s.logsLaid = nil, false
 	s.json.key, s.json.lines = jsonKey{}, nil
 	s.watch = watchState{forgotten: true}
 	s.alarm.forget()

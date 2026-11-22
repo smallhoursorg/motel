@@ -369,12 +369,14 @@ func TestLogsBounds(t *testing.T) {
 	if rows := s.LogsViewFit("blog", now.Add(model.LogsEvery), 20, 3, runes, false); len(rows) != 3 {
 		t.Errorf("a head taller than the page: %d rows for 3", len(rows))
 	}
-	// With no row of the lines shown, nothing scrolls nor holds.
-	s.LogsScroll("blog", -5, 20, runes, false)
-	s.LogsPage("blog", -1, 20, runes, false)
-	s.LogsHome("blog", 20, runes, false)
-	if v := logsText(s, now.Add(model.LogsEvery), 80, 30); strings.Contains(v, "held") {
-		t.Errorf("scrolled while no line was shown:\n%s", v)
+	// The fact the footer and the keys go by: no row of the lines laid
+	// out when the head fills the page; rows laid out when they fit.
+	if s.LogsShowsLines() {
+		t.Error("lines said shown when the head filled the page")
+	}
+	f.Set("logs:blog", nil)
+	if logsText(s, now.Add(model.LogsEvery), 80, 30); !s.LogsShowsLines() {
+		t.Error("lines said not shown when they fit")
 	}
 }
 

@@ -132,7 +132,7 @@ func (s *Session) LogsOpen(app string, now time.Time) {
 // follows on from its cursor when it is in front again). A logs screen
 // of another app than the lines held is a fresh start.
 func (s *Session) LogsShown(app string, now time.Time) {
-	s.logsOn = app
+	s.logsOn, s.logsLaid = app, false
 	if app != "" && (s.logs == nil || s.logs.app != app) {
 		s.logsFresh(app)
 	}
@@ -374,6 +374,8 @@ func (s *Session) LogsAsOf(app string, now time.Time) Line {
 // where a line or a divider does.
 func (s *Session) LogsViewFit(app string, now time.Time, width, height int, cells Cells, wrap bool) []Line {
 	s.seen(now)
+	// Set below once a row of the app's lines is laid out.
+	s.logsLaid = false
 	head, d := s.logsHead(app, now, width, cells)
 	if d == nil {
 		return head
@@ -381,8 +383,7 @@ func (s *Session) LogsViewFit(app string, now time.Time, width, height int, cell
 	// The head, the rule and the lines, within the page: a head taller
 	// than the page is cut at its foot.
 	if len(head)+1 >= height {
-		// No row of the lines shown: nothing scrolls (LogsScroll).
-		d.pos.lastHeight = 0
+		// No row of the lines shown (LogsShowsLines false).
 		return head[:min(len(head), max(height, 1))]
 	}
 	rows := height - len(head) - 1
@@ -412,6 +413,7 @@ func (s *Session) LogsViewFit(app string, now time.Time, width, height int, cell
 		rs := d.rows(i, width, cells, wrap)
 		out = append(out, rs[r:]...)
 		i, r = i+1, 0
+		s.logsLaid = true
 	}
 	return out[:min(len(out), len(head)+1+rows)]
 }
@@ -467,14 +469,13 @@ func (s *Session) logsHead(app string, now time.Time, width int, cells Cells) ([
 	return out, d
 }
 
-// LogsShowsLines says whether the logs screen of app shows lines, or
-// only what it says of them (no grant, whoami not known, a refusal,
-// kept off with none held): its footer offers the keys that scroll,
-// follow and wrap only then.
-func (s *Session) LogsShowsLines(app string, now time.Time) bool {
-	_, d := s.logsHead(app, now, 0, nil)
-	return d != nil
-}
+// LogsShowsLines says whether the logs screen's last layout
+// (LogsViewFit) showed any row of the app's lines: the one fact its
+// footer and its keys that scroll, follow and wrap go by. With none (no
+// grant, whoami not known, a refusal, kept off with none held, a head
+// that fills the page) the footer offers none of them and they do
+// nothing.
+func (s *Session) LogsShowsLines() bool { return s.logsLaid }
 
 // rows is item i laid out to width: a note of the client's on rows of
 // its own (Sentence); a line after its divider when it has one, then the
@@ -612,9 +613,7 @@ func (d *logsData) down(i, r, n, width int, cells Cells, wrap bool) (int, int, b
 // newest row is in view, it follows them again.
 func (s *Session) LogsScroll(app string, n, width int, cells Cells, wrap bool) {
 	d := s.logs
-	if d == nil || d.app != app || len(d.items) == 0 || n == 0 || d.pos.lastHeight == 0 {
-		// Nothing shown of the lines (the last frame's head filled the
-		// page, or no frame yet): nothing to scroll.
+	if d == nil || d.app != app || len(d.items) == 0 || n == 0 {
 		return
 	}
 	rows := max(d.pos.lastHeight, 1)
@@ -653,7 +652,7 @@ func (s *Session) LogsPage(app string, by, width int, cells Cells, wrap bool) {
 // LogsHome holds the logs screen's lines at the oldest held; LogsEnd
 // follows them again, at the newest.
 func (s *Session) LogsHome(app string, width int, cells Cells, wrap bool) {
-	if d := s.logs; d != nil && d.app == app && len(d.items) > 0 && d.pos.lastHeight > 0 {
+	if d := s.logs; d != nil && d.app == app && len(d.items) > 0 {
 		if i, r := d.top(max(d.pos.lastHeight, 1), width, cells, wrap); i == 0 && r == 0 {
 			// At the oldest row already: nothing scrolled, nothing held.
 			return

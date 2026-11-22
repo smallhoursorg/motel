@@ -38,13 +38,20 @@ func (u *UI) render(now time.Time) {
 		crumbL = u.notice
 	}
 	door.SetText(u.crumb, door.Line(spread(crumbL, crumbR, u.w), u.Colour))
+	// The logs page is laid out before the footer: whether it shows any
+	// line is the one fact its footer and its keys go by (LogsShowsLines).
+	var logsPage []model.Line
+	if v.Screen == model.ScreenLogs {
+		logsPage = u.S.LogsViewFit(v.App, now, u.w, u.h-3, door.Width, u.wrap)
+	}
 	foot := footers[v.Screen]
 	if v.Screen == model.ScreenRefused && u.S.CanPrint(v, 0) {
 		foot = "↑↓ scroll  r ask again  P print person line  ? keys  q quit"
 	}
-	if v.Screen == model.ScreenLogs && !u.S.LogsShowsLines(v.App, now) {
-		// No grant, whoami not known, kept off, a refusal: no line to
-		// scroll, follow or wrap.
+	if v.Screen == model.ScreenLogs && !u.S.LogsShowsLines() {
+		// No line laid out (no grant, whoami not known, a refusal, kept
+		// off, a head that fills the page): nothing to scroll, follow or
+		// wrap.
 		foot = logsSaysFooter
 	}
 	if !u.S.Engine.CanAskAgain(now) {
@@ -71,7 +78,7 @@ func (u *UI) render(now time.Time) {
 	case model.ScreenMetrics:
 		door.SetText(u.page, door.Lines(u.S.MetricsViewFit(v.App, v.Range, now, u.w, u.h-3, door.Width), u.Colour))
 	case model.ScreenLogs:
-		door.SetText(u.page, door.Lines(u.S.LogsViewFit(v.App, now, u.w, u.h-3, door.Width, u.wrap), u.Colour))
+		door.SetText(u.page, door.Lines(logsPage, u.Colour))
 	case model.ScreenHelp:
 		door.SetText(u.page, door.LitLines(hang(u.help(), u.w)))
 	case model.ScreenStopHelp:
@@ -106,8 +113,9 @@ func (u *UI) render(now time.Time) {
 }
 
 // logsSaysFooter is the logs screen's footer while it shows no lines,
-// only what it says of them.
-const logsSaysFooter = "ctrl-r ask again  c cmd  y json  esc back  ? more"
+// only what it says of them; ctrl-r after another key, so render takes it
+// out when it would do nothing, as from every footer.
+const logsSaysFooter = "c cmd  y json  ctrl-r ask again  esc back  ? more"
 
 // promptFooters are the keys of the : line and the / filter while
 // open, whole at 60 columns as the screens' footers are.
