@@ -32,12 +32,12 @@ func (r *runner) logs() *cobra.Command {
 		Use:   "logs <app>",
 		Short: "An app's own lines, as the box's journal holds them; --follow reads on (experimental)",
 		Long: "logs reads GET /_motel/apps/<app>/logs, for a person with a logs grant on the\n" +
-			"app or the box: the app's newest lines, oldest first (--lines, " + strings.Join(wire.LogsLines, ", ") + "; the\n" +
-			"box's default is " + wire.LogsLines[0] + "). Each line is its time (UTC) and its text, every control\n" +
-			"character and colour code shown escaped; a line before them, and wherever the\n" +
-			"release or the day changes, names the day and the release. A read sends at\n" +
-			"most that many lines or 64 KiB, and older lines are then not sent: logs does\n" +
-			"not page back. <app> is a name, or the app's URL\n" +
+			"app or the box: the app's newest lines, oldest first (--lines, " + strings.Join(wire.LogsLines, ", ") + ";\n" +
+			"the box's default is " + wire.LogsLines[0] + "). Each line is its time (UTC) and its text,\n" +
+			"every control character and colour code shown escaped; a line before them,\n" +
+			"and wherever the release or the day changes, names the day and the release.\n" +
+			"A read sends at most that many lines or 64 KiB, and older lines are then not\n" +
+			"sent: logs does not page back. <app> is a name, or the app's URL\n" +
 			"(https://deploy.example.com/blog), which names the box too.\n\n" +
 			"--follow then reads every 2 s for the lines after the last one read, until\n" +
 			"ctrl-c (exit 130) or a read fails (that read's exit); a 429 or a busy box's\n" +

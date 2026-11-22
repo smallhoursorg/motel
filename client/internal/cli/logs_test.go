@@ -12,6 +12,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/smallhoursorg/motel/client/internal/termtext"
 	"github.com/smallhoursorg/motel/client/internal/tui/model"
@@ -449,5 +450,16 @@ func TestLogsFollow429Bound(t *testing.T) {
 	r = runLogs(t, context.Background(), lb, sl, nil, "logs", "blog", "--follow")
 	if r.code != 3 || len(sl.d) != 0 || len(lb.queries) != 1 || !strings.Contains(r.stderr, "the box asks you to wait 61 s, longer than motel waits") {
 		t.Errorf("61 s: exit %d, slept %v, %d reads, stderr %q", r.code, sl.d, len(lb.queries), r.stderr)
+	}
+}
+
+// TestLogsHelpFits: logs' help, as built from the box's counts, is at
+// most 79 columns a line, as the other commands' help is.
+func TestLogsHelpFits(t *testing.T) {
+	r := &runner{}
+	for _, line := range strings.Split(r.logs().Long, "\n") {
+		if n := utf8.RuneCountInString(line); n > 79 {
+			t.Errorf("%d columns: %q", n, line)
+		}
 	}
 }
