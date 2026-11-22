@@ -42,6 +42,9 @@ type Client interface {
 	BoxRules(ctx context.Context) (Got[wire.Rules], error)
 	// Series is an app's numbers over a window, one of SeriesRanges.
 	Series(ctx context.Context, app, rng string) (Got[wire.Series], error)
+	// Logs is an app's own lines: its newest (after ""), or those after
+	// the cursor an earlier answer gave.
+	Logs(ctx context.Context, app, after string) (Got[wire.Logs], error)
 }
 
 // Got is one answer: the value, the body as received, and when it
@@ -59,7 +62,8 @@ type Failure struct {
 	// Message is the client's own sentence, with whatever the box sent
 	// in it already made safe or quoted.
 	Message string
-	// RetryAfter is a 429's wait, zero when the box gave none.
+	// RetryAfter is a 429's wait, or a FailBusy's; zero when the box gave
+	// none.
 	RetryAfter time.Duration
 }
 
@@ -104,4 +108,11 @@ const (
 	// Nothing came from the box, so nothing is known of it: a run of no
 	// answer goes on.
 	FailNotSent
+	// FailBusy: the box answered that it runs as many reads of this kind
+	// as it runs at once, and named a wait (a logs read's 503, the box's
+	// four read slots taken, by anyone): this read alone is asked again
+	// after the wait, or at its own interval when that is longer. Nothing
+	// else slows, as a 429 slows the session, since the slots are not this
+	// person's, and the box is not said to refuse.
+	FailBusy
 )

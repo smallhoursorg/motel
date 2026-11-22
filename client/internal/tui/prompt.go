@@ -74,7 +74,7 @@ func (u *UI) run(text string) {
 		return w[1], true
 	}
 	// Each word takes so many: more is not run, and said.
-	most, known := map[string]int{"status": 2, "app": 2, "deploys": 3, "q": 1, "quit": 1, "apps": 1, "whoami": 1, "me": 1, "box": 1, "backups": 1, "alerts": 1, "rules": 2, "metrics": 3, "help": 1, "keys": 1}[w[0]]
+	most, known := map[string]int{"status": 2, "app": 2, "deploys": 3, "q": 1, "quit": 1, "apps": 1, "whoami": 1, "me": 1, "box": 1, "backups": 1, "alerts": 1, "rules": 2, "metrics": 3, "logs": 2, "help": 1, "keys": 1}[w[0]]
 	if known && len(w) > most {
 		say(own("one word too many: "), quoted(strings.Join(w[most:], " ")), own(" is more than :"+w[0]+" takes"))
 		return
@@ -126,6 +126,12 @@ func (u *UI) run(text string) {
 			u.stack = append(u.stack, model.View{Screen: model.ScreenApp, App: a})
 			u.open(mv)
 		}
+	case "logs":
+		a, ok := app()
+		if !ok {
+			return
+		}
+		u.openLogs(a)
 	case "whoami", "me":
 		u.open(model.View{Screen: model.ScreenMe})
 	case "box":
@@ -182,7 +188,7 @@ func (u *UI) complete(text string) []string {
 	for _, a := range u.S.Names() {
 		// Not "metrics <app>": offered for "me", it would stand between
 		// esc and closing the line.
-		all = append(all, "status "+a, "deploys "+a, "rules "+a)
+		all = append(all, "status "+a, "deploys "+a, "rules "+a, "logs "+a)
 	}
 	var out []string
 	for _, c := range all {

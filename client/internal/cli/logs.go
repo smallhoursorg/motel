@@ -93,6 +93,8 @@ type logsRun struct {
 	app   client.App
 	lines string
 	out   *render.Logs
+	// div is where the plain layout's dividers have got to.
+	div model.LogsDividers
 }
 
 // once is a tail: the newest lines.
@@ -126,7 +128,7 @@ func (l *logsRun) once(ctx context.Context) error {
 	if l.r.json {
 		return nil
 	}
-	return l.out.Lines(logLines(lg.Lines))
+	return l.out.Lines(l.layout(lg.Lines))
 }
 
 // follow reads the newest lines, then every LogsEvery the lines after
@@ -184,7 +186,7 @@ func (l *logsRun) follow(ctx context.Context) error {
 		}
 		taken = true
 		if turn.Gap {
-			if err := l.say("a gap: the box no longer holds the line this follow had read to, so lines since then may be missing; these are its newest"); err != nil {
+			if err := l.say(model.LogsGapSays); err != nil {
 				return err
 			}
 		}
@@ -214,21 +216,11 @@ func (l *logsRun) known(lg wire.Logs) error {
 		"%s answered about %s's lines in a word for what it keeps this client does not know (%s): it cannot tell whether they are sent", l.c.Box.Host, l.app.Name, lg.Kept)}
 }
 
-func (l *logsRun) off() string {
-	return fmt.Sprintf("%s keeps %s's output on the box (deploy_log_lines 0): it sends no line of it", l.c.Box.Host, l.app.Name)
-}
+func (l *logsRun) off() string { return model.LogsOffSays(l.c.Box.Host, l.app.Name) }
 
-func (l *logsRun) none() string {
-	return fmt.Sprintf("%s holds no line of %s in its journal", l.c.Box.Host, l.app.Name)
-}
+func (l *logsRun) none() string { return model.LogsNoneSays(l.c.Box.Host, l.app.Name) }
 
-func (l *logsRun) older() string {
-	n := l.lines
-	if n == "" {
-		n = wire.LogsLines[0]
-	}
-	return "older lines were not sent: a read sends at most " + n + " lines or 64 KiB of them, and none reaches further back"
-}
+func (l *logsRun) older() string { return model.LogsOlderSays(l.lines) }
 
 // say is the client's own sentence s about the lines: on stderr with
 // --json, where stdout holds the box's JSON alone; else on a divider
@@ -237,6 +229,7 @@ func (l *logsRun) say(s string) error {
 	if l.r.json {
 		return l.tell(s)
 	}
+	l.div.Note()
 	return l.out.Note(s)
 }
 
@@ -253,7 +246,7 @@ func (l *logsRun) tell(s string) error {
 // layout.
 func (l *logsRun) print(lg wire.Logs, ans *client.Answer) error {
 	if !l.r.json {
-		return l.out.Lines(logLines(lg.Lines))
+		return l.out.Lines(l.layout(lg.Lines))
 	}
 	var raw struct {
 		Lines []json.RawMessage `json:"lines"`
@@ -276,12 +269,15 @@ func (l *logsRun) print(lg wire.Logs, ans *client.Answer) error {
 	return nil
 }
 
-// logLines are the box's lines in the plain layout's view.
-func logLines(lines []wire.LogLine) []render.LogLine {
+// layout is the box's lines in the plain layout's view, after those
+// written before: the TUI's logs screen lays them out by the same
+// pieces (model.LogsDivider, LogsLine.Clock).
+func (l *logsRun) layout(lines []wire.LogLine) []render.LogLine {
 	shown := model.LogsLines(lines)
 	out := make([]render.LogLine, len(shown))
 	for i, s := range shown {
-		out[i] = render.LogLine{At: s.At, Release: s.Release, Text: s.Text}
+		d, _ := l.div.Before(s)
+		out[i] = render.LogLine{Divider: d, Clock: s.Clock(), Text: s.Text}
 	}
 	return out
 }
