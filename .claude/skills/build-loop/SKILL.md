@@ -1,6 +1,6 @@
 ---
 name: build-loop
-description: How a feature or a ticket's fix is built in motel, from the ticket to a pull request the owner can merge. An Opus subagent builds it in its own worktree, reviews its own branch with /code-review and scores every finding with the triage skill (up to four rounds), opens the pull request, then answers Copilot's reviews in a loop (or an independent reviewer's, when Copilot cannot review) until one comes back clean. Use it whenever the owner asks to build, add or implement something, hands tickets to subagents, or says "the usual loop", "self-review and triage" or "Opus subagents", and again before telling the owner that a pull request is ready.
+description: How a feature or a ticket's fix is built in motel, from the ticket to a pull request the owner can merge. An Opus subagent builds it in its own worktree, reviews its own branch with /code-review and scores every finding with the triage skill (up to four rounds), opens the pull request, then answers Copilot's reviews in a loop (or an independent reviewer's, when Copilot cannot review) until a round leads to no fix. Use it whenever the owner asks to build, add or implement something, hands tickets to subagents, or says "the usual loop", "self-review and triage" or "Opus subagents", and again before telling the owner that a pull request is ready.
 ---
 
 # Build loop: from a ticket to a pull request the owner can merge
@@ -96,15 +96,16 @@ Builders for independent tickets start together, in one message.
 
 One round is:
 
-1. Commit, fetch `upstream`, and make sure the branch holds main's
-   tip (`git merge-base --is-ancestor upstream/main <branch>`; if it
-   does not, merge main in: merge, never rebase). Then run
-   `/code-review high upstream/main..<branch>`, naming the branch.
-   With main's tip in the branch the range is the branch's own
-   change. Without it, what main gained since the branch was cut
-   shows as the branch's deletions. `HEAD` in the main checkout is
-   not the worktree's, so a range that ends in `HEAD` reviews
-   nothing.
+1. Commit, then run `/code-review high <base>..<branch>`. `<base>`
+   is the commit id that `git merge-base upstream/main <branch>`
+   prints, and `<branch>` is the branch by name. From that commit
+   the range is the branch's own change, whatever main has gained
+   since, and a commit id does not move when another session
+   fetches. `upstream/main` by name can move under a running review,
+   and then shows main's later changes as the branch's deletions.
+   `HEAD` in the main checkout is not the worktree's, so a range
+   that ends in `HEAD` reviews nothing. No merge of main is needed
+   for a review.
 2. Read the triage rule: the whole of
    `.claude/skills/triage/SKILL.md` **in the worktree of the branch
    under review**, in the same turn as the scoring. Not the Skill
@@ -117,9 +118,7 @@ One round is:
    scored.
 4. Do what the rule says. A fix is made at once, with the test that
    proves it, and no larger than its score. What is accepted or owed
-   is recorded as the rule's fifth section says: a row in the
-   subsystem's design doc, and no row where the rule gives none
-   (severity 1, a comment corrected).
+   is recorded as the rule's fifth section says.
 
 Three scoring mistakes that have each cost a round:
 
@@ -180,8 +179,10 @@ after the other.
 - Branch from the other's branch, and merge that branch in whenever
   it moves: before each review round and before each push. Merge,
   never rebase.
-- Review your own diff, with the base's tip merged in:
-  `/code-review high <base branch>..<branch>`.
+- Review your own diff: `/code-review high <base>..<branch>`, where
+  `<base>` is the commit id `git merge-base <base branch> <branch>`
+  prints. Main reaches a stacked branch only through its base
+  branch: do not merge `upstream/main` into it yourself.
 - Open it against `main`, since upstream has no such base branch. Its
   first paragraph says which pull request it is stacked on and is
   merged after, that the diff GitHub shows holds the other's too
@@ -214,14 +215,14 @@ after the other.
 4. Fix, accept or owe as the rule says. Reply on each thread with the
    finding's scores, and keep a "Copilot's review, triaged" table in
    the description as well: a reply on a thread is easy to miss.
-5. Push. Request again only if a fix was pushed after the review:
-   code or a test. Rows and the description alone do not call for
-   another round.
+5. Push. Request again only if a fix was pushed after the commit
+   the review read. Triage rows and the description are not fixes,
+   and alone they call for no other round.
 
-Stop when a round leads to no fix, or at the cap. Most pull requests
-stop at the second round: the third is for when the second still
-found something the rule says to fix. CI is green on the head commit
-before the builder reports.
+Stop when a review whose commit holds every fix leads to no fix, or
+at the cap. Most pull requests stop at the second round: the third
+is for when the second still found something the rule says to fix.
+CI is green on the head commit before the builder reports.
 
 **When Copilot cannot review** (its answer says the quota is spent,
 or the request is refused): do not go on without a second reader.
@@ -231,7 +232,8 @@ With the owner's word, an independent reviewer stands in:
 - a fresh subagent, not the builder, on the model the owner names;
   with none named, a model other than the builder's, and other than
   the last reviewer's where the two differ;
-- given the branch, the range and what the change is meant to do,
+- given the branch, the range as two commit ids, and what the
+  change is meant to do,
   and told not to read the pull request's description, its threads
   or any earlier finding; asked to reproduce what it can with a
   throwaway test outside the branch; it reviews and changes nothing;
@@ -251,21 +253,23 @@ With the owner's word, an independent reviewer stands in:
 - **Run one more round on the final head, when anything was pushed
   after the builder's last self-review round.** Those fixes have had
   no reader of ours, and the coordinator's model is a different
-  reader from the builder's. When the coordinator runs on the
-  builder's model, a fresh subagent on another model makes this
-  round, briefed as section 6's independent reviewer. Run
-  `/code-review high` on the branch and score the findings, once.
-  Fixes go back to the builder by message, and the coordinator reads
-  each fix's diff before the report: with no round left, that read
-  is all the fix gets, and the report says so.
+  reader from the builder's. Run `/code-review high` once, over the
+  range of section 4's first step, and score the findings. A
+  coordinator on the builder's model does not run it: it has a
+  fresh subagent on another model run the same command and return
+  the findings, and scores those. That needs no word from the
+  owner. Fixes go back to the builder by message, and the
+  coordinator reads each fix's diff before the report: with no
+  round left, that read is all the fix gets, and the report says
+  so.
 - **Send the builder the failure, not the fix.** Say what goes wrong
   and what must hold afterwards, and let the builder choose the
   change. A design the coordinator dictates has no reader either,
   and a loose word in it ("whatever state") becomes the next fault.
-- **Do not fetch, or merge main into a branch, while a review of it
-  runs.** A review reads the refs as they stand when it looks, and a
-  base or a branch that moves under it changes what it reads. Merge
-  when the round is back.
+- **Do not merge into a branch, or push to it, while a review of it
+  runs.** The branch's tip is the end of the range, and a tip that
+  moves under a review changes what it reads. When main must come
+  in (a conflict), `git merge upstream/main` once the round is back.
 - **Read the plain comments** on the pull request as well as the
   review threads. A finding from another session can sit there.
 - **Run what a person will see.** For a change to a screen or a
@@ -298,9 +302,9 @@ after its rounds (an answer to an open question, a "do this too"):
 - **If it belongs in the same pull request,** the builder builds it
   in commits of its own. The new commits then get one self-review
   round over their range alone
-  (`/code-review high <last reviewed commit>..<branch>`; if main
-  was merged in after that commit, begin the range at the merge),
-  scored,
+  (`/code-review high <last reviewed commit>..<branch>`, run before
+  main is merged into the branch again, so that the range holds the
+  new commits and nothing of main's), scored,
   and the pull request gets one more Copilot round on its final
   head, whatever the caps say: Copilot has not seen the new code.
 - Fixes from those two get the coordinator's read of their diff, as
@@ -322,8 +326,10 @@ than it buys. Before any more fixes:
 2. **If it is severity 1, or was never over the bar,** take the fixes
    back and record it. No question for the owner is needed.
 3. **If the rule still says fix,** fix forward once: the builder
-   fixes the faults, and the next round reads those fixes.
-4. **If that round too finds faults its fixes brought in,** stop
+   fixes the faults, and the next reading reads those fixes. That is
+   a self-review round where the cap leaves one, and otherwise
+   Copilot's next round or the coordinator's final round.
+4. **If that reading too finds faults its fixes brought in,** stop
    fixing. Put two options to the owner in plain words: go back to
    the last state a review read whole and accept what is left, or
    fix forward with another round. An accept over the bar is the
