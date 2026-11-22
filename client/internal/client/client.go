@@ -987,6 +987,24 @@ func hold(v any) string {
 		}
 	case *wire.Series:
 		return holdSeries(a)
+	case *wire.Logs:
+		// What the client prints of an app's lines as a word: kept, which a
+		// client reads as not knowing when it does not know it, and each
+		// line's release, a version or "" (the journal kept no unit). The
+		// cursor is sent back as the next read's after, so it is held to
+		// the box's own grammar (the box keeps it out of its filter); a
+		// line's text is free text, made safe by termtext.
+		if !alertWordRe.MatchString(a.Kept) {
+			return "its kept is not a word"
+		}
+		if a.Cursor != "" && !wire.LogsCursor.MatchString(a.Cursor) {
+			return "its cursor is not a journal cursor"
+		}
+		for i := range a.Lines {
+			if r := &a.Lines[i].Release; *r != "" && !held(r, isVersion) {
+				return "a line's release in it is not a version"
+			}
+		}
 	case *wire.Apps:
 		for _, e := range a.Apps {
 			if !appRe.MatchString(e.Name) {
@@ -1241,6 +1259,8 @@ func identity(v any) shape {
 		return shape{strs: []string{"store"}, lists: []string{"alerts"}}
 	case *wire.Series:
 		return shape{strs: []string{"store", "window"}, lists: []string{"panels"}}
+	case *wire.Logs:
+		return shape{strs: []string{"kept"}, lists: []string{"lines"}}
 	}
 	return shape{}
 }

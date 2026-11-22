@@ -51,7 +51,8 @@ type Env struct {
 const experimental = "Every command is experimental: its flags, output and exit codes can change\n" +
 	"in any release until a release's notes say otherwise. The human output is\n" +
 	"never a contract. --json prints the box's own JSON for a read of it (deploys\n" +
-	"<app>: its deploys array alone; version and key: motel's own), and on\n" +
+	"<app>: its deploys array alone; logs --follow: each line's object, one a\n" +
+	"line; version and key: motel's own), and on\n" +
 	"exit 1, 6 or 9, or 5 when the 403 was JSON; on exit 2, 3, 4, 8 or another 5,\n" +
 	"{\"error\":...} holding motel's own sentence, the one stderr prints.\n\n" +
 	"The box: an app's URL as <app>, else --box, MOTEL_BOX, the host of MOTEL_URL,\n" +
@@ -90,7 +91,9 @@ func Main(ctx context.Context, args []string, env Env) int {
 	}
 	// A refusal of the arguments themselves comes before --json is
 	// read, so it is looked for here too.
-	if r.json || wantsJSON(args) {
+	// --follow --json prints the app's lines alone on stdout, a
+	// failure's object neither (logsRun).
+	if (r.json || wantsJSON(args)) && !r.stream {
 		if f.Body != nil {
 			_, _ = env.Stdout.Write(withNewline(termtext.JSON(f.Body)))
 		} else {
@@ -148,13 +151,16 @@ func wantsJSON(args []string) bool {
 type runner struct {
 	env  Env
 	json bool
+	// stream is --follow --json of logs: stdout holds the app's lines
+	// alone, one JSON object a line.
+	stream bool
 }
 
 func (r *runner) tree() *cobra.Command {
 	root := &cobra.Command{
 		Use:           "motel",
 		Short:         "Read a motel box over HTTPS (experimental)",
-		Long:          "motel reads a box over HTTPS: who your key is there and the apps it may view,\nan app's status, deploys, alerts, rules and numbers over time, and the box's\nown state, backups, alerts and rules.\n\n" + screenLong + "\n\n" + experimental,
+		Long:          "motel reads a box over HTTPS: who your key is there and the apps it may view,\nan app's status, deploys, lines, alerts, rules and numbers over time, and the\nbox's own state, backups, alerts and rules.\n\n" + screenLong + "\n\n" + experimental,
 		SilenceErrors: true,
 		SilenceUsage:  true,
 	}
@@ -190,7 +196,7 @@ func (r *runner) tree() *cobra.Command {
 		},
 	}
 	backup.AddCommand(r.backupStatus())
-	for _, c := range []*cobra.Command{r.version(), r.key(), r.whoami(), r.apps(), r.status(), r.deploys(), r.metrics(), box, backup, r.monitor()} {
+	for _, c := range []*cobra.Command{r.version(), r.key(), r.whoami(), r.apps(), r.status(), r.deploys(), r.logs(), r.metrics(), box, backup, r.monitor()} {
 		c.GroupID = "experimental"
 		root.AddCommand(c)
 	}

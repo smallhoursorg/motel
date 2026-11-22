@@ -1,0 +1,297 @@
+package cli
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+	"slices"
+	"strings"
+	"time"
+
+	"github.com/spf13/cobra"
+
+	"github.com/smallhoursorg/motel/client/internal/client"
+	"github.com/smallhoursorg/motel/client/internal/render"
+	"github.com/smallhoursorg/motel/client/internal/termtext"
+	"github.com/smallhoursorg/motel/client/internal/tui/model"
+	"github.com/smallhoursorg/motel/liveswap/wire"
+)
+
+// logsWait is how long a 429 with no Retry-After is waited out while
+// following: the time the box's whole burst takes to refill, as the
+// TUI waits one out.
+const logsWait = 30 * time.Second
+
+// logs is `motel logs <app> [--lines] [--follow]`: GET
+// /_motel/apps/<app>/logs, the app's own lines, for a person with a
+// logs grant on the app or the box.
+func (r *runner) logs() *cobra.Command {
+	var t target
+	var lines string
+	var follow bool
+	c := &cobra.Command{
+		Use:   "logs <app>",
+		Short: "An app's own lines, as the box's journal holds them; --follow reads on (experimental)",
+		Long: "logs reads GET /_motel/apps/<app>/logs, for a person with a logs grant on the\n" +
+			"app or the box: the app's newest lines, oldest first (--lines, " + strings.Join(wire.LogsLines, ", ") + "; the\n" +
+			"box's default is " + wire.LogsLines[0] + "). Each line is its time (UTC) and its text, every control\n" +
+			"character and colour code shown escaped; a line before them, and wherever the\n" +
+			"release or the day changes, names the day and the release. A read sends at\n" +
+			"most that many lines or 64 KiB, and older lines are then not sent: no read\n" +
+			"reaches them. <app> is a name, or the app's URL\n" +
+			"(https://deploy.example.com/blog), which names the box too.\n\n" +
+			"--follow then reads every 2 s for the lines after the last one read, until\n" +
+			"ctrl-c (exit 130) or a read fails (that read's exit); a 429 or a busy box's\n" +
+			"503 is waited out. Each read that sends lines is a line in the box's journal,\n" +
+			"naming you; a follow beside an open motel brings you to the 2 requests a second\n" +
+			"a box allows a person.\n\n" +
+			"An app that keeps its output on the box (deploy_log_lines 0) has no line\n" +
+			"sent: that is said on stderr, exit 0. --json prints the box's answer; with\n" +
+			"--follow, one JSON object a line, each a line of the app's as the box sent\n" +
+			"it, and nothing else on stdout, even on a failure: what is not a line is said\n" +
+			"on stderr. It is asked with your own key only: with MOTEL_TOKEN set, name the\n" +
+			"key with --key.\n\n" + experimental,
+		Args: usageArgs(cobra.ExactArgs(1)),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Nothing but lines goes to stdout in this mode, a failure's
+			// object neither (Main).
+			r.stream = follow && r.json
+			app, err := client.ParseApp(args[0])
+			if err != nil {
+				return err
+			}
+			// The count is refused before the box is looked for, as every
+			// argument is.
+			if cmd.Flags().Changed("lines") && !slices.Contains(wire.LogsLines, lines) {
+				return &client.Failure{Exit: client.ExitUsage, Message: fmt.Sprintf("--lines %q is not one of %s", termtext.From(lines), strings.Join(wire.LogsLines, ", "))}
+			}
+			c, err := r.client(cmd.Context(), &t, app.Box, "", "logs")
+			if err != nil {
+				return err
+			}
+			lr := &logsRun{r: r, c: c, app: app, lines: lines, out: &render.Logs{W: r.env.Stdout}}
+			if follow {
+				return lr.follow(cmd.Context())
+			}
+			return lr.once(cmd.Context())
+		},
+	}
+	t.flags(c)
+	c.Flags().StringVar(&lines, "lines", "", "the most lines a read sends: "+strings.Join(wire.LogsLines, ", ")+" (the box's default is "+wire.LogsLines[0]+")")
+	c.Flags().BoolVar(&follow, "follow", false, "read on every 2 s for the lines after the last one read, until ctrl-c")
+	return c
+}
+
+// logsRun is one logs command: the box asked, the app, the count asked
+// for, and where the plain layout has got to.
+type logsRun struct {
+	r     *runner
+	c     *client.Client
+	app   client.App
+	lines string
+	out   *render.Logs
+}
+
+// once is a tail: the newest lines.
+func (l *logsRun) once(ctx context.Context) error {
+	lg, ans, err := l.c.Logs(ctx, l.app, l.lines, "")
+	if err != nil {
+		return fail(err)
+	}
+	if err := l.known(lg); err != nil {
+		return err
+	}
+	if l.r.json {
+		return l.r.emit(ans.Body)
+	}
+	var f model.LogsFollow
+	turn := f.Take(lg)
+	if turn.Off {
+		return l.tell(l.off())
+	}
+	if len(lg.Lines) == 0 {
+		return l.tell(fmt.Sprintf("%s holds no line of %s in its journal", l.c.Box.Host, l.app.Name))
+	}
+	if turn.Older {
+		if err := l.say(l.older()); err != nil {
+			return err
+		}
+	}
+	return l.out.Lines(logLines(lg.Lines))
+}
+
+// follow reads the newest lines, then every LogsEvery the lines after
+// the last one read (at once when a read stopped with lines left), until
+// the context ends, a read fails, or the box says the app keeps its
+// output on the box. A 429 and a busy box's 503 are waited out, by the
+// box's Retry-After (30 s for a 429 with none), and the follow goes on.
+func (l *logsRun) follow(ctx context.Context) error {
+	if _, err := fmt.Fprintf(l.r.env.Stderr, "motel: following %s's lines, a read every %d s; ctrl-c stops.\n", l.app.Name, int(model.LogsEvery/time.Second)); err != nil {
+		return err
+	}
+	var f model.LogsFollow
+	var wait time.Duration
+	taken, waiting := false, false
+	for {
+		if wait > 0 {
+			if err := l.r.env.Sleep(ctx, wait); err != nil {
+				return err
+			}
+		}
+		lg, ans, err := l.c.Logs(ctx, l.app, l.lines, f.After())
+		if err != nil {
+			d, ok := waitOut(err)
+			if !ok {
+				return logsStopped(err, taken)
+			}
+			if !waiting {
+				var cf *client.Failure
+				errors.As(err, &cf)
+				if _, err := fmt.Fprintf(l.r.env.Stderr, "motel: %s answered %d with a wait of %d s: following waits it out, and asks again until it answers.\n", l.c.Box.Host, cf.Status, int(d/time.Second)); err != nil {
+					return err
+				}
+			}
+			waiting, wait = true, d
+			continue
+		}
+		waiting = false
+		if err := l.known(lg); err != nil {
+			return logsStopped(err, taken)
+		}
+		turn := f.Take(lg)
+		if turn.Off {
+			return l.tell(l.off())
+		}
+		taken = true
+		if turn.Gap {
+			if err := l.say("a gap: the box no longer holds the line this follow had read to, so lines since then may be missing; these are its newest"); err != nil {
+				return err
+			}
+		}
+		if turn.Older {
+			if err := l.say(l.older()); err != nil {
+				return err
+			}
+		}
+		if err := l.print(lg, ans); err != nil {
+			return err
+		}
+		wait = model.LogsEvery
+		if turn.Again {
+			wait = 0
+		}
+	}
+}
+
+// known is nil when the box names what it keeps in a word this client
+// knows; else the read could not be told, exit 3.
+func (l *logsRun) known(lg wire.Logs) error {
+	switch lg.Kept {
+	case wire.KeptOn, wire.KeptOff:
+		return nil
+	}
+	return &client.Failure{Exit: client.ExitUnknown, Message: fmt.Sprintf(
+		"%s answered about %s's lines in a word for what it keeps this client does not know (%s): it cannot tell whether they are sent", l.c.Box.Host, l.app.Name, lg.Kept)}
+}
+
+func (l *logsRun) off() string {
+	return fmt.Sprintf("%s keeps %s's output on the box (deploy_log_lines 0): it sends no line of it", l.c.Box.Host, l.app.Name)
+}
+
+func (l *logsRun) older() string {
+	n := l.lines
+	if n == "" {
+		n = wire.LogsLines[0]
+	}
+	return "older lines were not sent: a read sends at most " + n + " lines or 64 KiB of them, and none reaches further back"
+}
+
+// say is the client's own sentence s about the lines: on stderr with
+// --json, where stdout holds the box's JSON alone; else on a divider
+// among the lines, in their order.
+func (l *logsRun) say(s string) error {
+	if l.r.json {
+		return l.tell(s)
+	}
+	return l.out.Note(s)
+}
+
+// tell is the client's own sentence s on stderr: what is said instead
+// of lines.
+func (l *logsRun) tell(s string) error {
+	_, err := fmt.Fprintf(l.r.env.Stderr, "motel: %s.\n", s)
+	return err
+}
+
+// print writes a read's lines: with --json each as the box sent it,
+// one a line (the answer's own JSON of it, its white space dropped and
+// made safe as every --json is, termtext.JSON); else in the plain
+// layout.
+func (l *logsRun) print(lg wire.Logs, ans *client.Answer) error {
+	if !l.r.json {
+		return l.out.Lines(logLines(lg.Lines))
+	}
+	var raw struct {
+		Lines []json.RawMessage `json:"lines"`
+	}
+	// The body the client read decoded the same way: this cannot fail
+	// but on a body that read and did not.
+	if json.Unmarshal(ans.Body, &raw) != nil || len(raw.Lines) != len(lg.Lines) {
+		return &client.Failure{Exit: client.ExitUnknown, Message: fmt.Sprintf("%s answered with lines that could not be read again", l.c.Box.Host)}
+	}
+	for _, line := range raw.Lines {
+		var b bytes.Buffer
+		if json.Compact(&b, line) != nil {
+			return &client.Failure{Exit: client.ExitUnknown, Message: fmt.Sprintf("%s answered with lines that could not be read again", l.c.Box.Host)}
+		}
+		b.WriteByte('\n')
+		if _, err := l.r.env.Stdout.Write(termtext.JSON(b.Bytes())); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// logLines are the box's lines in the plain layout's view.
+func logLines(lines []wire.LogLine) []render.LogLine {
+	shown := model.LogsLines(lines)
+	out := make([]render.LogLine, len(shown))
+	for i, s := range shown {
+		out[i] = render.LogLine{At: s.At, Release: s.Release, Text: s.Text}
+	}
+	return out
+}
+
+// waitOut is the wait for a read the box asked to be made again later:
+// a 429 that stood after the client's own wait (its Retry-After, or
+// logsWait with none), or a 503 with a Retry-After, which the box sends
+// while it runs as many logs reads as it runs at once.
+func waitOut(err error) (time.Duration, bool) {
+	var f *client.Failure
+	switch {
+	case !errors.As(err, &f):
+		return 0, false
+	case f.Status == http.StatusTooManyRequests && f.RetryAfter > 0, f.Status == http.StatusServiceUnavailable && f.RetryAfter > 0:
+		return f.RetryAfter, true
+	case f.Status == http.StatusTooManyRequests:
+		return logsWait, true
+	}
+	return 0, false
+}
+
+// logsStopped is a read made while following that got no lines: the
+// read's own failure, saying that following stopped once a read had
+// been taken.
+func logsStopped(err error, taken bool) error {
+	err = fail(err)
+	var f *client.Failure
+	if !taken || !errors.As(err, &f) {
+		return err
+	}
+	g := *f
+	g.Message += " (following stopped)"
+	return &g
+}
