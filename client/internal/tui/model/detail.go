@@ -451,7 +451,7 @@ func (s *Session) RecordView(app, version string, now time.Time) RecordView {
 				l = append(l, own(", body:"))
 			}
 			v.Head = append(v.Head, field("probe", l...))
-			for _, b := range termtext.Lines(p.Body) {
+			for _, b := range termtext.TabbedLines(p.Body) {
 				v.Head = append(v.Head, Line{own("              "), Seg{T: Capped(b.String(), LineMax)}})
 			}
 		}
@@ -475,7 +475,7 @@ func (s *Session) RecordView(app, version string, now time.Time) RecordView {
 		for _, l := range dt.LogTail {
 			ts := termtext.TabbedLines(l)
 			if l == "" {
-				// Lines makes no line of nothing; an empty line of the
+				// TabbedLines makes no line of nothing; an empty line of the
 				// tail is a line.
 				ts = []termtext.Text{{}}
 			}

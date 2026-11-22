@@ -225,8 +225,10 @@ when `--lines` names no other count (`wire.LogsLines`). Each line is
 printed as its time, UTC to the second, and its text, whole as the box
 sent it (at most 4 KiB, cut by the box), made safe: a tab as spaces to
 the next stop of 8, counted in the text's own columns from its start
-(each character one column, an escape as its characters, so a tab
-after a wide character lines up a column short), and every other
+(each character one column, an escape as its characters, not a
+terminal's cells: a wide character before a tab puts what follows it a
+cell past the stop, a combining or zero-width one a cell before; an
+accepted row), and every other
 control character and colour code the app wrote shown as an escape,
 never passed to the terminal (`termtext.Tabbed`, through
 `model.LogsLines`, which a screen of the lines uses too). The release is not on every line:
@@ -489,10 +491,12 @@ only:
    A box-written backtick command inside a quotation is shown as the
    box's words, by design: it is inside the box's quotation.
 3. **A labelled, capped value**: a free-text field (a deploy's error, a
-   note, a log tail line) on a line whose label is the client's, made safe
-   by `termtext.From` and cut at 200 characters (`…[cut]`; a record's
-   screen cuts a tail line at 2000). An app's own output, a log tail
-   line and a line of `motel logs`, is made safe by `termtext.Tabbed`:
+   note, a log tail or probe body line) on a line whose label is the
+   client's, made safe by `termtext.From` (an app's own output by
+   `termtext.Tabbed`, below) and cut at 200 characters (`…[cut]`; a
+   record's screen cuts a tail line at 2000). An app's own output, a
+   record's log tail and probe body lines and a line of `motel logs`,
+   is made safe by `termtext.Tabbed`:
    `From`, but a tab as spaces to the next stop of 8, counted in the
    text's own columns, so that what the app laid out with tabs (a stack
    frame, a tab-separated log) lines up; a cut is of the text as shown.
@@ -579,6 +583,7 @@ made by hand. Accepted:
 | A 429 during `logs --follow` is waited out twice before the follow says so: the client's own read waits the box's `Retry-After` once, silently, as every command's does, and when the 429 stands the follow says it and waits it again, so the lines stop for twice the box's wait (60 s for two 429s of 30 s), the first half unsaid | 2 | 5 | 1 | 10 | 2, risk 2 (the follow's reads made with the client's own wait off, which `TestForTUI` holds to the TUI's client alone) | accepted: the second wait is said, nothing is lost, the next read taking up at the cursor; found by the self-review of `motel logs` |
 | The plain layout's divider comes wherever a line's release differs from the line before, and the journal keeps no unit for some lines (a child that exited before journald read its line, a crash loop's lines often): lines of one release mixed with lines of none print a divider before nearly every line | 2 | 5 | 1 | 10 | 2 (a line of no known release marked on its own row, the divider left as it was) | accepted: each divider is true, and `--json` has the release on every line; for the owner to confirm with the layout |
 | An answer with lines and no cursor is taken (`hold` asks a cursor only to be of its grammar), so a follow's first read, a tail, is followed by another tail every 2 s, and the same lines print again without end. No moteld sends it: a read that sends lines took them, and gives the last one's cursor | 2 | 1 | 3 | 6 | 2, risk 1 (lines with no cursor refused as not moteld's answer) | accepted: it takes another server, or a box's bug to come, and a new branch for it is what the rule's stop is for; found by the coordinator's review of `motel logs` |
+| `termtext.Tabbed` counts a column a rune, not a terminal's cells, so on a line with a character that is not one cell wide before a tab the columns after it do not line up: a wide one (CJK, an emoji) puts what follows a cell past the stop, a combining or zero-width one a cell before it, and on the TUI's screen a character the door rewrites as an escape further off | 2 | 5 | 1 | 10 | 2, risk 2 (count cells with a width function the caller passes: the door's on the screen) | accepted: the text is whole and every other character as before; only the alignment after such a character is off. Found by the coordinator's review of the tabs change |
 | `motel logs --follow --json` refused by the command line's parser before the command runs (no `<app>`, a flag that does not read, `--lines` with no value) prints its `{"error":…}` on stdout, where the mode's stdout is the app's lines alone; a refusal the command makes itself (a count not the box's) prints none | 2 | 5 | 1 | 10 | 2, risk 1 (Main reads `logs`, `--follow` and `--json` from the arguments, as it reads `--json`) | accepted: exit 2, the sentence on stderr, and nothing was sent; found by the self-review of `motel logs` |
 | A follow of an app that writes more than a read sends every 2 s (200 lines, or 64 KiB) reads again at once after each read (the owner's rule for a follow's `more`), so beside an open TUI it takes a person past the box's 2 requests a second: the box answers 429, the follow waits it out (stderr says so once) and the TUI slows | 2 | 5 | 1 | 10 | 2, risk 2 (a floor between reads, which the owner's rule does not have) | accepted, by the owner's decision that a follow's `more` is read at once: each 429 is waited out and said, and no line is lost, the next read taking up at the cursor |
 | `motel logs` does not say an answer's `redacted_env` (the keys whose values the box's filter replaced) in the plain layout, nor beside the lines of `--follow --json`; one read's `--json` prints it in the box's answer | 2 | 5 | 1 | 10 | 2, risk 1 (a note naming the keys, from the client's grammar for them) | accepted: each replaced value stands in its line as the filter's marker, which names its key but in its last spelling, `[#N]` |

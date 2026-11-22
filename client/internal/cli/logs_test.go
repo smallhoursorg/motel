@@ -465,14 +465,16 @@ func TestLogsHelpFits(t *testing.T) {
 	}
 }
 
-// TestDeployTailTabs: a deploy record's log tail shows a tab as spaces
+// TestDeployTailTabs: a deploy record's log tail and probe body show a tab as spaces
 // to the next stop of 8, as an app's lines do, and every other control
 // character escaped; --json is the box's record as received.
 func TestDeployTailTabs(t *testing.T) {
 	fb := newFakeBox(t)
 	fb.deploy.Detail.LogTail = []string{"panic: boom", "\t/app/main.go:10 +0x1d", "\x1b[31m\tred"}
+	fb.deploy.Detail.Probe.Body = "panic: boom\n\t/app/main.go:10 +0x1d"
 	r := run(t, fb, deployToken, "deploys", appURL(fb, "blog"), "v41")
-	if r.code != 0 || !strings.Contains(r.stdout, "log tail (3 lines):\n  panic: boom\n          /app/main.go:10 +0x1d\n  \\x1b[31m        red\n") || strings.ContainsRune(r.stdout, '\t') {
+	if r.code != 0 || !strings.Contains(r.stdout, "log tail (3 lines):\n  panic: boom\n          /app/main.go:10 +0x1d\n  \\x1b[31m        red\n") || strings.ContainsRune(r.stdout, '\t') ||
+		!strings.Contains(r.stdout, "\n  panic: boom\n          /app/main.go:10 +0x1d\nlog tail") {
 		t.Errorf("exit %d, stdout:\n%s", r.code, r.stdout)
 	}
 	r = run(t, fb, deployToken, "deploys", appURL(fb, "blog"), "v41", "--json")

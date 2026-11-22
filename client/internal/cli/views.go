@@ -101,7 +101,7 @@ func deployView(d wire.DeployResult) render.Deploy {
 	if dt := d.Detail; dt != nil {
 		v.Exit = tx(dt.Exit)
 		if pr := dt.Probe; pr != nil {
-			v.Probe = &render.Probe{Status: pr.Status, Location: tx(pr.Location), Body: termtext.Lines(pr.Body)}
+			v.Probe = &render.Probe{Status: pr.Status, Location: tx(pr.Location), Body: termtext.TabbedLines(pr.Body)}
 		}
 		for _, l := range dt.LogTail {
 			// A tail line is one journal line, but the app wrote it
