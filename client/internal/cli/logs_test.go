@@ -283,7 +283,7 @@ func TestLogsFollow(t *testing.T) {
 -- a gap: the box no longer holds the line this follow had read to, so lines since then may be missing; these are its newest --
 -- 2026-11-21 UTC, release v43 --
 00:00:03  three
--- a gap: the box no longer holds the line this follow had read to, so lines since then may be missing; these are its newest --
+-- a gap: the box no longer holds the line this follow had read to, so lines since then may be missing; it now holds no line of blog --
 -- 2026-11-21 UTC, release v43 --
 00:00:07  four
 `
@@ -403,6 +403,19 @@ func TestLogsFollowSays(t *testing.T) {
 	r := runLogs(t, context.Background(), lb, &sleeps{}, nil, "logs", "blog", "--follow")
 	if r.code != 0 || strings.Count(r.stderr, "motel: 127.0.0.1 holds no line of blog in its journal; following waits for its first.\n") != 1 || r.stdout != "" {
 		t.Errorf("no line: exit %d, stdout %q, stderr %q", r.code, r.stdout, r.stderr)
+	}
+	// A gap with no line: said as the box holding none now, not as lines
+	// under it; on stderr with --json.
+	gapNone := logsStep{logs: &wire.Logs{Kept: wire.KeptOn, Gap: true, Lines: []wire.LogLine{}}}
+	first := logsStep{logs: &wire.Logs{Kept: wire.KeptOn, Cursor: cur1, Lines: []wire.LogLine{line(0, "v42", "one")}}}
+	const gapSaid = "a gap: the box no longer holds the line this follow had read to, so lines since then may be missing; it now holds no line of blog"
+	lb = newLogsBox(t, first, gapNone, off)
+	if r := runLogs(t, context.Background(), lb, &sleeps{}, nil, "logs", "blog", "--follow"); r.code != 0 || !strings.HasSuffix(r.stdout, "-- "+gapSaid+" --\n") {
+		t.Errorf("a gap with no line: exit %d, stdout %q", r.code, r.stdout)
+	}
+	lb = newLogsBox(t, first, gapNone, off)
+	if r := runLogs(t, context.Background(), lb, &sleeps{}, nil, "logs", "blog", "--follow", "--json"); r.code != 0 || !strings.Contains(r.stderr, "motel: "+gapSaid+".\n") {
+		t.Errorf("a gap with no line, --json: exit %d, stderr %q", r.code, r.stderr)
 	}
 	// None sent with older lines left: said as that, not as none.
 	lb = newLogsBox(t, logsStep{logs: &wire.Logs{Kept: wire.KeptOn, More: true, Lines: []wire.LogLine{}}}, off)

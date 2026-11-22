@@ -179,7 +179,11 @@ func (l *logsRun) follow(ctx context.Context) error {
 		}
 		taken = true
 		if turn.Gap {
-			if err := l.say("a gap: the box no longer holds the line this follow had read to, so lines since then may be missing; these are its newest"); err != nil {
+			newest := "these are its newest"
+			if len(lg.Lines) == 0 {
+				newest = "it now holds no line of " + l.app.Name
+			}
+			if err := l.say("a gap: the box no longer holds the line this follow had read to, so lines since then may be missing; " + newest); err != nil {
 				return err
 			}
 		}
