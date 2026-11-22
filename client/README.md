@@ -231,7 +231,9 @@ changes, names both (`-- 2026-11-20 UTC, release v42 --`; a line whose
 unit the journal did not keep, `release not kept by the journal`). A
 read sends at most the count or 64 KiB of lines: when lines older than
 the first were left, a divider before them says so (stderr, with
-`--json`), since no read reaches them. An answer is held to its grammars: `kept` a word, each
+`--json`), and that `logs` does not page back (`--lines 1000`
+may reach further, when it was not the count asked and the count, not
+the 64 KiB, stopped the read). An answer is held to its grammars: `kept` a word, each
 release a version or empty, the cursor `wire.LogsCursor` (the box's own
 grammar for it, one copy); anything else is not moteld's answer, exit
 3. It exits 0 when it read, and when the box says the app keeps its
@@ -254,10 +256,13 @@ line taken) keeps the one sent. When the box did not honour the cursor (`gap`: i
 longer in the journal), a divider says lines since may be missing, and
 the lines are its newest; with no cursor beside the gap, the next read
 is a tail, or every read would be one. A `429` that stands after the
-client's own wait, and a `503` whose JSON says why with a `Retry-After`
-of at most a minute (the box's when its four read slots are taken, 1 s),
+client's own wait, with a `Retry-After` of at most a minute or none, and
+a `503` whose JSON says why with a `Retry-After` of at most a minute (the
+box's when its four read slots are taken, or while moteld starts, 1 s),
 are waited out (the box's `Retry-After`, or 30 s for a `429` with none),
-stderr saying so once in a run of them, and the follow goes on; any other read that fails ends it, with
+stderr saying so once in a run of them, with the read's own sentence and
+the box's words quoted in it, and the follow goes on; any other read
+that fails, a `429` asking for longer among them, ends it, with
 that read's exit and its sentence saying following stopped. The box
 saying the app keeps its output on the box ends it, exit 0. ctrl-c ends
 it, 130. With `--json` stdout is the app's lines alone, each as the box
@@ -565,6 +570,8 @@ made by hand. Accepted:
 | `logs --follow`, which runs for as long as a person leaves it, ends at the first read that fails other than by a 429 or the box's busy 503: no answer in 30 s, a connection closed while moteld restarts (its upgrade), a gateway's 5xx, the box's own 500 when journalctl could not read the journal in time; with that read's exit and its sentence saying following stopped, and nothing after it is read until it is run again | 2 | 4 | 1 | 8 | 2 (a retry at the next turn, and a count of them) | accepted: red and named, as `status --follow`'s row above; run again, it tails, and the lines between are in the box's journal; found by the self-review of `motel logs` |
 | A 429 during `logs --follow` is waited out twice before the follow says so: the client's own read waits the box's `Retry-After` once, silently, as every command's does, and when the 429 stands the follow says it and waits it again, so the lines stop for twice the box's wait (60 s for two 429s of 30 s), the first half unsaid | 2 | 5 | 1 | 10 | 2, risk 2 (the follow's reads made with the client's own wait off, which `TestForTUI` holds to the TUI's client alone) | accepted: the second wait is said, nothing is lost, the next read taking up at the cursor; found by the self-review of `motel logs` |
 | The plain layout's divider comes wherever a line's release differs from the line before, and the journal keeps no unit for some lines (a child that exited before journald read its line, a crash loop's lines often): lines of one release mixed with lines of none print a divider before nearly every line | 2 | 5 | 1 | 10 | 2 (a line of no known release marked on its own row, the divider left as it was) | accepted: each divider is true, and `--json` has the release on every line; for the owner to confirm with the layout |
+| A tab in an app's line is shown as `\x09`, as every control character is (`termtext.From`, in `model.LogsLines`): a Go or Java stack trace's indent, or a tab-separated access log, reads as escapes | 2 | 5 | 1 | 10 | 2, risk 2 (a tab shown as spaces, in the command and the screen) | accepted, by the standing rule (the owner's decision that an app's control characters are shown escaped); for the owner to confirm; found by the coordinator's review of `motel logs` |
+| An answer with lines and no cursor is taken (`hold` asks a cursor only to be of its grammar), so a follow's first read, a tail, is followed by another tail every 2 s, and the same lines print again without end. No moteld sends it: a read that sends lines took them, and gives the last one's cursor | 2 | 1 | 3 | 6 | 2, risk 1 (lines with no cursor refused as not moteld's answer) | accepted: it takes another server, or a box's bug to come, and a new branch for it is what the rule's stop is for; found by the coordinator's review of `motel logs` |
 | `motel logs --follow --json` refused by the command line's parser before the command runs (no `<app>`, a flag that does not read, `--lines` with no value) prints its `{"error":…}` on stdout, where the mode's stdout is the app's lines alone; a refusal the command makes itself (a count not the box's) prints none | 2 | 5 | 1 | 10 | 2, risk 1 (Main reads `logs`, `--follow` and `--json` from the arguments, as it reads `--json`) | accepted: exit 2, the sentence on stderr, and nothing was sent; found by the self-review of `motel logs` |
 | A follow of an app that writes more than a read sends every 2 s (200 lines, or 64 KiB) reads again at once after each read (the owner's rule for a follow's `more`), so beside an open TUI it takes a person past the box's 2 requests a second: the box answers 429, the follow waits it out (stderr says so once) and the TUI slows | 2 | 5 | 1 | 10 | 2, risk 2 (a floor between reads, which the owner's rule does not have) | accepted, by the owner's decision that a follow's `more` is read at once: each 429 is waited out and said, and no line is lost, the next read taking up at the cursor |
 | `motel logs` does not say an answer's `redacted_env` (the keys whose values the box's filter replaced) in the plain layout, nor beside the lines of `--follow --json`; one read's `--json` prints it in the box's answer | 2 | 5 | 1 | 10 | 2, risk 1 (a note naming the keys, from the client's grammar for them) | accepted: each replaced value stands in its line as the filter's marker, which names its key but in its last spelling, `[#N]` |

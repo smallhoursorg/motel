@@ -59,8 +59,9 @@ type Logs struct {
 	// it, was reached. After a
 	// follow (after sent, Gap false) the lines left are after the last
 	// one sent: a follower asks again at once, with Cursor. After a tail
-	// (no after, or Gap true) they are older than the first one sent,
-	// and no read reaches them.
+	// (no after, or Gap true) they are older than the first one sent:
+	// no read pages back to them, and a tail of a larger count may
+	// reach some.
 	More bool `json:"more"`
 	// Gap is true when the after a request sent was not honoured (it is
 	// no entry of this app's that the journal still holds): Lines are

@@ -1,6 +1,8 @@
 package model
 
 import (
+	"slices"
+	"strconv"
 	"time"
 
 	"github.com/smallhoursorg/motel/client/internal/termtext"
@@ -41,7 +43,8 @@ type LogsTurn struct {
 	// tail, and lines between may be missing.
 	Gap bool
 	// Older: the read was a tail and stopped with lines left, which are
-	// older than the first one sent, and no read reaches them.
+	// older than the first one sent, and a follow's reads never reach
+	// them (no read pages back; a tail of a larger count may reach further).
 	Older bool
 	// Again: the read was a follow and stopped with lines left, which are
 	// after the last one sent: the next read is made at once.
@@ -60,10 +63,11 @@ func (f *LogsFollow) Take(l wire.Logs) LogsTurn {
 	}
 	sent := f.after != ""
 	tail := !sent || l.Gap
-	// Again only when the read moved on: a follow's more with no cursor
-	// (no moteld sends one) would ask for the same lines at once, again
-	// and again.
-	t := LogsTurn{Gap: sent && l.Gap, Older: l.More && tail, Again: l.More && !tail && l.Cursor != ""}
+	// Again only when the read moved on: a follow's more with no cursor,
+	// or with the one sent (no moteld sends either), would ask for the
+	// same lines at once, again and again.
+	moved := l.Cursor != "" && l.Cursor != f.after
+	t := LogsTurn{Gap: sent && l.Gap, Older: l.More && tail, Again: l.More && !tail && moved}
 	switch {
 	case l.Cursor != "":
 		f.after = l.Cursor
@@ -138,16 +142,31 @@ func (d *LogsDividers) Before(l LogsLine) (termtext.Text, bool) {
 // again.
 func (d *LogsDividers) Note() { d.prev = nil }
 
-// LogsGapSays is the note of a follow's gap (LogsTurn.Gap).
-const LogsGapSays = "a gap: the box no longer holds the line this follow had read to, so lines since then may be missing; these are its newest"
-
-// LogsOlderSays is the note of a tail's more (LogsTurn.Older): n is the
-// count asked for, "" for the box's default.
-func LogsOlderSays(n string) string {
-	if n == "" {
-		n = wire.LogsLines[0]
+// LogsGapSays is the note of a follow's gap (LogsTurn.Gap): none, the
+// answer brought no line of app.
+func LogsGapSays(app string, none bool) string {
+	newest := "these are its newest"
+	if none {
+		newest = "it now holds no line of " + app
 	}
-	return "older lines were not sent: a read sends at most " + n + " lines or 64 KiB of them, and none reaches further back"
+	return "a gap: the box no longer holds the line this follow had read to, so lines since then may be missing; " + newest
+}
+
+// LogsOlderSays is the start of the note of a tail's more
+// (LogsTurn.Older), n the count asked for: each reader says after it
+// what it does about the older lines.
+func LogsOlderSays(n string) string {
+	return "older lines were not sent: a read sends at most " + n + " lines or 64 KiB of them"
+}
+
+// LogsMostLines is the largest count of wire.LogsLines: a tail of it
+// reaches furthest back.
+func LogsMostLines() string {
+	return slices.MaxFunc(wire.LogsLines, func(a, b string) int {
+		x, _ := strconv.Atoi(a)
+		y, _ := strconv.Atoi(b)
+		return x - y
+	})
 }
 
 // LogsOffSays is the client's sentence for a kept "off": host keeps

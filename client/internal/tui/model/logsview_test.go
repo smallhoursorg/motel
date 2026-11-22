@@ -328,10 +328,20 @@ func TestLogsHeldAndCapped(t *testing.T) {
 // TestLogsFallenBehind: a follow whose reads at once have brought
 // LogsKeep lines and still have more goes on from a tail, said once.
 func TestLogsFallenBehind(t *testing.T) {
-	s, f, now := logsOpen(t, "blog", func(f *demo.Fake) { f.Body("logs/blog.json", logsBody(t0, 0, 1000, true, false, "c")) })
+	s, f, now := logsOpen(t, "blog", func(f *demo.Fake) { f.Body("logs/blog.json", logsBody(t0, 0, 1000, true, false, "c0")) })
 	*now = now.Add(model.LogsEvery)
-	drive(s, f, *now, 40)
-	if got := logsCalls(f); strings.Join(got, ",") != ",c,c,c,c,c," {
+	for i := 1; i <= 6; i++ {
+		f.Body("logs/blog.json", logsBody(t0, 1000*i, 1000, true, false, fmt.Sprintf("c%d", i)))
+		// One read at a time, at the same time: the logs read among those
+		// due, made at once.
+		for n, k := len(logsCalls(f)), 0; len(logsCalls(f)) == n; k++ {
+			if k == 30 {
+				t.Fatalf("read %d not made at once: %q", i, logsCalls(f))
+			}
+			drive(s, f, *now, 1)
+		}
+	}
+	if got := logsCalls(f); strings.Join(got, ",") != ",c0,c1,c2,c3,c4," {
 		t.Errorf("the reads sent %q: a tail, five follows at once, then a tail", got)
 	}
 	v := logsText(s, *now, 0, 6000)

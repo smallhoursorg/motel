@@ -8,7 +8,7 @@ import (
 )
 
 // TestLogsFollowTake: what each answer means to a follower, and where it
-// reads next. A tail's more is older lines no read reaches; a follow's
+// reads next. A tail's more is older lines no follow reaches; a follow's
 // more is lines after the last one sent, read at once; a gap is said
 // only of an after that was sent, its lines a fresh tail; a cursor is
 // taken; none is the one sent, kept, but after a gap, which tails next.
@@ -27,6 +27,7 @@ func TestLogsFollowTake(t *testing.T) {
 		{"a follow, more", "c1", wire.Logs{Kept: wire.KeptOn, More: true, Cursor: "c2"}, LogsTurn{Again: true}, "c2"},
 		{"a follow of none", "c1", wire.Logs{Kept: wire.KeptOn}, LogsTurn{}, "c1"},
 		{"a follow's more with no cursor", "c1", wire.Logs{Kept: wire.KeptOn, More: true}, LogsTurn{}, "c1"},
+		{"a follow's more with the cursor sent", "c1", wire.Logs{Kept: wire.KeptOn, More: true, Cursor: "c1"}, LogsTurn{}, "c1"},
 		{"a gap", "c1", wire.Logs{Kept: wire.KeptOn, Gap: true, Cursor: "c3"}, LogsTurn{Gap: true}, "c3"},
 		{"a gap, more", "c1", wire.Logs{Kept: wire.KeptOn, Gap: true, More: true, Cursor: "c3"}, LogsTurn{Gap: true, Older: true}, "c3"},
 		{"a gap, no cursor", "c1", wire.Logs{Kept: wire.KeptOn, Gap: true}, LogsTurn{Gap: true}, ""},

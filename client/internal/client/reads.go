@@ -163,7 +163,7 @@ func (c *Client) Logs(ctx context.Context, app App, lines, after string) (wire.L
 	var f *Failure
 	var said wire.Error
 	if errors.As(err, &f) && ans != nil && ans.Code == http.StatusServiceUnavailable && decodeObject(ans, &said) == nil && said.Error != "" {
-		if secs, ok := retryAfter(ans.Header, c.Now()); ok && secs <= int64(maxRetryAfter/time.Second) {
+		if secs, ok := retryAfter(ans.Header, c.Now()); ok && secs <= int64(MaxRetryAfter/time.Second) {
 			g := *f
 			g.RetryAfter = time.Duration(min(max(secs, 1), 3600)) * time.Second
 			err = &g

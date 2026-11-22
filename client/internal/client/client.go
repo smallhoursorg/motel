@@ -148,9 +148,9 @@ func TokenFor(box Box, getenv func(string) string) error {
 const (
 	retryPerson = time.Second
 	retryDeploy = 3 * time.Second
-	// maxRetryAfter is the longest a 429's Retry-After is waited out;
+	// MaxRetryAfter is the longest a 429's Retry-After is waited out;
 	// past it the command says how long the box asked to wait instead.
-	maxRetryAfter = 60 * time.Second
+	MaxRetryAfter = 60 * time.Second
 	// maxBody bounds what is read of an answer. The largest body a
 	// read gets is a deploy record with its 8 KiB log tail.
 	maxBody = 4 << 20
@@ -237,7 +237,7 @@ func (c *Client) Get(ctx context.Context, path string, query url.Values) (*Answe
 			// A wait past the cap, or none that reads, is not waited
 			// out: the command says what the box asked instead.
 			secs, ok := retryAfter(ans.Header, c.Now())
-			if waited || !ok || secs > int64(maxRetryAfter/time.Second) || c.NoWait {
+			if waited || !ok || secs > int64(MaxRetryAfter/time.Second) || c.NoWait {
 				return nil, c.slowDown(secs, ok, waited)
 			}
 			waited = true
@@ -432,7 +432,7 @@ func (c *Client) slowDown(secs int64, ok, waited bool) error {
 	switch {
 	case !ok:
 		f.Message = fmt.Sprintf("%s asked you to slow down; try again later.", c.Box.Host)
-	case waited || c.NoWait && secs <= int64(maxRetryAfter/time.Second):
+	case waited || c.NoWait && secs <= int64(MaxRetryAfter/time.Second):
 		f.Message = fmt.Sprintf("%s asked you to slow down; try again in %d s.", c.Box.Host, max(secs, 1))
 	default:
 		f.Message = fmt.Sprintf("%s asked you to slow down: the box asks you to wait %d s, longer than motel waits; try again then.", c.Box.Host, secs)

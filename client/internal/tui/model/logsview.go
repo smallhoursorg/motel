@@ -211,10 +211,10 @@ func (s *Session) takeLogs(j Job, gen int, g Got[wire.Logs], err error, at time.
 	}
 	s.logsCur.mu.Unlock()
 	if turn.Gap {
-		d.note(LogsGapSays)
+		d.note(LogsGapSays(d.app, len(g.V.Lines) == 0))
 	}
 	if turn.Older && !d.skipped {
-		d.note(LogsOlderSays(""))
+		d.note(LogsOlderSays(wire.LogsLines[0]) + ", and this screen does not page back (motel logs --lines "+LogsMostLines()+" may reach further)")
 	}
 	d.skipped = false
 	for _, l := range LogsLines(g.V.Lines) {

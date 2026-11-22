@@ -12,6 +12,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/smallhoursorg/motel/client/internal/termtext"
 	"github.com/smallhoursorg/motel/client/internal/tui/model"
@@ -121,7 +122,7 @@ func TestLogsTail(t *testing.T) {
 	if r.code != 0 || r.stderr != "" {
 		t.Fatalf("exit %d, stderr %q", r.code, r.stderr)
 	}
-	const want = `-- older lines were not sent: a read sends at most 200 lines or 64 KiB of them, and none reaches further back --
+	const want = `-- older lines were not sent: a read sends at most 200 lines or 64 KiB of them, and motel logs does not page back (--lines 1000 may send more, unless the 64 KiB was what stopped it) --
 -- 2026-11-20 UTC, release v42 --
 23:59:58  listening on :8080
 23:59:59  GET /cart 200 \x1b[31m12ms\x1b[0m\x0d\u009b2J\u202eevil\x09tab
@@ -146,7 +147,7 @@ func TestLogsTail(t *testing.T) {
 	r = runLogs(t, context.Background(), lb, &sleeps{}, nil, "logs", "blog", "--lines", "50", "--json")
 	// The older lines left are said on stderr.
 	if r.code != 0 || r.stdout != string(withNewline(termtext.JSON(lb.bodies[1]))) ||
-		r.stderr != "motel: older lines were not sent: a read sends at most 50 lines or 64 KiB of them, and none reaches further back.\n" {
+		r.stderr != "motel: older lines were not sent: a read sends at most 50 lines or 64 KiB of them, and motel logs does not page back (--lines 1000 may send more, unless the 64 KiB was what stopped it).\n" {
 		t.Fatalf("--json: exit %d, stdout %q, stderr %q", r.code, r.stdout, r.stderr)
 	}
 	if bad := unsafeOutput.FindString(strings.TrimSuffix(r.stdout, "\n")); bad != "" {
@@ -180,10 +181,17 @@ func TestLogsSays(t *testing.T) {
 		{"kept off, json", logsStep{logs: &wire.Logs{Kept: wire.KeptOff, Lines: []wire.LogLine{}}}, []string{"--json"}, nil, 0,
 			"motel: 127.0.0.1 keeps blog's output on the box (deploy_log_lines 0): it sends no line of it.\n", `{"kept":"off","lines":[],"more":false,"gap":false}` + "\n", 1},
 		{"older lines, json", logsStep{logs: &wire.Logs{Kept: wire.KeptOn, More: true, Lines: []wire.LogLine{line(0, "v42", "one")}}}, []string{"--json"}, nil, 0,
-			"motel: older lines were not sent: a read sends at most 200 lines or 64 KiB of them, and none reaches further back.\n",
+			"motel: older lines were not sent: a read sends at most 200 lines or 64 KiB of them, and motel logs does not page back (--lines 1000 may send more, unless the 64 KiB was what stopped it).\n",
 			`{"kept":"on","lines":[{"at":"2026-11-20T23:59:58.123456Z","release":"v42","text":"one"}],"more":true,"gap":false}` + "\n", 1},
 		{"no line", logsStep{logs: &wire.Logs{Kept: wire.KeptOn, Lines: []wire.LogLine{}}}, nil, nil, 0,
 			"motel: 127.0.0.1 holds no line of blog in its journal.\n", "", 1},
+		// At the largest count, no larger one to name.
+		{"older left at 1000", logsStep{logs: &wire.Logs{Kept: wire.KeptOn, More: true, Lines: []wire.LogLine{}}}, []string{"--lines", "1000"}, nil, 0,
+			"", "-- older lines were not sent: a read sends at most 1000 lines or 64 KiB of them, and motel logs does not page back --\n", 1},
+		// Every line the read took passed over (another unit's), older ones
+		// left: not said as none.
+		{"no line sent, older left", logsStep{logs: &wire.Logs{Kept: wire.KeptOn, More: true, Lines: []wire.LogLine{}}}, nil, nil, 0,
+			"", "-- older lines were not sent: a read sends at most 200 lines or 64 KiB of them, and motel logs does not page back (--lines 1000 may send more, unless the 64 KiB was what stopped it) --\n", 1},
 		{"a word not known", logsStep{body: `{"kept":"rotated","lines":[]}`}, nil, nil, 3,
 			"motel: 127.0.0.1 answered about blog's lines in a word for what it keeps this client does not know (rotated): it cannot tell whether they are sent\n", "", 1},
 		{"a count not the box's", logsStep{}, []string{"--lines", "100"}, nil, 2,
@@ -267,7 +275,7 @@ func TestLogsFollow(t *testing.T) {
 			break
 		}
 	}
-	const want = `-- older lines were not sent: a read sends at most 50 lines or 64 KiB of them, and none reaches further back --
+	const want = `-- older lines were not sent: a read sends at most 50 lines or 64 KiB of them, and motel logs does not page back (--lines 1000 may send more, unless the 64 KiB was what stopped it) --
 -- 2026-11-20 UTC, release v42 --
 23:59:58  one
 23:59:59  two
@@ -276,7 +284,7 @@ func TestLogsFollow(t *testing.T) {
 -- a gap: the box no longer holds the line this follow had read to, so lines since then may be missing; these are its newest --
 -- 2026-11-21 UTC, release v43 --
 00:00:03  three
--- a gap: the box no longer holds the line this follow had read to, so lines since then may be missing; these are its newest --
+-- a gap: the box no longer holds the line this follow had read to, so lines since then may be missing; it now holds no line of blog --
 -- 2026-11-21 UTC, release v43 --
 00:00:07  four
 `
@@ -285,14 +293,15 @@ func TestLogsFollow(t *testing.T) {
 	}
 	for _, s := range []string{
 		"motel: following blog's lines, a read every 2 s; ctrl-c stops.\n",
-		"motel: 127.0.0.1 answered 503 with a wait of 1 s: following waits it out, and asks again until it answers.\n",
+		// The read's own sentence, the box's quoted in it, then the wait.
+		"answered 503, not known to be moteld's own answer; it says: \"busy\" (following waits 1 s, and asks again until it answers).\n",
 		"motel: 127.0.0.1 keeps blog's output on the box (deploy_log_lines 0): it sends no line of it.\n",
 	} {
 		if !strings.Contains(r.stderr, s) {
 			t.Errorf("stderr lacks %q:\n%s", s, r.stderr)
 		}
 	}
-	if strings.Count(r.stderr, "with a wait of") != 1 {
+	if strings.Count(r.stderr, "(following waits") != 1 {
 		t.Errorf("the wait is said more than once in a row:\n%s", r.stderr)
 	}
 }
@@ -332,7 +341,7 @@ func TestLogsFollowJSON(t *testing.T) {
 	}
 	for _, s := range []string{
 		"motel: following blog's lines, a read every 2 s; ctrl-c stops.\n",
-		"motel: older lines were not sent: a read sends at most 200 lines or 64 KiB of them, and none reaches further back.\n",
+		"motel: older lines were not sent: a read sends at most 200 lines or 64 KiB of them, and motel logs does not page back (--lines 1000 may send more, unless the 64 KiB was what stopped it).\n",
 		"motel: a gap: the box no longer holds the line this follow had read to, so lines since then may be missing; these are its newest.\n",
 		"answered 500, not known to be moteld's own answer; it says: \"the app's journal could not be read; the box's journal says why\" (following stopped).\n",
 	} {
@@ -388,7 +397,7 @@ func TestLogsFollowEnds(t *testing.T) {
 
 // TestLogsFollowSays: a follow whose first read brings no line says the
 // journal holds none, and waits; a 429 that names no wait is said as
-// such, and waited 30 s.
+// the client says it, and waited 30 s (model.NoRetryAfter).
 func TestLogsFollowSays(t *testing.T) {
 	off := logsStep{logs: &wire.Logs{Kept: wire.KeptOff, Lines: []wire.LogLine{}}}
 	lb := newLogsBox(t, logsStep{logs: &wire.Logs{Kept: wire.KeptOn, Lines: []wire.LogLine{}}}, logsStep{logs: &wire.Logs{Kept: wire.KeptOn, Lines: []wire.LogLine{}}}, off)
@@ -396,11 +405,61 @@ func TestLogsFollowSays(t *testing.T) {
 	if r.code != 0 || strings.Count(r.stderr, "motel: 127.0.0.1 holds no line of blog in its journal; following waits for its first.\n") != 1 || r.stdout != "" {
 		t.Errorf("no line: exit %d, stdout %q, stderr %q", r.code, r.stdout, r.stderr)
 	}
+	// A gap with no line: said as the box holding none now, not as lines
+	// under it; on stderr with --json.
+	gapNone := logsStep{logs: &wire.Logs{Kept: wire.KeptOn, Gap: true, Lines: []wire.LogLine{}}}
+	first := logsStep{logs: &wire.Logs{Kept: wire.KeptOn, Cursor: cur1, Lines: []wire.LogLine{line(0, "v42", "one")}}}
+	const gapSaid = "a gap: the box no longer holds the line this follow had read to, so lines since then may be missing; it now holds no line of blog"
+	lb = newLogsBox(t, first, gapNone, off)
+	if r := runLogs(t, context.Background(), lb, &sleeps{}, nil, "logs", "blog", "--follow"); r.code != 0 || !strings.HasSuffix(r.stdout, "-- "+gapSaid+" --\n") {
+		t.Errorf("a gap with no line: exit %d, stdout %q", r.code, r.stdout)
+	}
+	lb = newLogsBox(t, first, gapNone, off)
+	if r := runLogs(t, context.Background(), lb, &sleeps{}, nil, "logs", "blog", "--follow", "--json"); r.code != 0 || !strings.Contains(r.stderr, "motel: "+gapSaid+".\n") {
+		t.Errorf("a gap with no line, --json: exit %d, stderr %q", r.code, r.stderr)
+	}
+	// None sent with older lines left: said as that, not as none.
+	lb = newLogsBox(t, logsStep{logs: &wire.Logs{Kept: wire.KeptOn, More: true, Lines: []wire.LogLine{}}}, off)
+	r = runLogs(t, context.Background(), lb, &sleeps{}, nil, "logs", "blog", "--follow", "--json")
+	if r.code != 0 || strings.Contains(r.stderr, "holds no line") || !strings.Contains(r.stderr, "motel: older lines were not sent") || r.stdout != "" {
+		t.Errorf("none sent, older left: exit %d, stdout %q, stderr %q", r.code, r.stdout, r.stderr)
+	}
 	lb = newLogsBox(t, logsStep{code: http.StatusTooManyRequests, body: `{"error":"slow down"}`}, off)
 	sl := &sleeps{}
 	r = runLogs(t, context.Background(), lb, sl, nil, "logs", "blog", "--follow")
-	if r.code != 0 || !strings.Contains(r.stderr, "motel: 127.0.0.1 answered 429 and named no wait: following waits 30 s, and asks again until it answers.\n") ||
+	if r.code != 0 || !strings.Contains(r.stderr, "motel: 127.0.0.1 asked you to slow down; try again later (following waits 30 s, and asks again until it answers).\n") ||
 		len(sl.d) != 1 || sl.d[0] != 30*time.Second {
 		t.Errorf("a 429 with no wait: exit %d, stderr %q, slept %v", r.code, r.stderr, sl.d)
+	}
+}
+
+// TestLogsFollow429Bound: a 429 that stands is waited out when its wait
+// is at most client.MaxRetryAfter, as a 503's is; a longer one ends the
+// follow, exit 3, nothing slept.
+func TestLogsFollow429Bound(t *testing.T) {
+	off := logsStep{logs: &wire.Logs{Kept: wire.KeptOff, Lines: []wire.LogLine{}}}
+	minute := logsStep{code: http.StatusTooManyRequests, retryAfter: "60", body: `{"error":"too many requests; retry after 60 s"}`}
+	lb := newLogsBox(t, minute, minute, off)
+	sl := &sleeps{}
+	r := runLogs(t, context.Background(), lb, sl, nil, "logs", "blog", "--follow")
+	if r.code != 0 || len(sl.d) != 2 || sl.d[0] != time.Minute || sl.d[1] != time.Minute {
+		t.Errorf("a minute: exit %d, slept %v, stderr %q", r.code, sl.d, r.stderr)
+	}
+	lb = newLogsBox(t, logsStep{code: http.StatusTooManyRequests, retryAfter: "61", body: `{"error":"too many requests; retry after 61 s"}`}, off)
+	sl = &sleeps{}
+	r = runLogs(t, context.Background(), lb, sl, nil, "logs", "blog", "--follow")
+	if r.code != 3 || len(sl.d) != 0 || len(lb.queries) != 1 || !strings.Contains(r.stderr, "the box asks you to wait 61 s, longer than motel waits") {
+		t.Errorf("61 s: exit %d, slept %v, %d reads, stderr %q", r.code, sl.d, len(lb.queries), r.stderr)
+	}
+}
+
+// TestLogsHelpFits: logs' help, as built from the box's counts, is at
+// most 79 columns a line, as the other commands' help is.
+func TestLogsHelpFits(t *testing.T) {
+	r := &runner{}
+	for _, line := range strings.Split(r.logs().Long, "\n") {
+		if n := utf8.RuneCountInString(line); n > 79 {
+			t.Errorf("%d columns: %q", n, line)
+		}
 	}
 }
