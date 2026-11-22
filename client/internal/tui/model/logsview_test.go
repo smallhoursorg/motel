@@ -206,6 +206,9 @@ func TestLogsNeedAGrant(t *testing.T) {
 	if v := logsText(s2, *now2, 0, 30); !strings.Contains(v, "not known until whoami answers") {
 		t.Errorf("whoami not known:\n%s", v)
 	}
+	if got := s2.NoAnswer(model.View{Screen: model.ScreenLogs, App: "blog"}); !strings.Contains(got, "before whoami has answered") {
+		t.Errorf("y before whoami answered says %q", got)
+	}
 }
 
 // TestLogsLayout: each row of the lines is a line's time, a divider or
@@ -332,6 +335,10 @@ func TestLogsFallenBehind(t *testing.T) {
 	*now = now.Add(model.LogsEvery)
 	for i := 1; i <= 6; i++ {
 		f.Body("logs/blog.json", logsBody(t0, 1000*i, 1000, true, false, fmt.Sprintf("c%d", i)))
+		if i == 6 {
+			// The tail after the skip: some of its lines were shown.
+			f.Body("logs/blog.json", logsBody(t0, 5900, 200, true, false, "c6"))
+		}
 		// One read at a time, at the same time: the logs read among those
 		// due, made at once.
 		for n, k := len(logsCalls(f)), 0; len(logsCalls(f)) == n; k++ {
@@ -348,6 +355,9 @@ func TestLogsFallenBehind(t *testing.T) {
 	skip := strings.Index(v, "-- lines skipped: this follow fell more than the 5,000 lines this screen holds behind the app")
 	if skip < 0 || strings.Count(v, "-- lines skipped") != 1 || strings.Contains(v[skip:], "older lines were not sent") {
 		t.Errorf("the notes: skipped at %d, %d times; the tail's own note after it: %v", skip, strings.Count(v, "-- lines skipped"), skip >= 0 && strings.Contains(v[skip:], "older lines were not sent"))
+	}
+	if strings.Count(v, "  line 5950\n") != 1 || !strings.Contains(v, "  line 6099\n") {
+		t.Errorf("the tail after the skip: line 5950 %d times, line 6099 %v", strings.Count(v, "  line 5950\n"), strings.Contains(v, "  line 6099\n"))
 	}
 }
 
@@ -381,5 +391,38 @@ func TestLogsBusy(t *testing.T) {
 	drive(s, f, *now, 5)
 	if v := logsText(s, *now, 0, 30); !strings.Contains(v, "-- a gap: the box no longer holds the line") || strings.Contains(v, "the last read failed") {
 		t.Errorf("a gap:\n%s", v)
+	}
+	// Ten idle minutes: the reads pause, and the rule says so.
+	*now = now.Add(model.Idle)
+	if v := logsText(s, *now, 0, 30); !strings.Contains(v, "── paused (idle 10m): any key reads on") {
+		t.Errorf("paused:\n%s", v)
+	}
+}
+
+// TestLogsRefusedReopened: a logs read the box refused (a 404 from a
+// moteld older than the read) is said, and said again when the screen
+// is opened afresh, with nothing asked, until ctrl-r asks.
+func TestLogsRefusedReopened(t *testing.T) {
+	s, f, now := logsOpen(t, "blog", func(f *demo.Fake) {
+		f.Set("logs:blog", &model.Failure{Kind: model.FailNotFound, Message: `deploy.example.com answered 404; the box says: "not found"`})
+	})
+	for range 2 {
+		if v := logsText(s, *now, 0, 30); !strings.Contains(v, "answered 404") || !strings.Contains(v, "a moteld older than this read") {
+			t.Errorf("the refusal:\n%s", v)
+		}
+		s.LogsShown("", *now)
+		*now = now.Add(time.Minute)
+		s.LogsOpen("blog", *now)
+		drive(s, f, *now, 20)
+	}
+	if n := len(logsCalls(f)); n != 1 {
+		t.Errorf("%d reads, want the one refused", n)
+	}
+	f.Set("logs:blog", nil)
+	s.LogsAgain(*now)
+	s.Engine.Again(*now, model.Job{Kind: model.KLogs, App: "blog"})
+	drive(s, f, *now, 20)
+	if v := logsText(s, *now, 0, 30); len(logsCalls(f)) != 2 || strings.Contains(v, "404") || !strings.Contains(v, "GET / 200 11ms") {
+		t.Errorf("ctrl-r: %d reads:\n%s", len(logsCalls(f)), v)
 	}
 }

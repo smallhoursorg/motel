@@ -237,7 +237,10 @@ func (s *Session) readErr(v View) error {
 // is held (Body's false): it changes as a read ends, when Body does
 // not, so the screens make the overlay again when it does.
 func (s *Session) NoAnswer(v View) string {
-	if v.Screen == ScreenLogs && s.LogsGrant(v.App) != Granted {
+	switch {
+	case v.Screen == ScreenLogs && s.LogsGrant(v.App) == GrantNotKnown:
+		return "no answer to show: nothing is asked before whoami has answered about this key, as the screen says"
+	case v.Screen == ScreenLogs && s.LogsGrant(v.App) == NoGrant:
 		return "no answer to show: nothing is asked without a logs grant on " + v.App + ", as the screen says"
 	}
 	switch err := s.readErr(v); {

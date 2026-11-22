@@ -655,6 +655,13 @@ func (e *Engine) WatchInterval(j Job, now time.Time) time.Duration {
 	return e.appAlertsEvery()
 }
 
+// Idle says whether the reads are paused at now: no key for Idle.
+func (e *Engine) Idle(now time.Time) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.idleAt(now)
+}
+
 // idleAt says whether no key was pressed for Idle at t.
 func (e *Engine) idleAt(t time.Time) bool { return t.Sub(e.touched) >= Idle }
 

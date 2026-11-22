@@ -81,9 +81,11 @@ type logsData struct {
 	lines, dropped, arrived int
 	// run is how many lines the reads made at once in a row have brought.
 	run int
-	// skipped: the follow went on from a tail after a run (take), whose
-	// note says lines were not read: the tail's own note is not written.
-	skipped bool
+	// skipped: the follow went on from a tail after a run (takeLogs),
+	// whose note says lines were not read: the tail's own note is not
+	// written, nor its lines at or before skipAfter, the newest held then.
+	skipped   bool
+	skipAfter time.Time
 	// got is the newest answer, err the newest read's failure.
 	got *Got[wire.Logs]
 	err error
@@ -135,7 +137,7 @@ func (s *Session) logsFresh(app string) {
 	s.logsCur.app, s.logsCur.f = app, LogsFollow{}
 	gen := s.logsCur.gen
 	s.logsCur.mu.Unlock()
-	s.logs = &logsData{app: app, gen: gen, granted: s.LogsGrant(app) == Granted}
+	s.logs = &logsData{app: app, gen: gen, granted: s.LogsGrant(app) == Granted, err: s.logsRefused[app]}
 }
 
 // logsAsk tells the engine which app's lines to follow: the logs
@@ -187,7 +189,12 @@ func (s *Session) takeLogs(j Job, gen int, g Got[wire.Logs], err error, at time.
 		if Forbidden(err) || NotFound(err) {
 			// The box's last word on them is a refusal: what was read of
 			// them goes, as a status's does (readStatus), and the cursor; a
-			// read asked again is a tail.
+			// read asked again is a tail. The engine holds the read until
+			// ctrl-r, so the refusal is said at each opening till then.
+			if s.logsRefused == nil {
+				s.logsRefused = map[string]error{}
+			}
+			s.logsRefused[d.app] = err
 			s.logsFresh(d.app)
 			d = s.logs
 		}
@@ -197,6 +204,7 @@ func (s *Session) takeLogs(j Job, gen int, g Got[wire.Logs], err error, at time.
 	}
 	g.At = at
 	d.got, d.err = &g, nil
+	delete(s.logsRefused, d.app)
 	if g.V.Kept != wire.KeptOn {
 		// Kept off, or a word this client does not know: nothing to follow
 		// (said by the screen), and nothing more is read.
@@ -213,11 +221,17 @@ func (s *Session) takeLogs(j Job, gen int, g Got[wire.Logs], err error, at time.
 	if turn.Gap {
 		d.note(LogsGapSays(d.app, len(g.V.Lines) == 0))
 	}
+	lines := g.V.Lines
+	if d.skipped {
+		// The tail after a skip may hold lines already shown: they are
+		// not shown twice.
+		lines = slices.DeleteFunc(slices.Clone(lines), func(l wire.LogLine) bool { return !l.At.After(d.skipAfter) })
+	}
 	if turn.Older && !d.skipped {
 		d.note(LogsOlderSays(wire.LogsLines[0]) + ", and this screen does not page back (motel logs --lines " + LogsMostLines() + " may reach further)")
 	}
 	d.skipped = false
-	for _, l := range LogsLines(g.V.Lines) {
+	for _, l := range LogsLines(lines) {
 		d.items = append(d.items, logsItem{line: l})
 		d.lines++
 		d.arrived++
@@ -233,6 +247,7 @@ func (s *Session) takeLogs(j Job, gen int, g Got[wire.Logs], err error, at time.
 		// at once, as the lines left were to be.
 		d.note("lines skipped: this follow fell more than the " + count(LogsKeep) + " lines this screen holds behind the app; it goes on from the newest, and the lines between were not read")
 		d.run, d.skipped = 0, true
+		d.skipAfter = d.lastAt()
 		s.logsCur.mu.Lock()
 		if s.logsCur.gen == gen {
 			s.logsCur.f = LogsFollow{}
@@ -240,6 +255,16 @@ func (s *Session) takeLogs(j Job, gen int, g Got[wire.Logs], err error, at time.
 		s.logsCur.mu.Unlock()
 	}
 	d.trim()
+}
+
+// lastAt is the time of the newest line held.
+func (d *logsData) lastAt() time.Time {
+	for i := len(d.items) - 1; i >= 0; i-- {
+		if d.items[i].note == "" {
+			return d.items[i].line.At
+		}
+	}
+	return time.Time{}
 }
 
 // note is a note of the client's among the lines.
@@ -302,6 +327,8 @@ func (s *Session) LogsViewFit(app string, now time.Time, width, height int, cell
 	d.pos.lastHeight = rows
 	var rule string
 	switch {
+	case s.Engine.Idle(now) && !d.stopped:
+		rule = "── paused (idle 10m): any key reads on "
 	case d.pos.held:
 		rule = "── held: " + count(d.arrived-d.pos.since) + " new lines since · End follows "
 	case d.stopped:
