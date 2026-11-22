@@ -181,7 +181,7 @@ func TestLogsNeedAGrant(t *testing.T) {
 	if n := len(logsCalls(f)); n != 0 {
 		t.Errorf("%d logs reads without a grant", n)
 	}
-	if v := logsText(s, *now, 0, 30); !strings.Contains(v, "reading blog's lines needs a logs grant on blog or on the box, and whoami (as of 14:00:00 UTC) lists none for this key here, so nothing is asked of deploy.example.com.") {
+	if v := logsText(s, *now, 0, 30); !strings.Contains(v, "reading blog's lines needs a logs grant on blog or on the box, and whoami (as of 14:00:00 UTC) lists none for this key here, so nothing is asked.") {
 		t.Errorf("no grant:\n%s", v)
 	}
 	if _, _, have := s.Body(model.View{Screen: model.ScreenLogs, App: "blog"}); have {
@@ -475,6 +475,46 @@ func TestLogsGrantBackAfterAnotherApp(t *testing.T) {
 	}
 	if blog != 2 {
 		t.Errorf("blog's lines read %d times, want the refused one and one when the grant came back", blog)
+	}
+}
+
+// TestLogsRefusedAfterReopening: a refusal applied after the screen was
+// opened afresh (the read recorded, then esc and l before its answer is
+// applied) is said, since the engine holds the read; and a note the
+// same as the last is not written twice.
+func TestLogsRefusedAfterReopening(t *testing.T) {
+	s, f, now := logsOpen(t, "blog", nil)
+	*now = now.Add(model.LogsEvery)
+	f.Set("logs:blog", &model.Failure{Kind: model.FailForbidden, Message: "deploy.example.com does not allow your key this"})
+	j := model.Job{Kind: model.KLogs, App: "blog"}
+	for range 20 {
+		k, ok, _ := s.Engine.Take(*now)
+		if !ok {
+			t.Fatal("the logs read was not taken")
+		}
+		apply, err := s.Fetch(context.Background(), f, k)
+		s.Engine.Done(k, *now, err)
+		if k == j {
+			s.LogsShown("", *now)
+			s.LogsOpen("blog", *now)
+			apply()
+			break
+		}
+		apply()
+	}
+	if v := logsText(s, *now, 0, 30); !strings.Contains(v, "does not allow your key this") {
+		t.Errorf("a refusal applied after reopening:\n%s", v)
+	}
+	// Two empty gaps in a row: one note.
+	f.Set("logs:blog", nil)
+	s2, f2, now2 := logsOpen(t, "blog", nil)
+	for i := range 3 {
+		f2.Body("logs/blog.json", logsBody(t0, 0, 0, false, true, fmt.Sprintf("g%d", i)))
+		*now2 = now2.Add(model.LogsEvery)
+		drive(s2, f2, *now2, 20)
+	}
+	if n := strings.Count(logsText(s2, *now2, 0, 60), "-- a gap"); n != 1 {
+		t.Errorf("%d gap notes for three empty gaps in a row", n)
 	}
 }
 

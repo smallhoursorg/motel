@@ -191,9 +191,22 @@ func readLogs(ctx context.Context, s *Session, c Client, j Job) (func(*Session, 
 
 // takeLogs is a logs read's end, on the UI's goroutine: its lines and
 // what the answer says among them, and where the follow reads next. An
-// answer to a follow the screen has since started afresh is not taken.
+// answer to a follow the screen has since started afresh is not taken,
+// but a refusal is: the engine holds the read until ctrl-r whatever the
+// screen started since, so the screen says it.
 func (s *Session) takeLogs(j Job, gen int, g Got[wire.Logs], err error, at time.Time) {
 	d := s.logs
+	if refusal := Forbidden(err) || NotFound(err); refusal && (d == nil || d.app != j.App || d.gen != gen) {
+		if s.logsRefused == nil {
+			s.logsRefused = map[string]error{}
+		}
+		s.logsRefused[j.App] = err
+		if d != nil && d.app == j.App && d.got == nil && d.err == nil {
+			// Opened afresh since, nothing read yet: it is this refusal's.
+			d.err = err
+		}
+		return
+	}
 	if d == nil || d.app != j.App || d.gen != gen {
 		return
 	}
@@ -284,7 +297,15 @@ func (d *logsData) lastAt() time.Time {
 }
 
 // note is a note of the client's among the lines.
-func (d *logsData) note(s string) { d.items = append(d.items, logsItem{note: s}) }
+// The same note twice in a row is written once: answers that bring no
+// line (a gap whose entries were all passed over) would otherwise add a
+// note each, which neither bound counts.
+func (d *logsData) note(s string) {
+	if n := len(d.items); n > 0 && d.items[n-1].note == s {
+		return
+	}
+	d.items = append(d.items, logsItem{note: s})
+}
 
 // trim drops the oldest lines past LogsKeep or LogsKeepBytes, and a
 // note left first, which was about lines dropped.
@@ -378,9 +399,9 @@ func (s *Session) logsHead(app string, now time.Time, width int, cells Cells) ([
 	say := func(l Line) []Line { return Sentence(l, width, cells) }
 	switch s.LogsGrant(app) {
 	case GrantNotKnown:
-		return say(Line{own("whether this key may read " + app + "'s lines is not known until whoami answers about it here: nothing is asked of " + s.Host + " until then.")}), nil
+		return say(Line{own("whether this key may read " + app + "'s lines is not known until whoami answers about it here: nothing is asked until then.")}), nil
 	case NoGrant:
-		return say(append(Line{own("reading " + app + "'s lines needs a logs grant on " + app + " or on the box, and whoami (as of " + hms(s.Me.At) + " UTC) lists none for this key here, so nothing is asked of " + s.Host + ". The operator gives one in the box's Caddyfile (grant <name> logs app " + app + "); :me lists what you hold.")}, s.askAgain(now)...)), nil
+		return say(append(Line{own("reading " + app + "'s lines needs a logs grant on " + app + " or on the box, and whoami (as of " + hms(s.Me.At) + " UTC) lists none for this key here, so nothing is asked. The operator gives one in the box's Caddyfile (grant <name> logs app " + app + "); :me lists what you hold.")}, s.askAgain(now)...)), nil
 	}
 	d := s.logs
 	if d == nil || d.app != app {
