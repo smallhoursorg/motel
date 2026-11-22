@@ -481,9 +481,10 @@ func (e *engine) refreshUntold(key string, u *untold, integration, summary strin
 // queued before it.
 func (e *engine) endTestedCopy(ctx context.Context, ch string) {
 	e.mu.Lock()
+	served := e.active
 	integration, ok := e.fail.kinds[ch]
 	others := slices.DeleteFunc(slices.Clone(e.fail.operator), func(c string) bool { return c == ch })
-	skip := !ok || len(others) > 0 && e.active != nil && e.active.Metrics != nil
+	skip := served == nil || !ok || len(others) > 0 && served.Metrics != nil
 	held, logger := e.failureCopies, e.logger
 	e.mu.Unlock()
 	if skip {
@@ -513,6 +514,11 @@ func (e *engine) endTestedCopy(ctx context.Context, ch string) {
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if e.active != served {
+		// A load or notify's stop during the read: what was checked is
+		// another config's, and a stopped engine's queue is not posted.
+		return
+	}
 	now := e.now()
 	ended := make([]amAlert, 0, len(labels))
 	for _, k := range slices.Sorted(maps.Keys(labels)) {

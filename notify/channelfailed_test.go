@@ -1324,3 +1324,40 @@ func TestTestedMendEndsTheHeldCopiesToo(t *testing.T) {
 		t.Fatalf("with no read of what is held: %+v, want the built copy", got)
 	}
 }
+
+// TestTestedMendAcrossALoad: a load during the test's read of what
+// Alertmanager holds (here one that adds the metrics line beside another
+// channel, where the test must resolve nothing) leaves the checks made
+// before it another config's: nothing is posted. So does notify's stop.
+func TestTestedMendAcrossALoad(t *testing.T) {
+	for _, stop := range []bool{false, true} {
+		te, _ := testedEngine(t, fourChannelBlock)
+		te.failureCopies = func(context.Context, string) ([]map[string]string, error) {
+			te.mu.Lock()
+			defer te.mu.Unlock()
+			if stop {
+				te.active = nil
+				return nil, nil
+			}
+			b := mustParse(t, fourChannelBlock)
+			r, err := b.resolve(testTrust(), testSecrets())
+			if err != nil {
+				t.Error(err)
+				return nil, nil
+			}
+			b.cfg, b.Metrics = r, &MetricsStore{}
+			_, _, b.receivers = render(r, testStateDir)
+			te.setConfig(b, te.p, te.known, te.logger)
+			return nil, nil
+		}
+		if !runTest(t, te, "ops", metricsHead+amLines("ch-ops", 0, 0, 0), metricsHead+amLines("ch-ops", 0, 1, 0)) {
+			t.Fatal("the test was not delivered")
+		}
+		te.mu.Lock()
+		queued := len(te.queue)
+		te.mu.Unlock()
+		if queued != 0 {
+			t.Fatalf("stop %v: %d posts queued across the load", stop, queued)
+		}
+	}
+}
