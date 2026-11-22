@@ -208,7 +208,12 @@ func (s *Session) takeLogs(j Job, gen int, g Got[wire.Logs], err error, at time.
 	if out, _ := Classify(err); out == Stopped {
 		// Every read stopped (a 401, a signature that failed): the stop
 		// screen says why, and after r the screen reads on; it is not this
-		// read's failure to say.
+		// read's failure to say, nor is an older failure of it, which r
+		// leaves behind.
+		delete(s.logsFailed, j.App)
+		if d := s.logs; d != nil && d.app == j.App {
+			d.err = nil
+		}
 		return
 	}
 	d := s.logs
