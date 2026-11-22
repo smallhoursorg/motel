@@ -54,7 +54,8 @@ const experimental = "Every command is experimental: its flags, output and exit 
 	"<app>: its deploys array alone; logs --follow: each line's object, one a\n" +
 	"line; version and key: motel's own), and on\n" +
 	"exit 1, 6 or 9, or 5 when the 403 was JSON; on exit 2, 3, 4, 8 or another 5,\n" +
-	"{\"error\":...} holding motel's own sentence, the one stderr prints.\n\n" +
+	"{\"error\":...} holding motel's own sentence, the one stderr prints; but a\n" +
+	"failure of logs --follow --json, once it runs, prints nothing on stdout.\n\n" +
 	"The box: an app's URL as <app>, else --box, MOTEL_BOX, the host of MOTEL_URL,\n" +
 	"or the box repository the shell is in. The credential: a token your ssh key\n" +
 	"signs when --key names the key; else MOTEL_TOKEN as Bearer when set (a deploy\n" +

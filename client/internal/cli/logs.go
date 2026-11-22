@@ -66,7 +66,7 @@ func (r *runner) logs() *cobra.Command {
 			// The count is refused before the box is looked for, as every
 			// argument is.
 			if cmd.Flags().Changed("lines") && !slices.Contains(wire.LogsLines, lines) {
-				return &client.Failure{Exit: client.ExitUsage, Message: fmt.Sprintf("--lines %q is not one of %s", termtext.From(lines), strings.Join(wire.LogsLines, ", "))}
+				return &client.Failure{Exit: client.ExitUsage, Message: fmt.Sprintf("--lines %s is not one of %s", termtext.Quote(lines), strings.Join(wire.LogsLines, ", "))}
 			}
 			c, err := r.client(cmd.Context(), &t, app.Box, "", "logs")
 			if err != nil {

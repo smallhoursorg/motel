@@ -188,6 +188,8 @@ func TestLogsSays(t *testing.T) {
 			"motel: 127.0.0.1 answered about blog's lines in a word for what it keeps this client does not know (rotated): it cannot tell whether they are sent\n", "", 1},
 		{"a count not the box's", logsStep{}, []string{"--lines", "100"}, nil, 2,
 			"motel: --lines \"100\" is not one of 200, 50, 1000\n", "", 0},
+		{"a count with a control in it", logsStep{}, []string{"--lines", "5\x1b0"}, nil, 2,
+			"motel: --lines \"5\\x1b0\" is not one of 200, 50, 1000\n", "", 0},
 		{"a deploy token", logsStep{}, nil, map[string]string{"MOTEL_TOKEN": "x.y.z"}, 2,
 			"motel: logs is asked with your own ssh key", "", 0},
 		{"no logs grant", logsStep{code: http.StatusForbidden, body: `{"error":"this needs the logs role on this app","needs":"logs","scope":"app"}`}, nil, nil, 5,
