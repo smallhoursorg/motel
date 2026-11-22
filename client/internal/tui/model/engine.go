@@ -851,17 +851,16 @@ func (e *Engine) Again(now time.Time, shown ...Job) {
 			en = &entry{once: j.Kind == KDeploy, due: now}
 			e.jobs[j] = en
 		}
+		held := en.held
 		en.held, en.failed = false, false
 		due := now
 		if j.Kind == KWhoAmI || j.Kind == KBox || j.Kind == KBackups || j.Kind == KAlerts || j.Kind == KBoxAlerts || j.Kind == KRules || j.Kind == KBoxRules || j.Kind == KSeries || j.Kind == KLogs {
 			due = maxTime(now, en.asked.Add(AgainAfter))
 		}
-		if en.due.After(due) || j.Kind == KLogs {
-			// A logs read's interval (2 s) is shorter than AgainAfter, and
-			// its screen may have made it due at once (LogsAgain): whatever
-			// state it was in (held, stopped, following), ctrl-r asks it no
-			// sooner than AgainAfter after the last read, once in 5 s held
-			// down.
+		if en.due.After(due) || j.Kind == KLogs && held {
+			// A logs read's interval (2 s) is shorter than AgainAfter: a hold
+			// lifted is asked no sooner than AgainAfter after the last read,
+			// so ctrl-r held on a refused read asks once in 5 s.
 			en.due = due
 		}
 	}
