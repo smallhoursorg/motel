@@ -199,6 +199,12 @@ func readLogs(ctx context.Context, s *Session, c Client, j Job) (func(*Session, 
 // waits out another's backoff, whatever the screen started since, so
 // the screen says it.
 func (s *Session) takeLogs(j Job, gen int, g Got[wire.Logs], err error, at time.Time) {
+	if out, _ := Classify(err); out == Stopped {
+		// Every read stopped (a 401, a signature that failed): the stop
+		// screen says why, and after r the screen reads on; it is not this
+		// read's failure to say.
+		return
+	}
 	d := s.logs
 	if err != nil {
 		if s.logsFailed == nil {

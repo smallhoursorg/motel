@@ -607,6 +607,24 @@ func TestLogsBusyThroughARestart(t *testing.T) {
 	}
 }
 
+// TestLogsStopNotKept: a logs read that stopped every read (a 401) is
+// not kept as the logs screen's failure: the stop screen says it.
+func TestLogsStopNotKept(t *testing.T) {
+	s, f, now := logsOpen(t, "blog", nil)
+	f.Set("logs:blog", &model.Failure{Kind: model.FailSignedOut, Message: "deploy.example.com refused the key (401)"})
+	*now = now.Add(model.LogsEvery)
+	drive(s, f, *now, 20)
+	if s.Engine.Stopped() == model.Running {
+		t.Fatal("the 401 did not stop the reads")
+	}
+	f.Set("logs:blog", nil)
+	s.LogsShown("", *now)
+	s.LogsOpen("blog", *now)
+	if v := logsText(s, *now, 0, 30); strings.Contains(v, "401") {
+		t.Errorf("a stop said as the logs read's failure:\n%s", v)
+	}
+}
+
 // TestLogsRefusedReopened: a logs read the box refused (a 404 from a
 // moteld older than the read) is said, and said again when the screen
 // is opened afresh, with nothing asked, until ctrl-r asks.
