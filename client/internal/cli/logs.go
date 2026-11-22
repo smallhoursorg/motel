@@ -21,11 +21,6 @@ import (
 	"github.com/smallhoursorg/motel/liveswap/wire"
 )
 
-// logsWait is how long a 429 with no Retry-After is waited out while
-// following: the time the box's whole burst takes to refill, as the
-// TUI waits one out.
-const logsWait = 30 * time.Second
-
 // logs is `motel logs <app> [--lines] [--follow]`: GET
 // /_motel/apps/<app>/logs, the app's own lines, for a person with a
 // logs grant on the app or the box.
@@ -46,9 +41,9 @@ func (r *runner) logs() *cobra.Command {
 			"(https://deploy.example.com/blog), which names the box too.\n\n" +
 			"--follow then reads every 2 s for the lines after the last one read, until\n" +
 			"ctrl-c (exit 130) or a read fails (that read's exit); a 429 or a busy box's\n" +
-			"503 is waited out. Each read that sends lines is a line in the box's journal,\n" +
-			"naming you; a follow beside an open motel brings you to the 2 requests a second\n" +
-			"a box allows a person.\n\n" +
+			"503 asking for a wait of a minute or less is waited out. Each read that sends\n" +
+			"lines is a line in the box's journal, naming you; a follow beside an open\n" +
+			"motel brings you to the 2 requests a second a box allows a person.\n\n" +
 			"An app that keeps its output on the box (deploy_log_lines 0) has no line\n" +
 			"sent: that is said on stderr, exit 0. --json prints the box's answer; with\n" +
 			"--follow, one JSON object a line, each a line of the app's as the box sent\n" +
@@ -133,8 +128,9 @@ func (l *logsRun) once(ctx context.Context) error {
 // follow reads the newest lines, then every LogsEvery the lines after
 // the last one read (at once when a read stopped with lines left), until
 // the context ends, a read fails, or the box says the app keeps its
-// output on the box. A 429 and a busy box's 503 are waited out, by the
-// box's Retry-After (30 s for a 429 with none), and the follow goes on.
+// output on the box. A 429 and a busy box's 503 asking a minute or less
+// (waitOut) are waited out, by the box's Retry-After (30 s for a 429
+// with none), and the follow goes on.
 // A 429 the client's own read waited out once (client.Get) is waited
 // out here only when it stood.
 func (l *logsRun) follow(ctx context.Context) error {
@@ -157,13 +153,11 @@ func (l *logsRun) follow(ctx context.Context) error {
 				return logsStopped(err, taken)
 			}
 			if !waiting {
+				// The read's own sentence, the box's quoted in it (a 503's:
+				// its reads busy, or moteld starting), then the wait.
 				var cf *client.Failure
 				errors.As(err, &cf)
-				asked := fmt.Sprintf("with a wait of %d s: following waits it out", int(d/time.Second))
-				if cf.RetryAfter == 0 {
-					asked = fmt.Sprintf("and named no wait: following waits %d s", int(d/time.Second))
-				}
-				if _, err := fmt.Fprintf(l.r.env.Stderr, "motel: %s answered %d %s, and asks again until it answers.\n", l.c.Box.Host, cf.Status, asked); err != nil {
+				if _, err := fmt.Fprintf(l.r.env.Stderr, "motel: %s (following waits %d s, and asks again until it answers).\n", strings.TrimSuffix(cf.Message, "."), int(d/time.Second)); err != nil {
 					return err
 				}
 			}
@@ -298,8 +292,9 @@ func logLines(lines []wire.LogLine) []render.LogLine {
 }
 
 // waitOut is the wait for a read the box asked to be made again later:
-// a 429 that stood after the client's own wait (its Retry-After, or
-// logsWait with none), or a 503 that carries
+// a 429 that stood after the client's own wait (its Retry-After, at
+// most client.MaxRetryAfter as a 503's is, or model.NoRetryAfter with
+// none), or a 503 that carries
 // a wait (client.Logs: the box's, while it runs as many logs reads as it
 // runs at once).
 func waitOut(err error) (time.Duration, bool) {
@@ -307,10 +302,12 @@ func waitOut(err error) (time.Duration, bool) {
 	switch {
 	case !errors.As(err, &f):
 		return 0, false
+	case f.Status == http.StatusTooManyRequests && f.RetryAfter > client.MaxRetryAfter:
+		return 0, false
 	case f.Status == http.StatusTooManyRequests && f.RetryAfter > 0, f.Status == http.StatusServiceUnavailable && f.RetryAfter > 0:
 		return f.RetryAfter, true
 	case f.Status == http.StatusTooManyRequests:
-		return logsWait, true
+		return model.NoRetryAfter, true
 	}
 	return 0, false
 }

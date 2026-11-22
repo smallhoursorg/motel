@@ -292,14 +292,15 @@ func TestLogsFollow(t *testing.T) {
 	}
 	for _, s := range []string{
 		"motel: following blog's lines, a read every 2 s; ctrl-c stops.\n",
-		"motel: 127.0.0.1 answered 503 with a wait of 1 s: following waits it out, and asks again until it answers.\n",
+		// The read's own sentence, the box's quoted in it, then the wait.
+		"answered 503, not known to be moteld's own answer; it says: \"busy\" (following waits 1 s, and asks again until it answers).\n",
 		"motel: 127.0.0.1 keeps blog's output on the box (deploy_log_lines 0): it sends no line of it.\n",
 	} {
 		if !strings.Contains(r.stderr, s) {
 			t.Errorf("stderr lacks %q:\n%s", s, r.stderr)
 		}
 	}
-	if strings.Count(r.stderr, "with a wait of") != 1 {
+	if strings.Count(r.stderr, "(following waits") != 1 {
 		t.Errorf("the wait is said more than once in a row:\n%s", r.stderr)
 	}
 }
@@ -395,7 +396,7 @@ func TestLogsFollowEnds(t *testing.T) {
 
 // TestLogsFollowSays: a follow whose first read brings no line says the
 // journal holds none, and waits; a 429 that names no wait is said as
-// such, and waited 30 s.
+// the client says it, and waited 30 s (model.NoRetryAfter).
 func TestLogsFollowSays(t *testing.T) {
 	off := logsStep{logs: &wire.Logs{Kept: wire.KeptOff, Lines: []wire.LogLine{}}}
 	lb := newLogsBox(t, logsStep{logs: &wire.Logs{Kept: wire.KeptOn, Lines: []wire.LogLine{}}}, logsStep{logs: &wire.Logs{Kept: wire.KeptOn, Lines: []wire.LogLine{}}}, off)
@@ -412,8 +413,28 @@ func TestLogsFollowSays(t *testing.T) {
 	lb = newLogsBox(t, logsStep{code: http.StatusTooManyRequests, body: `{"error":"slow down"}`}, off)
 	sl := &sleeps{}
 	r = runLogs(t, context.Background(), lb, sl, nil, "logs", "blog", "--follow")
-	if r.code != 0 || !strings.Contains(r.stderr, "motel: 127.0.0.1 answered 429 and named no wait: following waits 30 s, and asks again until it answers.\n") ||
+	if r.code != 0 || !strings.Contains(r.stderr, "motel: 127.0.0.1 asked you to slow down; try again later (following waits 30 s, and asks again until it answers).\n") ||
 		len(sl.d) != 1 || sl.d[0] != 30*time.Second {
 		t.Errorf("a 429 with no wait: exit %d, stderr %q, slept %v", r.code, r.stderr, sl.d)
+	}
+}
+
+// TestLogsFollow429Bound: a 429 that stands is waited out when its wait
+// is at most client.MaxRetryAfter, as a 503's is; a longer one ends the
+// follow, exit 3, nothing slept.
+func TestLogsFollow429Bound(t *testing.T) {
+	off := logsStep{logs: &wire.Logs{Kept: wire.KeptOff, Lines: []wire.LogLine{}}}
+	minute := logsStep{code: http.StatusTooManyRequests, retryAfter: "60", body: `{"error":"too many requests; retry after 60 s"}`}
+	lb := newLogsBox(t, minute, minute, off)
+	sl := &sleeps{}
+	r := runLogs(t, context.Background(), lb, sl, nil, "logs", "blog", "--follow")
+	if r.code != 0 || len(sl.d) != 2 || sl.d[0] != time.Minute || sl.d[1] != time.Minute {
+		t.Errorf("a minute: exit %d, slept %v, stderr %q", r.code, sl.d, r.stderr)
+	}
+	lb = newLogsBox(t, logsStep{code: http.StatusTooManyRequests, retryAfter: "61", body: `{"error":"too many requests; retry after 61 s"}`}, off)
+	sl = &sleeps{}
+	r = runLogs(t, context.Background(), lb, sl, nil, "logs", "blog", "--follow")
+	if r.code != 3 || len(sl.d) != 0 || len(lb.queries) != 1 || !strings.Contains(r.stderr, "the box asks you to wait 61 s, longer than motel waits") {
+		t.Errorf("61 s: exit %d, slept %v, %d reads, stderr %q", r.code, sl.d, len(lb.queries), r.stderr)
 	}
 }

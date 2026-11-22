@@ -256,10 +256,13 @@ line taken) keeps the one sent. When the box did not honour the cursor (`gap`: i
 longer in the journal), a divider says lines since may be missing, and
 the lines are its newest; with no cursor beside the gap, the next read
 is a tail, or every read would be one. A `429` that stands after the
-client's own wait, and a `503` whose JSON says why with a `Retry-After`
-of at most a minute (the box's when its four read slots are taken, 1 s),
+client's own wait, with a `Retry-After` of at most a minute or none, and
+a `503` whose JSON says why with a `Retry-After` of at most a minute (the
+box's when its four read slots are taken, or while moteld starts, 1 s),
 are waited out (the box's `Retry-After`, or 30 s for a `429` with none),
-stderr saying so once in a run of them, and the follow goes on; any other read that fails ends it, with
+stderr saying so once in a run of them, with the read's own sentence and
+the box's words quoted in it, and the follow goes on; any other read
+that fails, a `429` asking for longer among them, ends it, with
 that read's exit and its sentence saying following stopped. The box
 saying the app keeps its output on the box ends it, exit 0. ctrl-c ends
 it, 130. With `--json` stdout is the app's lines alone, each as the box
