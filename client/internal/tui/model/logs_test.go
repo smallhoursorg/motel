@@ -26,6 +26,7 @@ func TestLogsFollowTake(t *testing.T) {
 		{"a follow", "c1", wire.Logs{Kept: wire.KeptOn, Cursor: "c2"}, LogsTurn{}, "c2"},
 		{"a follow, more", "c1", wire.Logs{Kept: wire.KeptOn, More: true, Cursor: "c2"}, LogsTurn{Again: true}, "c2"},
 		{"a follow of none", "c1", wire.Logs{Kept: wire.KeptOn}, LogsTurn{}, "c1"},
+		{"a follow's more with no cursor", "c1", wire.Logs{Kept: wire.KeptOn, More: true}, LogsTurn{}, "c1"},
 		{"a gap", "c1", wire.Logs{Kept: wire.KeptOn, Gap: true, Cursor: "c3"}, LogsTurn{Gap: true}, "c3"},
 		{"a gap, more", "c1", wire.Logs{Kept: wire.KeptOn, Gap: true, More: true, Cursor: "c3"}, LogsTurn{Gap: true, Older: true}, "c3"},
 		{"a gap, no cursor", "c1", wire.Logs{Kept: wire.KeptOn, Gap: true}, LogsTurn{Gap: true}, ""},

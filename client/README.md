@@ -27,8 +27,8 @@ access check writes `needs` and `scope` beside its `error` (a plainer
 403 of the box's is `{"error":"forbidden"}`). An interrupted command
 (130) prints nothing on stdout, and nor does a failure of `logs
 --follow --json` once the command runs: its stdout holds the app's
-lines alone (a refusal of what was typed, before it runs, still prints
-its object: the accepted row below).
+lines alone (a refusal by the command line's parser, before the command
+runs, still prints its object: the accepted row below).
 
 ```text
 motel version                       the client's release and protocol

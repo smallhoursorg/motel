@@ -60,7 +60,10 @@ func (f *LogsFollow) Take(l wire.Logs) LogsTurn {
 	}
 	sent := f.after != ""
 	tail := !sent || l.Gap
-	t := LogsTurn{Gap: sent && l.Gap, Older: l.More && tail, Again: l.More && !tail}
+	// Again only when the read moved on: a follow's more with no cursor
+	// (no moteld sends one) would ask for the same lines at once, again
+	// and again.
+	t := LogsTurn{Gap: sent && l.Gap, Older: l.More && tail, Again: l.More && !tail && l.Cursor != ""}
 	switch {
 	case l.Cursor != "":
 		f.after = l.Cursor
