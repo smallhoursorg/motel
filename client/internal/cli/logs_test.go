@@ -121,7 +121,7 @@ func TestLogsTail(t *testing.T) {
 	if r.code != 0 || r.stderr != "" {
 		t.Fatalf("exit %d, stderr %q", r.code, r.stderr)
 	}
-	const want = `-- older lines were not sent: a read sends at most 200 lines or 64 KiB of them, and none reaches further back --
+	const want = `-- older lines were not sent: a read sends at most 200 lines or 64 KiB of them, and motel logs does not page back (--lines 1000 sends more) --
 -- 2026-11-20 UTC, release v42 --
 23:59:58  listening on :8080
 23:59:59  GET /cart 200 \x1b[31m12ms\x1b[0m\x0d\u009b2J\u202eevil\x09tab
@@ -146,7 +146,7 @@ func TestLogsTail(t *testing.T) {
 	r = runLogs(t, context.Background(), lb, &sleeps{}, nil, "logs", "blog", "--lines", "50", "--json")
 	// The older lines left are said on stderr.
 	if r.code != 0 || r.stdout != string(withNewline(termtext.JSON(lb.bodies[1]))) ||
-		r.stderr != "motel: older lines were not sent: a read sends at most 50 lines or 64 KiB of them, and none reaches further back.\n" {
+		r.stderr != "motel: older lines were not sent: a read sends at most 50 lines or 64 KiB of them, and motel logs does not page back (--lines 1000 sends more).\n" {
 		t.Fatalf("--json: exit %d, stdout %q, stderr %q", r.code, r.stdout, r.stderr)
 	}
 	if bad := unsafeOutput.FindString(strings.TrimSuffix(r.stdout, "\n")); bad != "" {
@@ -180,14 +180,17 @@ func TestLogsSays(t *testing.T) {
 		{"kept off, json", logsStep{logs: &wire.Logs{Kept: wire.KeptOff, Lines: []wire.LogLine{}}}, []string{"--json"}, nil, 0,
 			"motel: 127.0.0.1 keeps blog's output on the box (deploy_log_lines 0): it sends no line of it.\n", `{"kept":"off","lines":[],"more":false,"gap":false}` + "\n", 1},
 		{"older lines, json", logsStep{logs: &wire.Logs{Kept: wire.KeptOn, More: true, Lines: []wire.LogLine{line(0, "v42", "one")}}}, []string{"--json"}, nil, 0,
-			"motel: older lines were not sent: a read sends at most 200 lines or 64 KiB of them, and none reaches further back.\n",
+			"motel: older lines were not sent: a read sends at most 200 lines or 64 KiB of them, and motel logs does not page back (--lines 1000 sends more).\n",
 			`{"kept":"on","lines":[{"at":"2026-11-20T23:59:58.123456Z","release":"v42","text":"one"}],"more":true,"gap":false}` + "\n", 1},
 		{"no line", logsStep{logs: &wire.Logs{Kept: wire.KeptOn, Lines: []wire.LogLine{}}}, nil, nil, 0,
 			"motel: 127.0.0.1 holds no line of blog in its journal.\n", "", 1},
+		// At the largest count, no larger one to name.
+		{"older left at 1000", logsStep{logs: &wire.Logs{Kept: wire.KeptOn, More: true, Lines: []wire.LogLine{}}}, []string{"--lines", "1000"}, nil, 0,
+			"", "-- older lines were not sent: a read sends at most 1000 lines or 64 KiB of them, and motel logs does not page back --\n", 1},
 		// Every line the read took passed over (another unit's), older ones
 		// left: not said as none.
 		{"no line sent, older left", logsStep{logs: &wire.Logs{Kept: wire.KeptOn, More: true, Lines: []wire.LogLine{}}}, nil, nil, 0,
-			"", "-- older lines were not sent: a read sends at most 200 lines or 64 KiB of them, and none reaches further back --\n", 1},
+			"", "-- older lines were not sent: a read sends at most 200 lines or 64 KiB of them, and motel logs does not page back (--lines 1000 sends more) --\n", 1},
 		{"a word not known", logsStep{body: `{"kept":"rotated","lines":[]}`}, nil, nil, 3,
 			"motel: 127.0.0.1 answered about blog's lines in a word for what it keeps this client does not know (rotated): it cannot tell whether they are sent\n", "", 1},
 		{"a count not the box's", logsStep{}, []string{"--lines", "100"}, nil, 2,
@@ -271,7 +274,7 @@ func TestLogsFollow(t *testing.T) {
 			break
 		}
 	}
-	const want = `-- older lines were not sent: a read sends at most 50 lines or 64 KiB of them, and none reaches further back --
+	const want = `-- older lines were not sent: a read sends at most 50 lines or 64 KiB of them, and motel logs does not page back (--lines 1000 sends more) --
 -- 2026-11-20 UTC, release v42 --
 23:59:58  one
 23:59:59  two
@@ -336,7 +339,7 @@ func TestLogsFollowJSON(t *testing.T) {
 	}
 	for _, s := range []string{
 		"motel: following blog's lines, a read every 2 s; ctrl-c stops.\n",
-		"motel: older lines were not sent: a read sends at most 200 lines or 64 KiB of them, and none reaches further back.\n",
+		"motel: older lines were not sent: a read sends at most 200 lines or 64 KiB of them, and motel logs does not page back (--lines 1000 sends more).\n",
 		"motel: a gap: the box no longer holds the line this follow had read to, so lines since then may be missing; these are its newest.\n",
 		"answered 500, not known to be moteld's own answer; it says: \"the app's journal could not be read; the box's journal says why\" (following stopped).\n",
 	} {

@@ -8,7 +8,7 @@ import (
 )
 
 // TestLogsFollowTake: what each answer means to a follower, and where it
-// reads next. A tail's more is older lines no read reaches; a follow's
+// reads next. A tail's more is older lines no follow reaches; a follow's
 // more is lines after the last one sent, read at once; a gap is said
 // only of an after that was sent, its lines a fresh tail; a cursor is
 // taken; none is the one sent, kept, but after a gap, which tails next.

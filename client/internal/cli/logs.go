@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -40,8 +41,8 @@ func (r *runner) logs() *cobra.Command {
 			"box's default is " + wire.LogsLines[0] + "). Each line is its time (UTC) and its text, every control\n" +
 			"character and colour code shown escaped; a line before them, and wherever the\n" +
 			"release or the day changes, names the day and the release. A read sends at\n" +
-			"most that many lines or 64 KiB, and older lines are then not sent: no read\n" +
-			"reaches them. <app> is a name, or the app's URL\n" +
+			"most that many lines or 64 KiB, and older lines are then not sent: logs does\n" +
+			"not page back. <app> is a name, or the app's URL\n" +
 			"(https://deploy.example.com/blog), which names the box too.\n\n" +
 			"--follow then reads every 2 s for the lines after the last one read, until\n" +
 			"ctrl-c (exit 130) or a read fails (that read's exit); a 429 or a busy box's\n" +
@@ -227,7 +228,17 @@ func (l *logsRun) older() string {
 	if n == "" {
 		n = wire.LogsLines[0]
 	}
-	return "older lines were not sent: a read sends at most " + n + " lines or 64 KiB of them, and none reaches further back"
+	s := "older lines were not sent: a read sends at most " + n + " lines or 64 KiB of them, and motel logs does not page back"
+	// The largest count the box takes reaches further back.
+	most := slices.MaxFunc(wire.LogsLines, func(a, b string) int {
+		x, _ := strconv.Atoi(a)
+		y, _ := strconv.Atoi(b)
+		return x - y
+	})
+	if n != most {
+		s += " (--lines " + most + " sends more)"
+	}
+	return s
 }
 
 // say is the client's own sentence s about the lines: on stderr with
