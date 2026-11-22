@@ -4,7 +4,8 @@
 // escapes (OSC 52 writes the clipboard, OSC 8 hides a link, CSI moves
 // the cursor over what was printed) or bidi controls that reorder
 // what a reader sees. A Text holds a string with all of those made
-// visible, and only From makes one, so a renderer that takes Text for
+// visible, and only From and Tabbed (From with a tab as spaces) make
+// one, so a renderer that takes Text for
 // what a box sent cannot print it raw: the compiler holds the rule,
 // and the rule is written once.
 package termtext
@@ -88,10 +89,13 @@ const TabStop = 8
 // TabStop columns of s's own (from its start), so that the columns an
 // app laid out with tabs line up as in a terminal; no tab is written.
 // For a line of an app's output: `motel logs`, a deploy record's log
-// tail. Columns are counted in runes of the text as shown, an escape
-// From writes as its characters: a wide character counts one, so a tab
-// after one lines up a column short (the cells' width is the TUI's
-// door's, which this package does not reach).
+// tail and probe body. Columns are counted in runes of the text as
+// shown, an escape From writes as its characters, not in a terminal's
+// cells: before a tab, a wide character (CJK, an emoji) puts what
+// follows the tab a cell past its stop, a combining or zero-width one a
+// cell before it, and on the TUI's screen a character the door writes
+// as an escape further off (the cells' width is the door's, which this
+// package does not reach).
 func Tabbed(s string) Text {
 	if !strings.Contains(s, "\t") {
 		return From(s)

@@ -75,6 +75,20 @@ func FuzzFrom(f *testing.F) {
 		if !strings.ContainsFunc(s, func(r rune) bool { return r == utf8.RuneError || unsafeRune(r) }) && out != s {
 			t.Fatalf("From(%q) = %q changed a clean string", s, out)
 		}
+		// Tabbed and TabbedLines are held the same: UTF-8, no rune From
+		// escapes (a tab among them), and From where s holds no tab.
+		tabbed := []string{Tabbed(s).String()}
+		for _, l := range TabbedLines(s) {
+			tabbed = append(tabbed, l.String())
+		}
+		for _, got := range tabbed {
+			if !utf8.ValidString(got) || strings.ContainsFunc(got, unsafeRune) {
+				t.Fatalf("Tabbed(%q) or a line of it = %q keeps an unsafe rune, or is not UTF-8", s, got)
+			}
+		}
+		if !strings.Contains(s, "\t") && tabbed[0] != out {
+			t.Fatalf("Tabbed(%q) = %q, From %q", s, tabbed[0], out)
+		}
 	})
 }
 
