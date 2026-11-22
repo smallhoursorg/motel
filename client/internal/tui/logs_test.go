@@ -55,6 +55,10 @@ func TestLogsScreen(t *testing.T) {
 	if s := h.screen(); !strings.Contains(s, "needs a logs grant on shop") {
 		t.Errorf("no grant on shop:\n%s", s)
 	}
+	// Its footer offers no key that scrolls, follows or wraps.
+	if rows := screenRows(h); !strings.HasPrefix(rows[len(rows)-1].text, logsSaysFooter) {
+		t.Errorf("no grant: the footer %q", rows[len(rows)-1].text)
+	}
 	for _, c := range h.fake.Calls {
 		if c.Job.Kind == model.KLogs && c.Job.App == "shop" {
 			t.Errorf("shop's lines were asked for without a grant")

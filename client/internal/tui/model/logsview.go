@@ -461,6 +461,15 @@ func (s *Session) logsHead(app string, now time.Time, width int, cells Cells) ([
 	return out, d
 }
 
+// LogsShowsLines says whether the logs screen of app shows lines, or
+// only what it says of them (no grant, whoami not known, a refusal,
+// kept off with none held): its footer offers the keys that scroll,
+// follow and wrap only then.
+func (s *Session) LogsShowsLines(app string, now time.Time) bool {
+	_, d := s.logsHead(app, now, 0, nil)
+	return d != nil
+}
+
 // rows is item i laid out to width: a note of the client's on rows of
 // its own (Sentence); a line after its divider when it has one, then the
 // line, cut at width, or with wrap on as many rows as it takes, each

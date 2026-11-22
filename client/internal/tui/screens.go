@@ -42,6 +42,11 @@ func (u *UI) render(now time.Time) {
 	if v.Screen == model.ScreenRefused && u.S.CanPrint(v, 0) {
 		foot = "↑↓ scroll  r ask again  P print person line  ? keys  q quit"
 	}
+	if v.Screen == model.ScreenLogs && !u.S.LogsShowsLines(v.App, now) {
+		// No grant, whoami not known, kept off, a refusal: no line to
+		// scroll, follow or wrap.
+		foot = logsSaysFooter
+	}
 	if !u.S.Engine.CanAskAgain(now) {
 		foot = strings.Replace(foot, "  ctrl-r ask again", "", 1)
 	}
@@ -99,6 +104,10 @@ func (u *UI) render(now time.Time) {
 		door.SetText(u.foot, door.Lit(promptFooters[u.promptMode]))
 	}
 }
+
+// logsSaysFooter is the logs screen's footer while it shows no lines,
+// only what it says of them.
+const logsSaysFooter = "ctrl-r ask again  c cmd  y json  esc back  ? more"
 
 // promptFooters are the keys of the : line and the / filter while
 // open, whole at 60 columns as the screens' footers are.
