@@ -589,8 +589,8 @@ func soundRecord(now time.Time) *record.Status {
 	}
 }
 
-// told is names' keys, sorted, as one string.
-func told(evs []Event) string {
+// firingKeys is names' keys, sorted, as one string.
+func firingKeys(evs []Event) string {
 	return strings.Join(slices.Sorted(maps.Keys(names(evs))), " ")
 }
 
@@ -691,7 +691,7 @@ func TestBackupEachProblemIsItsAlert(t *testing.T) {
 		t.Run(c.key, func(t *testing.T) {
 			r := newBackupRig(t, cmp.Or(c.setUp, 60*day))
 			evs := r.poll(t, c.record(r.next()))
-			if got := told(evs); got != c.key {
+			if got := firingKeys(evs); got != c.key {
 				t.Fatalf("raised %q, want %q alone", got, c.key)
 			}
 			e := evs[0]
@@ -741,7 +741,7 @@ func TestBackupProblemsStartAndEndEachByItself(t *testing.T) {
 		{func() *record.Status { return soundRecord(r.next()) }, "-backup_stale/blog"},
 		{func() *record.Status { return soundRecord(r.next()) }, ""},
 	} {
-		if got := told(r.poll(t, step.st())); got != step.want {
+		if got := firingKeys(r.poll(t, step.st())); got != step.want {
 			t.Fatalf("step %d: %q, want %q", i, got, step.want)
 		}
 	}
@@ -755,9 +755,9 @@ func TestBackupAcrossARestart(t *testing.T) {
 	st := soundRecord(r.next())
 	u := r.next().Add(-4 * time.Hour)
 	st.Unlisted, st.Error = &u, "the repository refused"
-	before := told(r.poll(t, st))
+	before := firingKeys(r.poll(t, st))
 	r.b = backupPoller{envFile: r.b.envFile}
-	if after := told(r.poll(t, st)); before != "backup_repository_unlisted backup_run_failed" || after != before {
+	if after := firingKeys(r.poll(t, st)); before != "backup_repository_unlisted backup_run_failed" || after != before {
 		t.Fatalf("before the restart %q, after %q", before, after)
 	}
 }
@@ -772,21 +772,21 @@ func TestBackupUnreadableKeepsWhatFired(t *testing.T) {
 	st := soundRecord(r.next())
 	st.Apps["blog"].LastOK.Time = r.next().Add(-4 * time.Hour)
 	st.LastDrill.Detail = "could not begin"
-	if got := told(r.poll(t, st)); got != "backup_drill_failed backup_stale/blog" {
+	if got := firingKeys(r.poll(t, st)); got != "backup_drill_failed backup_stale/blog" {
 		t.Fatalf("first: %q", got)
 	}
 	if err := os.WriteFile(r.path, []byte("{not json"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	r.now = r.now.Add(backupEvery)
-	if got := told(r.b.poll(r.now, r.path)); got != "backup_drill_failed backup_stale/blog backup_unreadable" {
+	if got := firingKeys(r.b.poll(r.now, r.path)); got != "backup_drill_failed backup_stale/blog backup_unreadable" {
 		t.Fatalf("unreadable: %q", got)
 	}
 	fresh := backupPoller{envFile: r.b.envFile}
-	if got := told(fresh.poll(r.now, r.path)); got != "backup_unreadable" {
+	if got := firingKeys(fresh.poll(r.now, r.path)); got != "backup_unreadable" {
 		t.Fatalf("a process that starts on it: %q", got)
 	}
-	if got := told(r.poll(t, soundRecord(r.next()))); got != "-backup_drill_failed -backup_stale/blog -backup_unreadable" {
+	if got := firingKeys(r.poll(t, soundRecord(r.next()))); got != "-backup_drill_failed -backup_stale/blog -backup_unreadable" {
 		t.Fatalf("read again, healthy: %q", got)
 	}
 }
@@ -801,7 +801,7 @@ func TestBackupKeptWhenTheFileCannotBeLookedAt(t *testing.T) {
 	st := soundRecord(r.next())
 	u := r.next().Add(-4 * time.Hour)
 	st.Unlisted = &u
-	if got := told(r.poll(t, st)); got != "backup_repository_unlisted" {
+	if got := firingKeys(r.poll(t, st)); got != "backup_repository_unlisted" {
 		t.Fatalf("unlisted: %q", got)
 	}
 	// A path through a regular file fails with ENOTDIR, not ENOENT,
@@ -810,7 +810,7 @@ func TestBackupKeptWhenTheFileCannotBeLookedAt(t *testing.T) {
 	r.b.envFile = filepath.Join(file, "repository.env")
 	st.Unlisted = nil
 	evs := r.poll(t, st)
-	if got := told(evs); got != "backup_repository_unlisted backup_unreadable" {
+	if got := firingKeys(evs); got != "backup_repository_unlisted backup_unreadable" {
 		t.Fatalf("cannot be looked at, the record healthy: %q", got)
 	}
 	s := summaryOf(evs, "backup_unreadable")
@@ -823,16 +823,16 @@ func TestBackupKeptWhenTheFileCannotBeLookedAt(t *testing.T) {
 		t.Fatalf("%d characters: the cut takes the pointer", n)
 	}
 	r.b.envFile = file
-	if got := told(r.poll(t, st)); got != "-backup_repository_unlisted -backup_unreadable" {
+	if got := firingKeys(r.poll(t, st)); got != "-backup_repository_unlisted -backup_unreadable" {
 		t.Fatalf("looked at again: %q", got)
 	}
 	r.b.envFile = filepath.Join(file, "repository.env")
 	st.Unlisted = &u
-	if got := told(r.poll(t, st)); got != "backup_unreadable" {
+	if got := firingKeys(r.poll(t, st)); got != "backup_unreadable" {
 		t.Fatalf("cannot be looked at, nothing fired: %q", got)
 	}
 	fresh := backupPoller{envFile: r.b.envFile}
-	if got := told(fresh.poll(r.now, r.path)); got != "backup_unreadable" {
+	if got := firingKeys(fresh.poll(r.now, r.path)); got != "backup_unreadable" {
 		t.Fatalf("a process that starts on it: %q", got)
 	}
 	// The record unreadable, then the file too: one backup_unreadable,
@@ -842,13 +842,13 @@ func TestBackupKeptWhenTheFileCannotBeLookedAt(t *testing.T) {
 		t.Fatal(err)
 	}
 	r.now = r.now.Add(backupEvery)
-	if got := told(r.b.poll(r.now, r.path)); got != "backup_unreadable" {
+	if got := firingKeys(r.b.poll(r.now, r.path)); got != "backup_unreadable" {
 		t.Fatalf("unreadable: %q", got)
 	}
 	r.b.envFile = filepath.Join(file, "repository.env")
 	r.now = r.now.Add(backupEvery)
 	evs = r.b.poll(r.now, r.path)
-	if got := told(evs); got != "backup_unreadable" || !strings.HasPrefix(summaryOf(evs, "backup_unreadable"), r.b.envFile) {
+	if got := firingKeys(evs); got != "backup_unreadable" || !strings.HasPrefix(summaryOf(evs, "backup_unreadable"), r.b.envFile) {
 		t.Fatalf("unreadable, then the file cannot be looked at: %q %q", got, summaryOf(evs, "backup_unreadable"))
 	}
 }
@@ -861,22 +861,22 @@ func TestBackupNotSetUp(t *testing.T) {
 	r := newBackupRig(t, 0)
 	st := soundRecord(r.next())
 	st.Apps["blog"].LastOK.Time = r.next().Add(-4 * time.Hour)
-	if got := told(r.poll(t, st)); got != "" || r.b.read != nil {
+	if got := firingKeys(r.poll(t, st)); got != "" || r.b.read != nil {
 		t.Fatalf("not set up: %q, read %v", got, r.b.read)
 	}
-	if got := told(r.poll(t, nil)); got != "" {
+	if got := firingKeys(r.poll(t, nil)); got != "" {
 		t.Fatalf("not set up, no record: %q", got)
 	}
 	setUpBackups(t, filepath.Dir(r.b.envFile), r.now.Add(-60*day))
 	st = soundRecord(r.next())
 	st.Apps["blog"].LastOK.Time = r.next().Add(-4 * time.Hour)
-	if got := told(r.poll(t, st)); got != "backup_stale/blog" {
+	if got := firingKeys(r.poll(t, st)); got != "backup_stale/blog" {
 		t.Fatalf("set up: %q", got)
 	}
 	if err := os.Remove(r.b.envFile); err != nil {
 		t.Fatal(err)
 	}
-	if got := told(r.poll(t, st)); got != "-backup_stale/blog" || r.b.read != nil {
+	if got := firingKeys(r.poll(t, st)); got != "-backup_stale/blog" || r.b.read != nil {
 		t.Fatalf("the file removed: %q, read %v", got, r.b.read)
 	}
 }
@@ -893,12 +893,12 @@ func TestBackupAnAppGoneFromTheRecord(t *testing.T) {
 		st.Apps["blog"].RestoreProven = nil
 		return st
 	}
-	if got := told(r.poll(t, both())); got != "backup_restore_unproven/blog backup_restore_unproven/shop" {
+	if got := firingKeys(r.poll(t, both())); got != "backup_restore_unproven/blog backup_restore_unproven/shop" {
 		t.Fatalf("both: %q", got)
 	}
 	st := both()
 	delete(st.Apps, "shop")
-	if got := told(r.poll(t, st)); got != "-backup_restore_unproven/shop backup_restore_unproven/blog" {
+	if got := firingKeys(r.poll(t, st)); got != "-backup_restore_unproven/shop backup_restore_unproven/blog" {
 		t.Fatalf("shop gone: %q", got)
 	}
 }
