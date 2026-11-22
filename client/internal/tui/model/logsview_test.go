@@ -521,6 +521,24 @@ func TestLogsRefusedAfterReopening(t *testing.T) {
 	}
 }
 
+// TestLogsAgainOnARefusal: ctrl-r held on a refused logs read asks it
+// once in AgainAfter, not at the read's own 2 s.
+func TestLogsAgainOnARefusal(t *testing.T) {
+	s, f, now := logsOpen(t, "blog", func(f *demo.Fake) {
+		f.Set("logs:blog", &model.Failure{Kind: model.FailForbidden, Message: "deploy.example.com does not allow your key this"})
+	})
+	j := model.Job{Kind: model.KLogs, App: "blog"}
+	end := now.Add(10 * time.Second)
+	for ; now.Before(end); *now = now.Add(100 * time.Millisecond) {
+		s.LogsAgain(*now)
+		s.Engine.Again(*now, j)
+		drive(s, f, *now, 5)
+	}
+	if n := len(logsCalls(f)); n > 3 {
+		t.Errorf("%d refused reads in 10 s of ctrl-r, want one in 5 s", n)
+	}
+}
+
 // TestLogsRefusedReopened: a logs read the box refused (a 404 from a
 // moteld older than the read) is said, and said again when the screen
 // is opened afresh, with nothing asked, until ctrl-r asks.
