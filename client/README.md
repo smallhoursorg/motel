@@ -904,10 +904,12 @@ SIGINT, SIGTERM or SIGHUP sent to the process, or the terminal closed under the 
   apps' reads, by when each is due, so a chatty app's run of them
   starves none. With it open, a viewer of the box's other apps keep 30 s
   to about 23 apps (the engine's own sum, `background`). A logs `503`
-  with the box's wait (its four read slots taken, by anyone) waits that
-  read alone, for the wait or 2 s when that is longer, and slows nothing
-  else; its screen says the last read failed, and the title bar says
-  nothing of it. The
+  with the box's wait (its four read slots taken, by anyone, or moteld
+  still starting after a restart, which the client cannot tell apart)
+  waits that read alone, for the wait or 2 s when that is longer, and
+  slows nothing else; it is not counted as an answer from the box, so a
+  run of no answer goes on through it; its screen says the last read
+  failed, and the title bar says nothing of it. The
   open app is read every 5 s, and its alerts every 15 s while its screen
   is open (`AlertsEvery`, after the box's own 5 s of Alertmanager's
   answer). Following a deploy costs no read of its own: it is the open

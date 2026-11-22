@@ -168,8 +168,8 @@ func (s *Session) Fetch(ctx context.Context, c Client, j Job) (func(), error) {
 				s.refused = true
 			case FailNotSent: // nothing was asked of the box
 			case FailBusy:
-				// An answer, asking for a wait: refused nothing.
-				s.last, s.refused = at, false
+				// Busy, or moteld starting: no answer of the box's, nor a
+				// refusal (FailBusy).
 			default:
 				// The watch's read refused says so in the title bar's mark,
 				// not its word: a grant limited by `from` would otherwise

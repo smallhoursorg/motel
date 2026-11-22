@@ -108,11 +108,14 @@ const (
 	// Nothing came from the box, so nothing is known of it: a run of no
 	// answer goes on.
 	FailNotSent
-	// FailBusy: the box answered that it runs as many reads of this kind
-	// as it runs at once, and named a wait (a logs read's 503, the box's
-	// four read slots taken, by anyone): this read alone is asked again
-	// after the wait, or at its own interval when that is longer. Nothing
-	// else slows, as a 429 slows the session, since the slots are not this
-	// person's, and the box is not said to refuse.
+	// FailBusy: a logs read's 503 that says why in JSON and names a wait
+	// of a minute or less (client.Logs): the box's four logs read slots
+	// taken, by anyone, or moteld still starting after a restart, which
+	// the client cannot tell apart. This read alone is asked again after
+	// the wait, or at its own interval when that is longer. Nothing else
+	// slows, as a 429 slows the session; and it is not counted as an
+	// answer from the box (Done, Fetch), since a starting moteld's 503 to
+	// any other read is no answer, and would otherwise end a run of no
+	// answer at each logs read.
 	FailBusy
 )

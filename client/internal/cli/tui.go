@@ -490,8 +490,9 @@ func failure(err error) error {
 	case f.Status == http.StatusTooManyRequests:
 		m.Kind = model.FailSlowed
 	case f.Status == http.StatusServiceUnavailable && f.RetryAfter > 0:
-		// A logs read's 503 with the box's wait (client.Logs): its read
-		// slots are taken, by anyone; this read alone waits.
+		// A logs read's 503 with the box's wait (client.Logs, the only
+		// read that sets one on a 503): its read slots taken, by anyone,
+		// or moteld starting; this read alone waits (model.FailBusy).
 		m.Kind = model.FailBusy
 	case f.Exit == client.ExitForbidden:
 		m.Kind = model.FailForbidden

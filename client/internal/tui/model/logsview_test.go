@@ -563,6 +563,32 @@ func TestLogsFailureReopened(t *testing.T) {
 	}
 }
 
+// TestLogsBusyThroughARestart: while moteld restarts, every read gets
+// no answer and the logs read the 503 a starting moteld sends with
+// Retry-After (FailBusy, as a busy box's): the run of no answer goes on,
+// whoami is not asked at each logs read, and the title bar does not say
+// back.
+func TestLogsBusyThroughARestart(t *testing.T) {
+	e := model.NewEngine(t0)
+	e.LogsOpen("blog", t0)
+	busy := &model.Failure{Kind: model.FailBusy, Message: "deploy.example.com answered 503", RetryAfter: time.Second}
+	calls := sim(e, names(2), t0, 2*time.Minute, 10*time.Millisecond, func(j model.Job, _ time.Time) error {
+		if j.Kind == model.KLogs {
+			return busy
+		}
+		return fail(model.FailNoAnswer)
+	})
+	who := 0
+	for _, c := range calls {
+		if c.j.Kind == model.KWhoAmI {
+			who++
+		}
+	}
+	if h := e.Health(t0.Add(2 * time.Minute)); h.Misses == 0 || who > 4 {
+		t.Errorf("through a restart: %d misses in the run, whoami asked %d times in 2 minutes", h.Misses, who)
+	}
+}
+
 // TestLogsRefusedReopened: a logs read the box refused (a 404 from a
 // moteld older than the read) is said, and said again when the screen
 // is opened afresh, with nothing asked, until ctrl-r asks.

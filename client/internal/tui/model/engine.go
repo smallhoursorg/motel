@@ -1159,9 +1159,11 @@ func (e *Engine) Done(j Job, now time.Time, err error) Outcome {
 		e.poke()
 		return out
 	}
-	if fromBox := out == Answered || out == Slowed || out == Refused && !notSent(err); fromBox {
+	if fromBox := out == Answered || out == Slowed || out == Refused && !notSent(err) && busyWait(err) == 0; fromBox {
 		// A failure the client made without sending anything says
-		// nothing of the box, and a run of no answer goes on.
+		// nothing of the box, and a run of no answer goes on; nor does a
+		// logs read's busy 503, which a starting moteld sends too
+		// (FailBusy).
 		e.none = nil
 		if e.misses > 0 {
 			// Back after a run of no answer, whatever the box said: whoami
