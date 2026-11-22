@@ -33,9 +33,10 @@ func (r *runner) logs() *cobra.Command {
 		Short: "An app's own lines, as the box's journal holds them; --follow reads on (experimental)",
 		Long: "logs reads GET /_motel/apps/<app>/logs, for a person with a logs grant on the\n" +
 			"app or the box: the app's newest lines, oldest first (--lines, " + strings.Join(wire.LogsLines, ", ") + ";\n" +
-			"the box's default is " + wire.LogsLines[0] + "). Each line is its time (UTC) and its text,\n" +
-			"every control character and colour code shown escaped; a line before them,\n" +
-			"and wherever the release or the day changes, names the day and the release.\n" +
+			"the box's default is " + wire.LogsLines[0] + "). Each line is its time (UTC) and its text, a\n" +
+			"tab shown as spaces to the next stop of 8 and every other control character\n" +
+			"and colour code shown escaped; a line before them, and wherever the release\n" +
+			"or the day changes, names the day and the release.\n" +
 			"A read sends at most that many lines or 64 KiB, and older lines are then not\n" +
 			"sent: logs does not page back. <app> is a name, or the app's URL\n" +
 			"(https://deploy.example.com/blog), which names the box too.\n\n" +

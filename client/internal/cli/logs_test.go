@@ -102,7 +102,8 @@ func line(s int, rel, text string) wire.LogLine {
 
 // hostileLine is a line an app wrote to move the cursor, recolour the
 // terminal, reverse what follows and end its row: every one is shown
-// escaped, never acted on.
+// escaped, never acted on; its tab is spaces to the stop (column 56,
+// counting each escape's characters).
 const hostileLine = "GET /cart 200 \x1b[31m12ms\x1b[0m\r\u009b2J\u202eevil\ttab"
 
 // TestLogsTail: motel logs <app> is a tail: the newest lines, each its
@@ -125,7 +126,7 @@ func TestLogsTail(t *testing.T) {
 	const want = `-- older lines were not sent: a read sends at most 200 lines or 64 KiB of them, and motel logs does not page back (--lines 1000 may send more, unless the 64 KiB was what stopped it) --
 -- 2026-11-20 UTC, release v42 --
 23:59:58  listening on :8080
-23:59:59  GET /cart 200 \x1b[31m12ms\x1b[0m\x0d\u009b2J\u202eevil\x09tab
+23:59:59  GET /cart 200 \x1b[31m12ms\x1b[0m\x0d\u009b2J\u202eevil tab
 -- 2026-11-21 UTC, release v42 --
 00:00:00  a new day
 -- 2026-11-21 UTC, release not kept by the journal --

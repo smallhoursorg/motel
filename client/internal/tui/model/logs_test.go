@@ -1,6 +1,7 @@
 package model
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -41,8 +42,9 @@ func TestLogsFollowTake(t *testing.T) {
 }
 
 // TestLogsLinesShown: a line's text is made safe, every control and
-// colour code an escape; a release the journal did not keep is said in
-// the client's words.
+// colour code an escape but a tab, which is spaces to the next stop of
+// 8 in the text's own columns (an escape counted as its characters);
+// a release the journal did not keep is said in the client's words.
 func TestLogsLinesShown(t *testing.T) {
 	at := time.Date(2026, 11, 20, 9, 30, 0, 0, time.UTC)
 	got := LogsLines([]wire.LogLine{{At: at, Release: "v42", Text: "\x1b[31mred\u202e"}, {At: at, Text: "x"}})
@@ -51,5 +53,29 @@ func TestLogsLinesShown(t *testing.T) {
 	}
 	if got[1].Release.String() != LogsNoRelease {
 		t.Errorf("line 1's release %q, want %q", got[1].Release, LogsNoRelease)
+	}
+	for _, c := range []struct{ in, want string }{
+		// A Go stack frame.
+		{"\t/app/main.go:10 +0x1d", "        /app/main.go:10 +0x1d"},
+		// Tab-separated columns line up.
+		{"GET\t/cart\t200", "GET     /cart   200"},
+		{"POST\t/checkout\t500", "POST    /checkout       500"},
+		// A tab at a stop goes to the next; two in a row.
+		{"12345678\tx", "12345678        x"},
+		{"a\t\tb", "a               b"},
+		// An escape beside a tab is still an escape, its characters
+		// counted: \x1b[31m is 8 columns.
+		{"\x1b[31m\tred\x1b[0m", "\\x1b[31m        red\\x1b[0m"},
+		// A wide character counts one column (rune count).
+		{"日\tx", "日       x"},
+		{"no tab", "no tab"},
+	} {
+		got := LogsLines([]wire.LogLine{{Text: c.in}})[0].Text.String()
+		if got != c.want {
+			t.Errorf("%q: %q, want %q", c.in, got, c.want)
+		}
+		if strings.ContainsRune(got, '\t') {
+			t.Errorf("%q: a tab is written", c.in)
+		}
 	}
 }

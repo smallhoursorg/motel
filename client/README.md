@@ -223,9 +223,13 @@ for a person with a `logs` grant on the app or the box (docs/people.md,
 "Reading an app's logs"): the app's newest lines, oldest first, 200
 when `--lines` names no other count (`wire.LogsLines`). Each line is
 printed as its time, UTC to the second, and its text, whole as the box
-sent it (at most 4 KiB, cut by the box), made safe by `termtext.From`:
-every control character and colour code the app wrote is shown as an
-escape, never passed to the terminal. The release is not on every line:
+sent it (at most 4 KiB, cut by the box), made safe: a tab as spaces to
+the next stop of 8, counted in the text's own columns from its start
+(each character one column, an escape as its characters, so a tab
+after a wide character lines up a column short), and every other
+control character and colour code the app wrote shown as an escape by
+`termtext.From`, never passed to the terminal (`model.LogsLines`, which
+a screen of the lines uses too). The release is not on every line:
 a divider before the first line, and wherever the release or the day
 changes, names both (`-- 2026-11-20 UTC, release v42 --`; a line whose
 unit the journal did not keep, `release not kept by the journal`). A
@@ -487,9 +491,9 @@ only:
 3. **A labelled, capped value**: a free-text field (a deploy's error, a
    note, a log tail line) on a line whose label is the client's, made safe
    by `termtext.From` and cut at 200 characters (`…[cut]`). A line of
-   `motel logs`, after the client's time, is made safe the same way and
-   not cut: it is what a logs reader asked for, and the box cuts it at
-   4 KiB.
+   `motel logs`, after the client's time, is made safe the same way, a
+   tab as spaces to the next stop of 8, and not cut: it is what a logs
+   reader asked for, and the box cuts it at 4 KiB.
 
 No message carries a transport's or a decoder's error text once a byte
 came from the peer: a fixed reason of the client's own is said instead.
@@ -570,7 +574,6 @@ made by hand. Accepted:
 | `logs --follow`, which runs for as long as a person leaves it, ends at the first read that fails other than by a 429 or the box's busy 503: no answer in 30 s, a connection closed while moteld restarts (its upgrade), a gateway's 5xx, the box's own 500 when journalctl could not read the journal in time; with that read's exit and its sentence saying following stopped, and nothing after it is read until it is run again | 2 | 4 | 1 | 8 | 2 (a retry at the next turn, and a count of them) | accepted: red and named, as `status --follow`'s row above; run again, it tails, and the lines between are in the box's journal; found by the self-review of `motel logs` |
 | A 429 during `logs --follow` is waited out twice before the follow says so: the client's own read waits the box's `Retry-After` once, silently, as every command's does, and when the 429 stands the follow says it and waits it again, so the lines stop for twice the box's wait (60 s for two 429s of 30 s), the first half unsaid | 2 | 5 | 1 | 10 | 2, risk 2 (the follow's reads made with the client's own wait off, which `TestForTUI` holds to the TUI's client alone) | accepted: the second wait is said, nothing is lost, the next read taking up at the cursor; found by the self-review of `motel logs` |
 | The plain layout's divider comes wherever a line's release differs from the line before, and the journal keeps no unit for some lines (a child that exited before journald read its line, a crash loop's lines often): lines of one release mixed with lines of none print a divider before nearly every line | 2 | 5 | 1 | 10 | 2 (a line of no known release marked on its own row, the divider left as it was) | accepted: each divider is true, and `--json` has the release on every line; for the owner to confirm with the layout |
-| A tab in an app's line is shown as `\x09`, as every control character is (`termtext.From`, in `model.LogsLines`): a Go or Java stack trace's indent, or a tab-separated access log, reads as escapes | 2 | 5 | 1 | 10 | 2, risk 2 (a tab shown as spaces, in the command and the screen) | accepted, by the standing rule (the owner's decision that an app's control characters are shown escaped); for the owner to confirm; found by the coordinator's review of `motel logs` |
 | An answer with lines and no cursor is taken (`hold` asks a cursor only to be of its grammar), so a follow's first read, a tail, is followed by another tail every 2 s, and the same lines print again without end. No moteld sends it: a read that sends lines took them, and gives the last one's cursor | 2 | 1 | 3 | 6 | 2, risk 1 (lines with no cursor refused as not moteld's answer) | accepted: it takes another server, or a box's bug to come, and a new branch for it is what the rule's stop is for; found by the coordinator's review of `motel logs` |
 | `motel logs --follow --json` refused by the command line's parser before the command runs (no `<app>`, a flag that does not read, `--lines` with no value) prints its `{"error":…}` on stdout, where the mode's stdout is the app's lines alone; a refusal the command makes itself (a count not the box's) prints none | 2 | 5 | 1 | 10 | 2, risk 1 (Main reads `logs`, `--follow` and `--json` from the arguments, as it reads `--json`) | accepted: exit 2, the sentence on stderr, and nothing was sent; found by the self-review of `motel logs` |
 | A follow of an app that writes more than a read sends every 2 s (200 lines, or 64 KiB) reads again at once after each read (the owner's rule for a follow's `more`), so beside an open TUI it takes a person past the box's 2 requests a second: the box answers 429, the follow waits it out (stderr says so once) and the TUI slows | 2 | 5 | 1 | 10 | 2, risk 2 (a floor between reads, which the owner's rule does not have) | accepted, by the owner's decision that a follow's `more` is read at once: each 429 is waited out and said, and no line is lost, the next read taking up at the cursor |
