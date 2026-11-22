@@ -1058,6 +1058,8 @@ func testedEngine(t *testing.T, block string) (*testEngine, *atomic.Pointer[stri
 	theEngine, testWait = te.engine, 2*time.Second
 	t.Cleanup(func() { theEngine, testWait = saved, savedWait })
 	body := new(atomic.Pointer[string])
+	empty := ""
+	body.Store(&empty)
 	read := func(context.Context) ([]byte, error) { return []byte(*body.Load()), nil }
 	te.metrics = read
 	return te, body
@@ -1256,5 +1258,30 @@ func TestTestedMendWithTheRecordStanding(t *testing.T) {
 	}
 	if len(te.untold) != 0 || te.heartbeatHeld() || countAlert(posts, alertWatchdog) != 1 {
 		t.Fatalf("untold %d, held %v, heartbeats %d: want the record ended and the heartbeat back", len(te.untold), te.heartbeatHeld(), countAlert(posts, alertWatchdog))
+	}
+}
+
+// TestTestedMendWithTheMetricsPackage: with the metrics package,
+// vmalert's rules post the copies addressed to the other channels again
+// while their window holds the failure; a test that resolved the
+// read-only copy would leave them listed, unfolded. So with another
+// operator channel and a metrics line, a delivered test resolves
+// nothing; with one channel (no rule tells no one) it resolves the copy.
+func TestTestedMendWithTheMetricsPackage(t *testing.T) {
+	for _, c := range []struct {
+		block string
+		want  int
+	}{
+		{fourChannelBlock, 0},
+		{oneChannelBlock, 1},
+	} {
+		te, _ := testedEngine(t, c.block)
+		te.active.Metrics = &MetricsStore{}
+		if !runTest(t, te, "ops", metricsHead+amLines("ch-ops", 0, 0, 0), metricsHead+amLines("ch-ops", 0, 1, 0)) {
+			t.Fatal("the test was not delivered")
+		}
+		if got := channelFailed(te.drain()); len(got) != c.want {
+			t.Fatalf("%d channels' block with metrics: resolved %+v, want %d", len(te.fail.operator), got, c.want)
+		}
 	}
 }
