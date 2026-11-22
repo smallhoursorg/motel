@@ -144,7 +144,9 @@ func TestLogsTail(t *testing.T) {
 	// --json: the box's answer, made safe as every --json is; the count
 	// named is sent.
 	r = runLogs(t, context.Background(), lb, &sleeps{}, nil, "logs", "blog", "--lines", "50", "--json")
-	if r.code != 0 || r.stdout != string(withNewline(termtext.JSON(lb.bodies[1]))) || r.stderr != "" {
+	// The older lines left are said on stderr.
+	if r.code != 0 || r.stdout != string(withNewline(termtext.JSON(lb.bodies[1]))) ||
+		r.stderr != "motel: older lines were not sent: a read sends at most 50 lines or 64 KiB of them, and none reaches further back.\n" {
 		t.Fatalf("--json: exit %d, stdout %q, stderr %q", r.code, r.stdout, r.stderr)
 	}
 	if bad := unsafeOutput.FindString(strings.TrimSuffix(r.stdout, "\n")); bad != "" {
@@ -176,7 +178,10 @@ func TestLogsSays(t *testing.T) {
 		{"kept off", logsStep{logs: &wire.Logs{Kept: wire.KeptOff, Lines: []wire.LogLine{}}}, nil, nil, 0,
 			"motel: 127.0.0.1 keeps blog's output on the box (deploy_log_lines 0): it sends no line of it.\n", "", 1},
 		{"kept off, json", logsStep{logs: &wire.Logs{Kept: wire.KeptOff, Lines: []wire.LogLine{}}}, []string{"--json"}, nil, 0,
-			"", `{"kept":"off","lines":[],"more":false,"gap":false}` + "\n", 1},
+			"motel: 127.0.0.1 keeps blog's output on the box (deploy_log_lines 0): it sends no line of it.\n", `{"kept":"off","lines":[],"more":false,"gap":false}` + "\n", 1},
+		{"older lines, json", logsStep{logs: &wire.Logs{Kept: wire.KeptOn, More: true, Lines: []wire.LogLine{line(0, "v42", "one")}}}, []string{"--json"}, nil, 0,
+			"motel: older lines were not sent: a read sends at most 200 lines or 64 KiB of them, and none reaches further back.\n",
+			`{"kept":"on","lines":[{"at":"2026-11-20T23:59:58.123456Z","release":"v42","text":"one"}],"more":true,"gap":false}` + "\n", 1},
 		{"no line", logsStep{logs: &wire.Logs{Kept: wire.KeptOn, Lines: []wire.LogLine{}}}, nil, nil, 0,
 			"motel: 127.0.0.1 holds no line of blog in its journal.\n", "", 1},
 		{"a word not known", logsStep{body: `{"kept":"rotated","lines":[]}`}, nil, nil, 3,
@@ -327,7 +332,7 @@ func TestLogsFollowJSON(t *testing.T) {
 		"motel: following blog's lines, a read every 2 s; ctrl-c stops.\n",
 		"motel: older lines were not sent: a read sends at most 200 lines or 64 KiB of them, and none reaches further back.\n",
 		"motel: a gap: the box no longer holds the line this follow had read to, so lines since then may be missing; these are its newest.\n",
-		"answered 500, not known to be moteld's own answer; it says: \"the app's journal could not be read; the box's journal says why\" (following stopped)\n",
+		"answered 500, not known to be moteld's own answer; it says: \"the app's journal could not be read; the box's journal says why\" (following stopped).\n",
 	} {
 		if !strings.Contains(r.stderr, s) {
 			t.Errorf("stderr lacks %q:\n%s", s, r.stderr)
@@ -352,7 +357,7 @@ func TestLogsFollowEnds(t *testing.T) {
 	first := logsStep{logs: &wire.Logs{Kept: wire.KeptOn, Cursor: cur1, Lines: []wire.LogLine{line(0, "v42", "one")}}}
 	lb := newLogsBox(t, first, logsStep{code: http.StatusForbidden, body: `{"error":"this needs the logs role on this app","needs":"logs","scope":"app"}`})
 	r := runLogs(t, context.Background(), lb, &sleeps{}, nil, "logs", "blog", "--follow")
-	if r.code != 5 || !strings.HasSuffix(r.stderr, "it needs the logs role on this app. `motel whoami` lists the roles you hold from here. (following stopped)\n") {
+	if r.code != 5 || !strings.HasSuffix(r.stderr, "it needs the logs role on this app. `motel whoami` lists the roles you hold from here (following stopped).\n") {
 		t.Errorf("a 403: exit %d, stderr %q", r.code, r.stderr)
 	}
 	ctx, cancel := context.WithCancel(context.Background())

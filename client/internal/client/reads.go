@@ -140,7 +140,9 @@ func (c *Client) Series(ctx context.Context, app App, rng string) (wire.Series, 
 // of the box's grammars (url.Values writes the cursor's ; escaped, as
 // the box requires). A 503 is not waited out here: its Retry-After, the
 // box's when it runs as many logs reads as it runs at once, is on the
-// failure for a follower to wait out (RetryAfter), as a 429's is.
+// failure for a follower to wait out (RetryAfter), as a 429's is; only
+// on a 503 that says why in JSON, as the box's does, so that a page of
+// another server's is not waited out.
 func (c *Client) Logs(ctx context.Context, app App, lines, after string) (wire.Logs, *Answer, error) {
 	var l wire.Logs
 	q := url.Values{}
@@ -158,7 +160,8 @@ func (c *Client) Logs(ctx context.Context, app App, lines, after string) (wire.L
 	}
 	ans, err := c.read(ctx, "/_motel/apps/"+app.Name+"/logs", q, &l)
 	var f *Failure
-	if errors.As(err, &f) && ans != nil && ans.Code == http.StatusServiceUnavailable {
+	var said wire.Error
+	if errors.As(err, &f) && ans != nil && ans.Code == http.StatusServiceUnavailable && decodeObject(ans, &said) == nil && said.Error != "" {
 		if secs, ok := retryAfter(ans.Header, c.Now()); ok {
 			g := *f
 			g.RetryAfter = time.Duration(min(max(secs, 1), 3600)) * time.Second

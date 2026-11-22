@@ -51,9 +51,9 @@ func (r *runner) logs() *cobra.Command {
 			"An app that keeps its output on the box (deploy_log_lines 0) has no line\n" +
 			"sent: that is said on stderr, exit 0. --json prints the box's answer; with\n" +
 			"--follow, one JSON object a line, each a line of the app's as the box sent\n" +
-			"it, and nothing else on stdout, even on a failure: what is not a line is said\n" +
-			"on stderr. It is asked with your own key only: with MOTEL_TOKEN set, name the\n" +
-			"key with --key.\n\n" + experimental,
+			"it, and nothing else on stdout, even on a failure once it runs: what is not a\n" +
+			"line is said on stderr. It is asked with your own key only: with MOTEL_TOKEN\n" +
+			"set, name the key with --key.\n\n" + experimental,
 		Args: usageArgs(cobra.ExactArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Nothing but lines goes to stdout in this mode, a failure's
@@ -104,21 +104,27 @@ func (l *logsRun) once(ctx context.Context) error {
 	if err := l.known(lg); err != nil {
 		return err
 	}
+	// With --json the box's answer is printed first, and what the client
+	// says of it goes to stderr, as a follow's does.
 	if l.r.json {
-		return l.r.emit(ans.Body)
+		if err := l.r.emit(ans.Body); err != nil {
+			return err
+		}
 	}
 	var f model.LogsFollow
 	turn := f.Take(lg)
-	if turn.Off {
+	switch {
+	case turn.Off:
 		return l.tell(l.off())
-	}
-	if len(lg.Lines) == 0 {
+	case len(lg.Lines) == 0:
 		return l.tell(fmt.Sprintf("%s holds no line of %s in its journal", l.c.Box.Host, l.app.Name))
-	}
-	if turn.Older {
+	case turn.Older:
 		if err := l.say(l.older()); err != nil {
 			return err
 		}
+	}
+	if l.r.json {
+		return nil
 	}
 	return l.out.Lines(logLines(lg.Lines))
 }
@@ -292,6 +298,6 @@ func logsStopped(err error, taken bool) error {
 		return err
 	}
 	g := *f
-	g.Message += " (following stopped)"
+	g.Message = strings.TrimSuffix(g.Message, ".") + " (following stopped)."
 	return &g
 }

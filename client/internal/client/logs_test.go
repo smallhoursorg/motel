@@ -114,17 +114,21 @@ func TestReadLogs(t *testing.T) {
 // TestLogsBusy: a 503 with Retry-After, which the box answers while it
 // runs as many logs reads as it runs at once, is not waited out by the
 // read: it fails at once, exit 3, with the wait on the failure for a
-// follower; a 503 with none carries no wait.
+// follower; a 503 with none, or one whose body is not a JSON error,
+// carries no wait.
 func TestLogsBusy(t *testing.T) {
+	busy := `{"error":"the box is running as many logs reads as it runs at once; retry after 1 s"}`
 	for _, c := range []struct {
-		after string
-		want  time.Duration
-	}{{"1", time.Second}, {"0", time.Second}, {"", 0}, {"7200", time.Hour}} {
+		after, body string
+		want        time.Duration
+	}{{"1", busy, time.Second}, {"0", busy, time.Second}, {"", busy, 0}, {"7200", busy, time.Hour},
+		// Another server's page, or a 503 that says nothing: not waited.
+		{"120", "<html>down for maintenance</html>", 0}, {"1", `{}`, 0}} {
 		b := newBox(t, DeployToken("tok"), func(_ int, w http.ResponseWriter, _ *http.Request) {
 			if c.after != "" {
 				w.Header().Set("Retry-After", c.after)
 			}
-			motelJSON(w, http.StatusServiceUnavailable, `{"error":"the box is running as many logs reads as it runs at once; retry after 1 s"}`)
+			motelJSON(w, http.StatusServiceUnavailable, c.body)
 		})
 		_, _, err := b.client.Logs(context.Background(), App{Name: "blog"}, "", "")
 		f := failure(t, err)
