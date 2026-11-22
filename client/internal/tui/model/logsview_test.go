@@ -313,12 +313,22 @@ func TestLogsHeldAndCapped(t *testing.T) {
 	}
 	// Held within what is kept: the same rows, whatever arrives.
 	s.LogsScroll("blog", -20, 80, runes, false)
+	view()
+	f.Body("logs/blog.json", logsBody(t0, 6000, 1, false, false, "c8"))
+	*now = now.Add(model.LogsEvery)
+	drive(s, f, *now, 5)
+	if got := view(); !strings.Contains(got[2], "held: 1 new line since · End follows") {
+		t.Errorf("one line since: %q", got[2])
+	}
+	s.LogsEnd("blog")
+	view()
+	s.LogsScroll("blog", -20, 80, runes, false)
 	before := view()
-	f.Body("logs/blog.json", logsBody(t0, 6000, 3, false, false, "c9"))
+	f.Body("logs/blog.json", logsBody(t0, 6001, 2, false, false, "c9"))
 	*now = now.Add(model.LogsEvery)
 	drive(s, f, *now, 5)
 	after := view()
-	if strings.Join(before[3:], "\n") != strings.Join(after[3:], "\n") || !strings.Contains(after[2], "held: 3 new lines since") {
+	if strings.Join(before[3:], "\n") != strings.Join(after[3:], "\n") || !strings.Contains(after[2], "held: 2 new lines since") {
 		t.Errorf("held, the view moved:\n%s\n---\n%s", strings.Join(before, "\n"), strings.Join(after, "\n"))
 	}
 	// Scrolled down to the newest row: following again.

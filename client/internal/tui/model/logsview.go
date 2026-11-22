@@ -378,7 +378,12 @@ func (s *Session) LogsViewFit(app string, now time.Time, width, height int, cell
 	case s.Engine.Idle(now) && !d.stopped:
 		rule = "── paused (idle 10m): any key reads on "
 	case d.pos.held:
-		rule = "── held: " + count(d.arrived-d.pos.since) + " new lines since · End follows "
+		n := d.arrived - d.pos.since
+		lines := " new lines since"
+		if n == 1 {
+			lines = " new line since"
+		}
+		rule = "── held: " + count(n) + lines + " · End follows "
 	case d.stopped:
 		rule = "── not following: nothing more is asked "
 	default:
