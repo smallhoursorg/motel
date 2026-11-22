@@ -1047,9 +1047,10 @@ func TestReadOnlyCopyAfterALoadThatAddsAChannel(t *testing.T) {
 }
 
 // testedEngine is holdEngine's engine as the admin API's routes find it
-// (theEngine, set up), its Alertmanager counters what *body says to the
-// minute's read and to `moteld monitor test` alike.
-func testedEngine(t *testing.T, block string) (*testEngine, *atomic.Pointer[string], func(context.Context) ([]byte, error)) {
+// (theEngine, set up), its Alertmanager counters what *body says to
+// `moteld monitor test` (runTest sets its own) and to the reads a test
+// takes from it.
+func testedEngine(t *testing.T, block string) (*testEngine, *atomic.Pointer[string]) {
 	t.Helper()
 	te, _, _, _ := holdEngine(t, block)
 	useStateDir(t, t.TempDir())
@@ -1059,7 +1060,7 @@ func testedEngine(t *testing.T, block string) (*testEngine, *atomic.Pointer[stri
 	body := new(atomic.Pointer[string])
 	read := func(context.Context) ([]byte, error) { return []byte(*body.Load()), nil }
 	te.metrics = read
-	return te, body, read
+	return te, body
 }
 
 // runTest runs `moteld monitor test ch` with the counters at before for
@@ -1115,7 +1116,7 @@ func TestTestedMendEndsTheCopyAfterARestart(t *testing.T) {
 	}
 
 	// After it: a fresh engine, the test delivered through ch-ops.
-	te, _, _ := testedEngine(t, oneChannelBlock)
+	te, _ := testedEngine(t, oneChannelBlock)
 	if !runTest(t, te, "ops", counters(1, 4, 1, 0), counters(1, 4, 1, 1)) {
 		t.Fatal("the test was not delivered")
 	}
@@ -1125,7 +1126,7 @@ func TestTestedMendEndsTheCopyAfterARestart(t *testing.T) {
 	}
 
 	// A test that fails resolves nothing.
-	te2, _, _ := testedEngine(t, oneChannelBlock)
+	te2, _ := testedEngine(t, oneChannelBlock)
 	failing := metricsHead + amLines("event-warning-ops", 1, 4, 1) + amLines("ch-ops", 1, 1, 1) + amLines("heartbeat", 0, 9, 0)
 	if runTest(t, te2, "ops", counters(1, 4, 1, 0), failing) {
 		t.Fatal("a failed test said delivered")
@@ -1152,7 +1153,7 @@ func TestTestedMendEndsEveryCopyOfTheFailure(t *testing.T) {
 		t.Fatalf("the failure's posts: %v", posted)
 	}
 
-	te, _, _ := testedEngine(t, fourChannelBlock)
+	te, _ := testedEngine(t, fourChannelBlock)
 	if !runTest(t, te, "ops", metricsHead+amLines("ch-ops", 0, 0, 0), metricsHead+amLines("ch-ops", 0, 1, 0)) {
 		t.Fatal("the test was not delivered")
 	}
@@ -1172,7 +1173,7 @@ func TestTestedMendEndsEveryCopyOfTheFailure(t *testing.T) {
 		}
 	}
 
-	te2, _, _ := testedEngine(t, fourChannelBlock)
+	te2, _ := testedEngine(t, fourChannelBlock)
 	if !runTest(t, te2, "pager", metricsHead+amLines("ch-pager", 0, 0, 0), metricsHead+amLines("ch-pager", 0, 1, 0)) {
 		t.Fatal("pager's test was not delivered")
 	}
@@ -1191,7 +1192,7 @@ func TestTestedMendEndsEveryCopyOfTheFailure(t *testing.T) {
 // slack) before the test: the resolve carries the integration of the
 // config being served, the one a failure under it posts.
 func TestTestedMendTakesTheKindServed(t *testing.T) {
-	te, _, _ := testedEngine(t, oneChannelBlock)
+	te, _ := testedEngine(t, oneChannelBlock)
 	b := mustParse(t, strings.Replace(oneChannelBlock, "channel ops ntfy", "channel ops slack", 1))
 	r, err := b.resolve(testTrust(), testSecrets())
 	if err != nil {
@@ -1216,7 +1217,7 @@ func TestTestedMendTakesTheKindServed(t *testing.T) {
 // record (one more resolve, no re-post) and resumes the heartbeat. The
 // hold came at heartbeatHoldAfter, as without the test.
 func TestTestedMendWithTheRecordStanding(t *testing.T) {
-	te, cur, _ := testedEngine(t, oneChannelBlock)
+	te, cur := testedEngine(t, oneChannelBlock)
 	read := func(context.Context) ([]byte, error) { return []byte(*cur.Load()), nil }
 	b := counters(0, 3, 0, 0)
 	cur.Store(&b)
