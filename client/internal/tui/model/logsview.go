@@ -94,9 +94,10 @@ type logsData struct {
 	// written, nor its lines at or before skipAfter, the newest held then.
 	skipped   bool
 	skipAfter time.Time
-	// got is the newest answer, err the newest read's failure.
-	got *Got[wire.Logs]
-	err error
+	// got is the newest answer, err the newest read's failure; full, the
+	// newest that brought lines, which y shows.
+	got, full *Got[wire.Logs]
+	err       error
 	// stopped: the box said the app keeps its output on the box, or named
 	// what it keeps in a word this client does not know: nothing more is
 	// read until ctrl-r.
@@ -145,7 +146,10 @@ func (s *Session) logsFresh(app string) {
 	s.logsCur.app, s.logsCur.f = app, LogsFollow{}
 	gen := s.logsCur.gen
 	s.logsCur.mu.Unlock()
-	s.logs = &logsData{app: app, gen: gen, granted: s.LogsGrant(app) == Granted, err: s.logsRefused[app]}
+	// A read the box refused (a 403) is asked again when whoami lists the
+	// grant once more (Session.follow): held so, it starts as not granted.
+	refused := s.logsRefused[app]
+	s.logs = &logsData{app: app, gen: gen, granted: s.LogsGrant(app) == Granted && !Forbidden(refused), err: refused}
 }
 
 // logsAsk tells the engine which app's lines to follow: the logs
@@ -212,6 +216,9 @@ func (s *Session) takeLogs(j Job, gen int, g Got[wire.Logs], err error, at time.
 	}
 	g.At = at
 	d.got, d.err = &g, nil
+	if len(g.V.Lines) > 0 {
+		d.full = &g
+	}
 	delete(s.logsRefused, d.app)
 	if g.V.Kept != wire.KeptOn {
 		// Kept off, or a word this client does not know: nothing to follow
@@ -401,7 +408,9 @@ func (s *Session) logsHead(app string, now time.Time, width int, cells Cells) ([
 		out = append(out, say(append(Line{own(LogsOffSays(s.Host, app) + ". Nothing more is asked.")}, s.askAgain(now)...))...)
 	case k != wire.KeptOn:
 		out = append(out, say(append(Line{ownC("not known: ", Warn), own(s.Host + " names what it keeps of " + app + "'s output in a word this client does not know, "), quoted(k), own(", so nothing more is asked.")}, s.askAgain(now)...))...)
-	case d.arrived == 0:
+	case d.arrived == 0 && len(d.items) == 0:
+		// None, and no note: a tail whose older lines were not sent holds
+		// lines, as the note says.
 		out = append(out, say(Line{own(LogsNoneSays(s.Host, app) + "; this screen waits for its first.")})...)
 	}
 	if len(d.items) == 0 && d.got.V.Kept != wire.KeptOn {
@@ -587,8 +596,12 @@ func (s *Session) LogsPage(app string, by, width int, cells Cells, wrap bool) {
 
 // LogsHome holds the logs screen's lines at the oldest held; LogsEnd
 // follows them again, at the newest.
-func (s *Session) LogsHome(app string) {
+func (s *Session) LogsHome(app string, width int, cells Cells, wrap bool) {
 	if d := s.logs; d != nil && d.app == app && len(d.items) > 0 {
+		if i, r := d.top(max(d.pos.lastHeight, 1), width, cells, wrap); i == 0 && r == 0 {
+			// At the oldest row already: nothing scrolled, nothing held.
+			return
+		}
 		since := d.pos.since
 		if !d.pos.held {
 			since = d.arrived

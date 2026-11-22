@@ -190,10 +190,15 @@ func (s *Session) Body(v View) ([]byte, time.Time, bool) {
 			}
 		}
 	case ScreenLogs:
-		// The newest answer, cursor and all, as `motel logs --json`
-		// prints one; none without a logs grant, as nothing is asked.
+		// The newest answer that brought lines (else the newest), cursor
+		// and all, as `motel logs --json` prints one; none without a logs
+		// grant, as nothing is asked.
 		if d := s.logs; d != nil && d.app == v.App && d.got != nil && s.LogsGrant(v.App) == Granted {
-			return d.got.Body, d.got.At, true
+			g := d.got
+			if d.full != nil && !d.stopped {
+				g = d.full
+			}
+			return g.Body, g.At, true
 		}
 	}
 	return nil, time.Time{}, false

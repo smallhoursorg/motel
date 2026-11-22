@@ -616,7 +616,7 @@ made by hand. Accepted:
 | The backups screen's lines of the box's are cut at the window's edge, the cut marked `…` (an advice at a line's end, `` `motel-backup drill`, as root, … ``, is cut at 80 columns): the screen scrolls up and down, not sideways | 2 | 5 | 1 | 10 | 3 | accepted: the cut is marked, and `y` shows the whole answer |
 | A row stopped, throttled or in backoff with a deploy in flight can have the state's word cut from its strip at 80 columns, the deploy before it taking the room: when the row is stale (`1m old, stale: ` before it), its name is near 20 characters, or its phase is a long one (`stopping_old`). Its mark and STATE still say it, on the row below the strip | 2 | 5 | 1 | 10 | 2 | accepted |
 | Such a row's VERSION says only the version in flight (`stopped  → 9a1b2c3d4e5f`), so the table does not name the version that is stopped, throttled or in backoff, and the row can be read as the new version being the stopped one; the `→` marks it as on its way ("The TUI", below), and the strip and the app's screen name the stopped one | 2 | 4 | 3 | 24 | 1 (keep the running version in VERSION on these rows) | accepted over the bar, pending the owner (the skill's rule 4): VERSION said as a row in flight says it was the owner's chosen fix for #584's item 4 |
-| The logs screen's tail after a skip (a follow more than the 5,000 lines it holds behind, `lines skipped`) leaves out each of its lines at or before the time of the newest line held, so a line of the journal's with that same microsecond, after the last one held, is not shown | 2 | 5 | 1 | 10 | 2 (keep the last line's text too, and match on both) | accepted: the skip's note says the lines between were not read, which these are among |
+| The logs screen's tail after a skip (a follow more than the 5,000 lines it holds behind, `lines skipped`) leaves out each of its lines at or before the time of the newest line held, so a line of the journal's with that same microsecond, after the last one held, is not shown, nor one stamped earlier after a step of the box's clock back | 2 | 5 | 1 | 10 | 2 (keep the last line's text too, and match on both) | accepted: the skip's note says the lines between were not read, which these are among |
 
 Owed, from the reviews of the TUI's first part (#558; scored there), of
 their fixes, and of its second part; the others are fixed:
@@ -756,8 +756,9 @@ know, is said in the client's words, and nothing more is read until
 ctrl-r. A 403 or a 404 drops the lines and the cursor, as a refused
 status is dropped. `c` gives `motel logs` for the app, the tail the
 screen opens on (with `--follow` it reads on as the screen does), and
-its `--json` form; `y` and `P` the newest answer, as `motel logs --json`
-prints one, its cursor
+its `--json` form; `y` and `P` the newest answer that brought lines
+(the newest, when none has or the box said it keeps them on the box),
+as `motel logs --json` prints one, its cursor
 among it: the box's position in its journal, which the client holds in
 memory only and prints only when `P` is pressed. The box screen shows the commit
 the box runs, its Caddyfile's digest and its key for secrets, and, when

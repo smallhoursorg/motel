@@ -335,8 +335,15 @@ func TestLogsBounds(t *testing.T) {
 	_ = f
 	logsText(s, *now, 80, 20)
 	s.LogsScroll("blog", -1, 80, runes, false)
+	s.LogsHome("blog", 80, runes, false)
 	if v := logsText(s, *now, 80, 20); !strings.Contains(v, "── following") || !strings.Contains(v, "line 0") {
-		t.Errorf("a row up with every row in view:\n%s", v)
+		t.Errorf("a row up, and Home, with every row in view:\n%s", v)
+	}
+	// y gives the newest answer that brought lines, not an empty follow.
+	f.Body("logs/blog.json", logsBody(t0, 0, 0, false, false, ""))
+	drive(s, f, now.Add(model.LogsEvery), 20)
+	if b := must(t, s, "blog"); !strings.Contains(b, "line 2") {
+		t.Errorf("y after an empty follow: %s", b)
 	}
 	s.LogsShown("", *now)
 	f.Set("logs:blog", &model.Failure{Kind: model.FailNoAnswer, Message: strings.Repeat("no answer ", 40)})
@@ -415,6 +422,52 @@ func TestLogsBusy(t *testing.T) {
 	*now = now.Add(model.Idle)
 	if v := logsText(s, *now, 0, 30); !strings.Contains(v, "── paused (idle 10m): any key reads on") {
 		t.Errorf("paused:\n%s", v)
+	}
+}
+
+// TestLogsEmptyTailWithOlder: a tail that sent no line but says older
+// ones were left is not said as a journal holding none.
+func TestLogsEmptyTailWithOlder(t *testing.T) {
+	s, _, now := logsOpen(t, "blog", func(f *demo.Fake) { f.Body("logs/blog.json", logsBody(t0, 0, 0, true, false, "")) })
+	if v := logsText(s, *now, 0, 30); strings.Contains(v, "holds no line") || !strings.Contains(v, "older lines were not sent") {
+		t.Errorf("an empty tail with older lines:\n%s", v)
+	}
+}
+
+// TestLogsGrantBackAfterAnotherApp: a read refused (403), its grant
+// removed, then given back while another app's logs were open, is asked
+// again when whoami lists the grant once more.
+func TestLogsGrantBackAfterAnotherApp(t *testing.T) {
+	who := func(roles string) string {
+		return `{"name":"alice@example.com","key":"SHA256:SAMPLE0000000000000000000000000000000000000","roles":[` + roles + `],"box":"deploy.example.com","version":"v0.7.0","protocol":1,"token_expires_at":"@9m"}`
+	}
+	grants := `{"role":"viewer","scope":"box"},{"role":"logs","scope":"app:blog"},{"role":"logs","scope":"app:shop"}`
+	s, f, now := logsOpen(t, "blog", func(f *demo.Fake) {
+		f.Body("whoami.json", who(grants))
+		f.Set("logs:blog", &model.Failure{Kind: model.FailForbidden, Message: "deploy.example.com does not allow your key this"})
+	})
+	whoami := func(body string) {
+		f.Body("whoami.json", body)
+		*now = now.Add(model.AgainAfter)
+		s.Engine.Again(*now, model.Job{Kind: model.KWhoAmI})
+		drive(s, f, *now, 20)
+	}
+	whoami(who(`{"role":"viewer","scope":"box"},{"role":"logs","scope":"app:shop"}`))
+	s.LogsOpen("shop", *now)
+	drive(s, f, *now, 20)
+	f.Set("logs:blog", nil)
+	whoami(who(grants))
+	s.LogsOpen("blog", *now)
+	drive(s, f, *now, 20)
+	whoami(who(grants))
+	var blog int
+	for _, c := range f.Calls {
+		if c.Job.Kind == model.KLogs && c.Job.App == "blog" {
+			blog++
+		}
+	}
+	if blog != 2 {
+		t.Errorf("blog's lines read %d times, want the refused one and one when the grant came back", blog)
 	}
 }
 

@@ -128,7 +128,7 @@ var bindings = []binding{
 		case tcell.KeyPgDn:
 			u.S.LogsPage(v.App, 1, u.w, door.Width, u.wrap)
 		default:
-			u.S.LogsHome(v.App)
+			u.S.LogsHome(v.App, u.w, door.Width, u.wrap)
 		}
 		return nil
 	}},
