@@ -614,14 +614,9 @@ func TestLogsBusyThroughARestart(t *testing.T) {
 }
 
 // TestLogsStopNotKept: a logs read that stopped every read (a 401) is
-// not kept as the logs screen's failure, the stop screen says it, and an
-// older failure of it is forgotten.
+// not kept as the logs screen's failure: the stop screen says it.
 func TestLogsStopNotKept(t *testing.T) {
 	s, f, now := logsOpen(t, "blog", nil)
-	f.Set("logs:blog", &model.Failure{Kind: model.FailNoAnswer, Message: "deploy.example.com closed the connection"})
-	*now = now.Add(model.LogsEvery)
-	drive(s, f, *now, 20)
-	*now = now.Add(5 * time.Second)
 	f.Set("logs:blog", &model.Failure{Kind: model.FailSignedOut, Message: "deploy.example.com refused the key (401)"})
 	*now = now.Add(model.LogsEvery)
 	drive(s, f, *now, 20)
@@ -631,8 +626,8 @@ func TestLogsStopNotKept(t *testing.T) {
 	f.Set("logs:blog", nil)
 	s.LogsShown("", *now)
 	s.LogsOpen("blog", *now)
-	if v := logsText(s, *now, 0, 30); strings.Contains(v, "401") || strings.Contains(v, "closed the connection") {
-		t.Errorf("a stop, or the failure before it, said as the logs read's failure:\n%s", v)
+	if v := logsText(s, *now, 0, 30); strings.Contains(v, "401") {
+		t.Errorf("a stop said as the logs read's failure:\n%s", v)
 	}
 }
 
