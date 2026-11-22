@@ -419,6 +419,21 @@ func TestLogsFollowSays(t *testing.T) {
 	if r := runLogs(t, context.Background(), lb, &sleeps{}, nil, "logs", "blog", "--follow", "--json"); r.code != 0 || !strings.Contains(r.stderr, "motel: "+gapSaid+".\n") {
 		t.Errorf("a gap with no line, --json: exit %d, stderr %q", r.code, r.stderr)
 	}
+	// A gap that sent no line with older ones left: not said as none.
+	gapOlder := logsStep{logs: &wire.Logs{Kept: wire.KeptOn, Gap: true, More: true, Lines: []wire.LogLine{}}}
+	const gapSent = "a gap: the box no longer holds the line this follow had read to, so lines since then may be missing; this read sent no line"
+	for _, asJSON := range []bool{false, true} {
+		lb = newLogsBox(t, first, gapOlder, off)
+		args := []string{"logs", "blog", "--follow"}
+		want := "-- " + gapSent + " --\n-- older lines were not sent"
+		if asJSON {
+			args, want = append(args, "--json"), "motel: "+gapSent+".\nmotel: older lines were not sent"
+		}
+		r := runLogs(t, context.Background(), lb, &sleeps{}, nil, args...)
+		if r.code != 0 || !strings.Contains(r.stdout+r.stderr, want) || strings.Contains(r.stdout+r.stderr, "no line of blog") {
+			t.Errorf("a gap with older lines, json %v: exit %d, stdout %q, stderr %q", asJSON, r.code, r.stdout, r.stderr)
+		}
+	}
 	// None sent with older lines left: said as that, not as none.
 	lb = newLogsBox(t, logsStep{logs: &wire.Logs{Kept: wire.KeptOn, More: true, Lines: []wire.LogLine{}}}, off)
 	r = runLogs(t, context.Background(), lb, &sleeps{}, nil, "logs", "blog", "--follow", "--json")

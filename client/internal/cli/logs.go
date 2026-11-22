@@ -181,7 +181,12 @@ func (l *logsRun) follow(ctx context.Context) error {
 		taken = true
 		if turn.Gap {
 			newest := "these are its newest"
-			if len(lg.Lines) == 0 {
+			switch {
+			case len(lg.Lines) == 0 && turn.Older:
+				// Every entry the read took was passed over, older ones
+				// left: not that the journal holds none.
+				newest = "this read sent no line"
+			case len(lg.Lines) == 0:
 				newest = "it now holds no line of " + l.app.Name
 			}
 			if err := l.say("a gap: the box no longer holds the line this follow had read to, so lines since then may be missing; " + newest); err != nil {
