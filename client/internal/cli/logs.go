@@ -116,7 +116,7 @@ func (l *logsRun) once(ctx context.Context) error {
 	switch {
 	case turn.Off:
 		return l.tell(l.off())
-	case len(lg.Lines) == 0:
+	case len(lg.Lines) == 0 && !turn.Older:
 		return l.tell(l.none())
 	case turn.Older:
 		if err := l.say(l.older()); err != nil {
@@ -177,7 +177,7 @@ func (l *logsRun) follow(ctx context.Context) error {
 		if turn.Off {
 			return l.tell(l.off())
 		}
-		if !taken && len(lg.Lines) == 0 {
+		if !taken && len(lg.Lines) == 0 && !turn.Older {
 			if err := l.tell(l.none() + "; following waits for its first"); err != nil {
 				return err
 			}

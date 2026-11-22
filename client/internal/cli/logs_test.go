@@ -184,6 +184,10 @@ func TestLogsSays(t *testing.T) {
 			`{"kept":"on","lines":[{"at":"2026-11-20T23:59:58.123456Z","release":"v42","text":"one"}],"more":true,"gap":false}` + "\n", 1},
 		{"no line", logsStep{logs: &wire.Logs{Kept: wire.KeptOn, Lines: []wire.LogLine{}}}, nil, nil, 0,
 			"motel: 127.0.0.1 holds no line of blog in its journal.\n", "", 1},
+		// Every line the read took passed over (another unit's), older ones
+		// left: not said as none.
+		{"no line sent, older left", logsStep{logs: &wire.Logs{Kept: wire.KeptOn, More: true, Lines: []wire.LogLine{}}}, nil, nil, 0,
+			"", "-- older lines were not sent: a read sends at most 200 lines or 64 KiB of them, and none reaches further back --\n", 1},
 		{"a word not known", logsStep{body: `{"kept":"rotated","lines":[]}`}, nil, nil, 3,
 			"motel: 127.0.0.1 answered about blog's lines in a word for what it keeps this client does not know (rotated): it cannot tell whether they are sent\n", "", 1},
 		{"a count not the box's", logsStep{}, []string{"--lines", "100"}, nil, 2,
@@ -395,6 +399,12 @@ func TestLogsFollowSays(t *testing.T) {
 	r := runLogs(t, context.Background(), lb, &sleeps{}, nil, "logs", "blog", "--follow")
 	if r.code != 0 || strings.Count(r.stderr, "motel: 127.0.0.1 holds no line of blog in its journal; following waits for its first.\n") != 1 || r.stdout != "" {
 		t.Errorf("no line: exit %d, stdout %q, stderr %q", r.code, r.stdout, r.stderr)
+	}
+	// None sent with older lines left: said as that, not as none.
+	lb = newLogsBox(t, logsStep{logs: &wire.Logs{Kept: wire.KeptOn, More: true, Lines: []wire.LogLine{}}}, off)
+	r = runLogs(t, context.Background(), lb, &sleeps{}, nil, "logs", "blog", "--follow", "--json")
+	if r.code != 0 || strings.Contains(r.stderr, "holds no line") || !strings.Contains(r.stderr, "motel: older lines were not sent") || r.stdout != "" {
+		t.Errorf("none sent, older left: exit %d, stdout %q, stderr %q", r.code, r.stdout, r.stderr)
 	}
 	lb = newLogsBox(t, logsStep{code: http.StatusTooManyRequests, body: `{"error":"slow down"}`}, off)
 	sl := &sleeps{}
