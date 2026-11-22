@@ -178,9 +178,10 @@ const DefaultBackupEnvFile = "/etc/motel-backup/repository.env"
 // and never judges, is an alert of the name and level written at its
 // rule (status.Alerts), with the app as its instance where the line is
 // an app's. A box with no credential file has no backups set up, and
-// nothing to say. It is the engine's, and outlives a config load, so
-// what it reported firing is cleared by whichever config is serving
-// when it clears.
+// nothing to say; one whose file cannot be looked at, or whose record
+// cannot be read, has no verdict: backup_unreadable, beside what fired.
+// It is the engine's, and outlives a config load, so what it reported
+// firing is cleared by whichever config is serving when it clears.
 type backupPoller struct {
 	last time.Time
 	set  stateSet
@@ -205,21 +206,24 @@ func (b *backupPoller) poll(now time.Time, path string) []Event {
 		return nil
 	}
 	b.last = now
-	// No verdict puts nothing right: what fired stays fired.
-	kept := slices.Collect(maps.Values(b.set.prev))
+	// No verdict puts nothing right: what fired stays fired, beside
+	// backup_unreadable, which says why there is none.
+	unknown := func(why string) []Event {
+		kept := slices.DeleteFunc(slices.Collect(maps.Values(b.set.prev)), func(e Event) bool { return e.Name == alertBackupUnreadable })
+		return b.set.diff(append(kept, Event{Name: alertBackupUnreadable, Kind: kindState, Severity: SeverityWarning, Source: "backup", Summary: why}))
+	}
 	// In look's order: whether backups are set up, then the record.
 	env, err := os.Lstat(b.envFile)
 	if errors.Is(err, fs.ErrNotExist) {
 		b.read = nil
 		return b.set.diff(nil)
 	} else if err != nil {
-		return b.set.diff(kept)
+		return unknown(b.envFile + " cannot be looked at, so whether backups are set up, and healthy, is not known; " +
+			"motel backup status (on the box: motel-backup status) says why")
 	}
 	st, err := record.Read(path)
 	if err != nil {
-		kept = slices.DeleteFunc(kept, func(e Event) bool { return e.Name == alertBackupUnreadable })
-		return b.set.diff(append(kept, Event{Name: alertBackupUnreadable, Kind: kindState, Severity: SeverityWarning, Source: "backup",
-			Summary: "the backup record cannot be read, so whether the backups are fresh is not known"}))
+		return unknown("the backup record cannot be read, so whether the backups are fresh is not known")
 	}
 	b.read, b.readAt = map[string]time.Time{}, now
 	for name, a := range st.Apps {
@@ -242,7 +246,8 @@ func (b *backupPoller) poll(now time.Time, path string) []Event {
 }
 
 // alertBackupUnreadable is the one backup alert that is no rule of
-// status's: the record does not parse, so status could not tell.
+// status's: the record does not parse, or the credential file cannot be
+// looked at, so status could not tell.
 const alertBackupUnreadable = "backup_unreadable"
 
 // backupPointer begins each backup alert's summary: where the rest is

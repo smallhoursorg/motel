@@ -128,7 +128,7 @@
     {
       "name": "backup_snapshot_gone",
       "source": "motel check",
-      "severity": "warning",
+      "severity": "critical",
       "subject": "box",
       "kind": "event"
     },

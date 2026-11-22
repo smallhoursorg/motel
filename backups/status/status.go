@@ -101,7 +101,7 @@ var Alerts = []Alert{
 	{"backup_no_result", AlertCritical},
 	{"backup_run_failed", AlertWarning},
 	{"backup_data_missing", AlertWarning},
-	{"backup_snapshot_gone", AlertWarning},
+	{"backup_snapshot_gone", AlertCritical},
 	{"backup_repository_unchecked", AlertCritical},
 	{"backup_repository_check_failed", AlertCritical},
 	{"backup_repository_unlisted", AlertCritical},
@@ -301,7 +301,7 @@ func Report(in Input) Result {
 		case app.LastOK == nil:
 			bad("backup_never_complete", AlertCritical, "%s: no complete backup yet", n)
 		case gone(app.LastOK):
-			bad("backup_snapshot_gone", AlertWarning, "%s: snapshot %s is no longer in the repository (%s): it was the last complete backup, made %s", n, short(app.LastOK.ID), lastSeen(app.LastOK), when(app.LastOK.Time))
+			bad("backup_snapshot_gone", AlertCritical, "%s: snapshot %s is no longer in the repository (%s): it was the last complete backup, made %s", n, short(app.LastOK.ID), lastSeen(app.LastOK), when(app.LastOK.Time))
 		case !facts.Fresh:
 			bad("backup_stale", AlertCritical, "%s: stale: the last complete backup is from %s, more than %d hours ago, snapshot %s", n, when(app.LastOK.Time), int(StaleAfter.Hours()), short(app.LastOK.ID))
 		case app.Class != record.OK:

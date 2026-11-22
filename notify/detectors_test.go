@@ -793,8 +793,9 @@ func TestBackupUnreadableKeepsWhatFired(t *testing.T) {
 
 // TestBackupKeptWhenTheFileCannotBeLookedAt: an Lstat that fails other
 // than "not there" (a directory the motel user may not search, an EIO)
-// gives no verdict and puts nothing right: what fired stays fired; and
-// raises nothing new (an accepted row: the admin's own change).
+// gives no verdict: backup_unreadable says so, naming the file and
+// pointing to the client first, and what fired stays fired, never told
+// resolved; looked at again, what is put right clears.
 func TestBackupKeptWhenTheFileCannotBeLookedAt(t *testing.T) {
 	r := newBackupRig(t, 60*day)
 	st := soundRecord(r.next())
@@ -808,19 +809,34 @@ func TestBackupKeptWhenTheFileCannotBeLookedAt(t *testing.T) {
 	file := r.b.envFile
 	r.b.envFile = filepath.Join(file, "repository.env")
 	st.Unlisted = nil
-	if got := told(r.poll(t, st)); got != "backup_repository_unlisted" {
+	evs := r.poll(t, st)
+	if got := told(evs); got != "backup_repository_unlisted backup_unreadable" {
 		t.Fatalf("cannot be looked at, the record healthy: %q", got)
 	}
+	s := summaryOf(evs, "backup_unreadable")
+	want := r.b.envFile + " cannot be looked at, so whether backups are set up, and healthy, is not known; motel backup status (on the box: motel-backup status) says why"
+	if s != want {
+		t.Fatalf("summary:\n got %q\nwant %q", s, want)
+	}
+	// On the box the path is DefaultBackupEnvFile: the pointer is inside the cut.
+	if n := utf8.RuneCountInString(strings.Replace(s, r.b.envFile, DefaultBackupEnvFile, 1)); n > maxSummary {
+		t.Fatalf("%d characters: the cut takes the pointer", n)
+	}
 	r.b.envFile = file
-	if got := told(r.poll(t, st)); got != "-backup_repository_unlisted" {
+	if got := told(r.poll(t, st)); got != "-backup_repository_unlisted -backup_unreadable" {
 		t.Fatalf("looked at again: %q", got)
 	}
 	r.b.envFile = filepath.Join(file, "repository.env")
 	st.Unlisted = &u
-	if got := told(r.poll(t, st)); got != "" {
+	if got := told(r.poll(t, st)); got != "backup_unreadable" {
 		t.Fatalf("cannot be looked at, nothing fired: %q", got)
 	}
-	// backup_unreadable, firing, stays fired too.
+	fresh := backupPoller{envFile: r.b.envFile}
+	if got := told(fresh.poll(r.now, r.path)); got != "backup_unreadable" {
+		t.Fatalf("a process that starts on it: %q", got)
+	}
+	// The record unreadable, then the file too: one backup_unreadable,
+	// fired throughout, its summary the file's.
 	r.b.envFile = file
 	if err := os.WriteFile(r.path, []byte("{not json"), 0o644); err != nil {
 		t.Fatal(err)
@@ -831,8 +847,9 @@ func TestBackupKeptWhenTheFileCannotBeLookedAt(t *testing.T) {
 	}
 	r.b.envFile = filepath.Join(file, "repository.env")
 	r.now = r.now.Add(backupEvery)
-	if got := told(r.b.poll(r.now, r.path)); got != "backup_unreadable" {
-		t.Fatalf("unreadable, then the file cannot be looked at: %q", got)
+	evs = r.b.poll(r.now, r.path)
+	if got := told(evs); got != "backup_unreadable" || !strings.HasPrefix(summaryOf(evs, "backup_unreadable"), r.b.envFile) {
+		t.Fatalf("unreadable, then the file cannot be looked at: %q %q", got, summaryOf(evs, "backup_unreadable"))
 	}
 }
 

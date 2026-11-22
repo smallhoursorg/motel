@@ -469,7 +469,7 @@ backup_repository_unlisted      motel check  event      critical  box        -  
 backup_restore_proof_old        motel check  event      critical  box        -                                                                    -
 backup_restore_unproven         motel check  event      critical  box        -                                                                    -
 backup_run_failed               motel check  event      warning   box        -                                                                    -
-backup_snapshot_gone            motel check  event      warning   box        -                                                                    -
+backup_snapshot_gone            motel check  event      critical  box        -                                                                    -
 backup_stale                    motel check  threshold  critical  box        > 3h                                                                 blog 58m, shop 3h59m30s
 backup_unreadable               motel check  event      warning   box        -                                                                    -
 blog_quiet                      operator     guarded    warning   app blog   < 0.1 requests/s for 1h, 3 guards                                    no value
