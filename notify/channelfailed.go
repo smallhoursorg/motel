@@ -455,6 +455,25 @@ func (e *engine) refreshUntold(key string, u *untold, integration, summary strin
 	u.integration, u.summary = integration, summary
 }
 
+// endTestedCopy is a delivered `moteld monitor test <ch>`'s: the
+// read-only copy of a failure whose one suspect is ch is resolved, its
+// labels built by readOnlyCopy from the channel's name and integration,
+// as the failure's own posts build them. It needs no record in memory,
+// so a channel mended and tested after a restart of moteld, which drops
+// the records, has its row end too. A copy naming several suspects (a
+// counter that names no receiver) is not this one, and is left to its
+// record or its 15 minutes. Alertmanager holds a resolve of an alert it
+// does not hold as resolved, which no read lists. It goes through the
+// queue, behind any re-post of the copy queued before it.
+func (e *engine) endTestedCopy(ch, integration string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	now := e.now()
+	c := readOnlyCopy(integration, []string{ch}, e.clean("a delivery through "+ch+" (moteld monitor test) ended it"), now, now)
+	c.EndsAt = now
+	e.enqueue(&pending{key: "notify/box/channel_failed/" + ch + "/read-only", first: now, alerts: []amAlert{c}})
+}
+
 // endCopy posts u's read-only copy resolved. With mu held.
 func (e *engine) endCopy(key string, u *untold, now time.Time) {
 	c := readOnlyCopy(u.integration, u.suspects, u.summary, u.since, now)

@@ -2,10 +2,13 @@ package notify
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"maps"
+	"net/http"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -1040,5 +1043,143 @@ func TestReadOnlyCopyAfterALoadThatAddsAChannel(t *testing.T) {
 	}
 	if len(te.untold) != 0 || !ended["-/slack"] || !ended["pager/slack"] || len(ended) != 2 {
 		t.Fatalf("ended %v (untold %d): want the read-only copy and pager's resolved", ended, len(te.untold))
+	}
+}
+
+// testedEngine is holdEngine's engine as the admin API's routes find it
+// (theEngine, set up), its Alertmanager counters what *body says to the
+// minute's read and to `moteld monitor test` alike.
+func testedEngine(t *testing.T, block string) (*testEngine, *atomic.Pointer[string], func(context.Context) ([]byte, error)) {
+	t.Helper()
+	te, _, _, _ := holdEngine(t, block)
+	useStateDir(t, t.TempDir())
+	saved, savedWait := theEngine, testWait
+	theEngine, testWait = te.engine, 2*time.Second
+	t.Cleanup(func() { theEngine, testWait = saved, savedWait })
+	body := new(atomic.Pointer[string])
+	read := func(context.Context) ([]byte, error) { return []byte(*body.Load()), nil }
+	te.metrics = read
+	return te, body, read
+}
+
+// test runs `moteld monitor test ch`, the counters moving to after a
+// moment into it, and returns whether it said delivered.
+func runTest(t *testing.T, body *atomic.Pointer[string], ch, after string) bool {
+	t.Helper()
+	go func() {
+		time.Sleep(300 * time.Millisecond)
+		body.Store(&after)
+	}()
+	w, err := callAdmin(t, serveTest, http.MethodPost, TestRequest{Channel: ch})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var res TestResult
+	_ = json.Unmarshal(w.Body.Bytes(), &res)
+	return res.Delivered
+}
+
+func channelFailed(posts []amAlert) []amAlert {
+	return slices.DeleteFunc(slices.Clone(posts), func(a amAlert) bool { return a.Labels["alertname"] != alertChannelFailed })
+}
+
+// TestTestedMendEndsTheCopyAfterARestart: ops, the one channel, failed
+// and its copy is held. moteld restarts (a fresh engine: no record),
+// the channel is mended, and `moteld monitor test ops` is delivered:
+// the copy is resolved, with exactly the labels the failure's own post
+// carried, and nothing else is posted. A test that is not delivered,
+// and one of another channel, resolve nothing of ops's copy.
+func TestTestedMendEndsTheCopyAfterARestart(t *testing.T) {
+	// Before the restart: the failure's own copy, as it was posted.
+	was, _, body, read := holdEngine(t, oneChannelBlock)
+	*body = counters(0, 3, 0, 0)
+	was.scrapeFailed(context.Background(), read)
+	*body = counters(1, 4, 1, 0)
+	was.scrapeFailed(context.Background(), read)
+	held := readOnly(was.drain())
+	if len(held) != 1 {
+		t.Fatalf("the failure's copy: %+v", held)
+	}
+
+	// After it: a fresh engine, the test delivered through ch-ops.
+	te, cur, _ := testedEngine(t, oneChannelBlock)
+	before := counters(1, 4, 1, 0)
+	cur.Store(&before)
+	if !runTest(t, cur, "ops", counters(1, 4, 1, 1)) {
+		t.Fatal("the test was not delivered")
+	}
+	got := channelFailed(te.drain())
+	if len(got) != 1 || !maps.Equal(got[0].Labels, held[0].Labels) || !got[0].EndsAt.Equal(got[0].StartsAt) || !got[0].EndsAt.Equal(te.at) {
+		t.Fatalf("after the delivered test: %+v, want the copy %v resolved now", got, held[0].Labels)
+	}
+
+	// A test that fails resolves nothing.
+	te2, cur2, _ := testedEngine(t, oneChannelBlock)
+	cur2.Store(&before)
+	failing := metricsHead + amLines("event-warning-ops", 1, 4, 1) + amLines("ch-ops", 1, 1, 1) + amLines("heartbeat", 0, 9, 0)
+	if runTest(t, cur2, "ops", failing) {
+		t.Fatal("a failed test said delivered")
+	}
+	if got := channelFailed(te2.drain()); len(got) != 0 {
+		t.Fatalf("a failed test posted %+v", got)
+	}
+
+	// A delivered test of another channel names that channel alone.
+	te3, cur3, _ := testedEngine(t, fourChannelBlock)
+	quiet := metricsHead + amLines("ch-pager", 0, 0, 0)
+	cur3.Store(&quiet)
+	if !runTest(t, cur3, "pager", metricsHead+amLines("ch-pager", 0, 1, 0)) {
+		t.Fatal("pager's test was not delivered")
+	}
+	for _, a := range channelFailed(te3.drain()) {
+		if a.Labels["suspects"] != "pager" {
+			t.Fatalf("pager's test resolved %v", a.Labels)
+		}
+	}
+}
+
+// TestTestedMendWithTheRecordStanding: no restart. The hold stands, the
+// channel is mended, and the test is delivered: its resolve is the
+// last post of the copy; the next read sees the same delivery, ends the
+// record (one more resolve, no re-post) and resumes the heartbeat. The
+// hold came at heartbeatHoldAfter, as without the test.
+func TestTestedMendWithTheRecordStanding(t *testing.T) {
+	te, cur, read := testedEngine(t, oneChannelBlock)
+	b := counters(0, 3, 0, 0)
+	cur.Store(&b)
+	te.scrapeFailed(context.Background(), read)
+	b = counters(1, 4, 1, 0)
+	cur.Store(&b)
+	failed := te.at
+	te.scrapeFailed(context.Background(), read)
+	te.drain()
+	for te.at.Sub(failed) < heartbeatHoldAfter {
+		te.advance(time.Minute)
+		te.scrapeFailed(context.Background(), read)
+		te.tick()
+		te.drain()
+	}
+	if !te.heartbeatHeld() || te.at.Sub(failed) != heartbeatHoldAfter {
+		t.Fatalf("held %v at +%v", te.heartbeatHeld(), te.at.Sub(failed))
+	}
+	te.advance(30 * time.Second)
+	if !runTest(t, cur, "ops", counters(1, 4, 1, 1)) {
+		t.Fatal("the test was not delivered")
+	}
+	got := readOnly(te.drain())
+	if len(got) != 1 || !got[0].EndsAt.Equal(te.at) {
+		t.Fatalf("after the test: %+v, want the copy resolved", got)
+	}
+	te.advance(30 * time.Second)
+	te.scrapeFailed(context.Background(), read)
+	te.tick()
+	posts := te.drain()
+	for _, c := range readOnly(posts) {
+		if !c.EndsAt.Equal(te.at) {
+			t.Fatalf("the copy re-posted after the test's resolve: %+v", c)
+		}
+	}
+	if len(te.untold) != 0 || te.heartbeatHeld() || countAlert(posts, alertWatchdog) != 1 {
+		t.Fatalf("untold %d, held %v, heartbeats %d: want the record ended and the heartbeat back", len(te.untold), te.heartbeatHeld(), countAlert(posts, alertWatchdog))
 	}
 }
