@@ -345,6 +345,13 @@ func TestLogsBounds(t *testing.T) {
 	if b := must(t, s, "blog"); !strings.Contains(b, "line 2") {
 		t.Errorf("y after an empty follow: %s", b)
 	}
+	// A step of the clock back moves its time too.
+	v := model.View{Screen: model.ScreenLogs, App: "blog"}
+	_, at0, _ := s.Body(v)
+	s.LogsAsOf("blog", now.Add(-time.Hour))
+	if _, at1, _ := s.Body(v); at0.Sub(at1) < time.Hour {
+		t.Errorf("a step back of an hour moved y's answer by %s", at0.Sub(at1))
+	}
 	s.LogsShown("", *now)
 	f.Set("logs:blog", &model.Failure{Kind: model.FailNoAnswer, Message: strings.Repeat("no answer ", 40)})
 	s.LogsShown("blog", *now)

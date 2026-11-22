@@ -257,6 +257,9 @@ func (s *Session) seen(now time.Time) {
 		if s.logs != nil && s.logs.got != nil {
 			move(&s.logs.got.At)
 		}
+		if s.logs != nil && s.logs.full != nil && s.logs.full != s.logs.got {
+			move(&s.logs.full.At)
+		}
 	}
 	s.latest = now
 }
