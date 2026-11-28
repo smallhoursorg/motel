@@ -425,8 +425,8 @@ func seriesBody(end time.Time, back ...int) string {
 // TestMetricsDeployMarks: the time axis marks each version's latest
 // deploy that succeeded inside the window, at its column, and says what
 // the marks are, how long a column is, and from when the records reach
-// when that is inside the window; a deploy whose time the box's filter
-// hid is not marked, and said; with no status read, no marks, and said.
+// when that is inside the window; a deploy whose finish time does not
+// read is not marked, and said; with no status read, no marks, and said.
 func TestMetricsDeployMarks(t *testing.T) {
 	now := t0
 	f := &demo.Fake{Now: func() time.Time { return now }}
@@ -440,11 +440,11 @@ func TestMetricsDeployMarks(t *testing.T) {
 		`{"version":"v0","status":"succeeded","finished_at":"[redacted:K]"}]}`)
 	s := seriesSession(t, "blog", "24h", f, &now)
 	ls := s.MetricsViewFit("blog", "24h", now, 60, 13, runes)
-	if got := text(s.MetricsViewFit("blog", "24h", now, 0, 13, nil)); !strings.Contains(got, "^ a version's latest deploy that succeeded (a column is 15m); records from 11-14 18:00; 1 not marked: the box's filter hid when") {
+	if got := text(s.MetricsViewFit("blog", "24h", now, 0, 13, nil)); !strings.Contains(got, "^ a version's latest deploy that succeeded (a column is 15m); records from 11-14 18:00; 1 not marked (no finish time that reads)") {
 		t.Errorf("legend: %q", got)
 	}
 	// Laid on rows at 60 columns, the rest indented under it.
-	if got := ls[1].Text() + "|" + ls[2].Text(); got != "^ a version's latest deploy that succeeded (a column is|  28m); records from 11-14 18:00; 1 not marked: the box's" {
+	if got := ls[1].Text() + "|" + ls[2].Text(); got != "^ a version's latest deploy that succeeded (a column is|  28m); records from 11-14 18:00; 1 not marked (no finish" {
 		t.Errorf("legend at 60 columns: %q", got)
 	}
 	var axis string

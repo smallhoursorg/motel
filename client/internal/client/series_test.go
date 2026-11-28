@@ -11,9 +11,8 @@ import (
 
 // TestReadSeries: GET /_motel/apps/<app>/series's answer is taken only
 // with its store's word, a window of the box's set, and, with the
-// store's answer, a step and an end; each panel's name and unit a word
-// (a marker of the box's filter shown as the client's words), each name
-// once; each panel's points no more than its window has steps, oldest
+// store's answer, a step and an end; each panel's name and unit a
+// word, each name once; each panel's points no more than its window has steps, oldest
 // first, each inside the window. A store's word the client does not
 // know is taken, to be said as not known; a panel it does not know too.
 func TestReadSeries(t *testing.T) {
@@ -40,10 +39,8 @@ func TestReadSeries(t *testing.T) {
 			t.Errorf("%s: %v", c.name, err)
 		}
 	}
-	if s, err := read(strings.Replace(whole, `"memory_bytes"`, `"[redacted:PANEL]"`, 1)); err != nil || s.Panels[0].Name != Filtered {
-		t.Errorf("a marker in a name: %v, %+v", err, s.Panels)
-	}
 	for _, c := range []struct{ name, body, want string }{
+		{"a marker in a name", strings.Replace(whole, `"memory_bytes"`, `"[redacted:PANEL]"`, 1), "a panel's name or unit in it is not a word)"},
 		{"no store", strings.Replace(whole, `"store":"on",`, "", 1), "it has no store)"},
 		{"no panels", `{"store":"on","window":"1h","step_seconds":60,"end":"2026-11-19T14:00:00Z"}`, "it has no panels)"},
 		{"a store not a word", strings.Replace(whole, `"store":"on"`, `"store":"on\u001b[2J"`, 1), "its store is not a word)"},
